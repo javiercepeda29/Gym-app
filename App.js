@@ -3904,6 +3904,73 @@ const leagueDaysRemaining = Math.max(
     </Text>
   </View>
 )}
+{leagueChallenge?.phase === 'selected' && (
+  <View
+    style={{
+      backgroundColor: '#111318',
+      borderWidth: 1,
+      borderColor: 'rgba(255,176,0,0.40)',
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 16,
+    }}
+  >
+    <Text
+      style={{
+        color: COLORS.orange,
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 0.8,
+        marginBottom: 6,
+      }}
+    >
+      🔥 RETO ELEGIDO
+    </Text>
+
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '900',
+        marginBottom: 12,
+      }}
+    >
+      Reto del mes
+    </Text>
+
+    <View
+      style={{
+        backgroundColor: '#0B0D11',
+        borderRadius: 14,
+        padding: 15,
+        borderWidth: 1,
+        borderColor: '#2B2F37',
+      }}
+    >
+      <Text
+        style={{
+          color: '#FFFFFF',
+          fontSize: 16,
+          fontWeight: '800',
+          lineHeight: 22,
+        }}
+      >
+        {leagueChallenge.winning_challenge_text}
+      </Text>
+    </View>
+
+    <Text
+      style={{
+        color: '#777D88',
+        fontSize: 12,
+        lineHeight: 17,
+        marginTop: 12,
+      }}
+    >
+      Se asignará al último clasificado cuando termine el mes.
+    </Text>
+  </View>
+)}
 <TouchableOpacity
   activeOpacity={0.7}
   onPress={() => setScreen('leagueHistory')}
