@@ -3453,7 +3453,6 @@ const loginWithGoogle = async () => {
                 </View>
               </TouchableOpacity>
             </View>
-</View>
 
 <TouchableOpacity
   activeOpacity={0.7}
@@ -3475,7 +3474,6 @@ const loginWithGoogle = async () => {
   </Text>
 </TouchableOpacity>
 
-<View style={styles.leagueRankingCard}></View>
             <View style={styles.leagueRankingCard}>
               <View style={styles.leagueSectionHeader}>
                 <View style={styles.leagueSectionHeading}>
