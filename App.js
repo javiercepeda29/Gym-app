@@ -3652,7 +3652,7 @@ const leagueDaysRemaining = Math.max(
         marginBottom: 4,
       }}
     >
-      Propón un reto
+      Propón un reto para el último
     </Text>
 
     <Text
@@ -6112,7 +6112,58 @@ const LeagueHistory = () => {
         console.log('Error cargando historial de liga:', error);
         setLeagueHistory([]);
       } else {
-        setLeagueHistory(data || []);
+      const groupedHistory = Object.values(
+  (data || []).reduce((acc, row) => {
+    const monthKey = row.month;
+
+    if (!acc[monthKey]) {
+      const monthDate = new Date(`${monthKey}T12:00:00`);
+
+      const label = monthDate.toLocaleDateString(
+        'es-ES',
+        {
+          month: 'long',
+          year: 'numeric',
+        }
+      );
+
+      acc[monthKey] = {
+        result_id: monthKey,
+        month: monthKey,
+        month_label:
+          label.charAt(0).toUpperCase() +
+          label.slice(1),
+        standings: [],
+      };
+    }
+
+    acc[monthKey].standings.push({
+      position: Number(row.rank_position || 0),
+      user_id: row.user_id,
+      username: row.username || 'Miembro',
+      points: Number(row.points || 0),
+      record_points: Number(
+        row.record_points || 0
+      ),
+      is_mvp: !!row.is_mvp,
+      is_revenge: !!row.is_revenge,
+    });
+
+    return acc;
+  }, {})
+)
+  .sort(
+    (a, b) =>
+      new Date(b.month) - new Date(a.month)
+  )
+  .map((month) => ({
+    ...month,
+    standings: month.standings.sort(
+      (a, b) => a.position - b.position
+    ),
+  }));
+
+setLeagueHistory(groupedHistory);
       }
 
       setLeagueHistoryLoading(false);
