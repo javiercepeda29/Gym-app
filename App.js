@@ -1,26 +1,29 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
-  SafeAreaView,
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
   Alert,
-  ScrollView,
   Animated,
   Image,
   Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
-import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-
+import * as Notifications from 'expo-notifications';
+import { supabase } from './supabase';
+import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 /* =========================================================
    NOTIFICACIONES LOCALES
 ========================================================= */
@@ -162,34 +165,6 @@ const ACHIEVEMENTS = [
   },
 ];
 
-const LEAGUE_DEMO_PLAYERS = [
-  { id: 'alex', name: 'Álex', points: 56 },
-  { id: 'me', name: 'Javi', points: 48, me: true },
-  { id: 'marta', name: 'Marta', points: 42 },
-  { id: 'diego', name: 'Diego', points: 35 },
-  { id: 'laura', name: 'Laura', points: 28 },
-];
-
-const LEAGUE_DEMO_ACTIVITY = [
-  {
-    id: 'activity-1',
-    name: 'Álex',
-    text: 'ha sumado hoy 10 puntos',
-    time: 'Hace 1 h',
-  },
-  {
-    id: 'activity-2',
-    name: 'Marta',
-    text: 'ha sumado 3 puntos',
-    time: 'Hace 3 h',
-  },
-  {
-    id: 'activity-3',
-    name: 'Diego',
-    text: 'ha conseguido un nuevo récord',
-    time: 'Hace 5 h',
-  },
-];
 
 const COLORS = {
   background: '#08090C',
@@ -313,11 +288,11 @@ const buildWorkoutSets = (exercise) => {
 const AppGradient = () => (
   <LinearGradient
     colors={[
-      'rgba(255,176,0,0.34)',
-      'rgba(255,176,0,0.18)',
-      'rgba(255,176,0,0.07)',
-      'rgba(8,9,12,0.97)',
-      '#08090C',
+    'rgba(255,176,0,0.34)',
+'rgba(255,176,0,0.18)',
+'rgba(255,176,0,0.07)',
+'rgba(8,9,12,0.97)',
+'#08090C',
     ]}
     locations={[0, 0.16, 0.31, 0.52, 0.70]}
     style={StyleSheet.absoluteFillObject}
@@ -396,7 +371,11 @@ const ProfileButton = ({
           pressed && styles.avatarPressed,
         ]}
       >
-        <Text style={styles.avatarText}>{letter}</Text>
+    <MaterialCommunityIcons
+  name="account"
+  size={28}
+  color="#17191F"
+/>
       </View>
     </TouchableOpacity>
   );
@@ -407,9 +386,11 @@ const ProfileButton = ({
 ========================================================= */
 
 export default function App() {
-  const [selectedTab, setSelectedTab] = useState('Inicio');
-  const [screen, setScreen] = useState('home');
 
+  const [selectedTab, setSelectedTab] = useState('Inicio');
+  
+  const [screen, setScreen] = useState('home');
+const [realLeagueId, setRealLeagueId] = useState(null);
   const [routines, setRoutines] = useState([]);
   const [routineName, setRoutineName] = useState('');
   const [editingRoutineId, setEditingRoutineId] = useState(null);
@@ -425,7 +406,7 @@ export default function App() {
   const [checkedDays, setCheckedDays] = useState([]);
   const [workoutOrigin, setWorkoutOrigin] = useState('home');
 
-  const [profileName, setProfileName] = useState('Javi');
+  const [profileName, setProfileName] = useState('');
   const [currentWeight, setCurrentWeight] = useState('');
   const [targetWeight, setTargetWeight] = useState('');
   const [startWeight, setStartWeight] = useState('');
@@ -442,8 +423,22 @@ export default function App() {
   const [prFlashId, setPrFlashId] = useState(null);
 
   const [leagueName, setLeagueName] =
-    useState('Liga de Titanes');
-
+    useState('');
+    const [realLeaguePlayers, setRealLeaguePlayers] = useState([]);
+    const [currentUserId, setCurrentUserId] = useState(null);
+    const [inviteCode, setInviteCode] = useState('');
+    const [currentLeagueId, setCurrentLeagueId] = useState(null);
+    const [weeklyScoredWorkouts, setWeeklyScoredWorkouts] = useState(0);
+    const [leagueActivity, setLeagueActivity] = useState([]);
+    const [monthlyAwards, setMonthlyAwards] = useState([]);
+    const [joinLeagueCode, setJoinLeagueCode] = useState('');
+const [joiningLeague, setJoiningLeague] = useState(false);
+const [authEmail, setAuthEmail] = useState('');
+const [authPassword, setAuthPassword] = useState('');
+const [authLoading, setAuthLoading] = useState(false);
+const [showEmailAuth, setShowEmailAuth] = useState(false);
+const [session, setSession] = useState(null);
+const [sessionLoading, setSessionLoading] = useState(true);
   const [editingLeagueName, setEditingLeagueName] =
     useState(false);
 
@@ -485,7 +480,23 @@ export default function App() {
   /* =====================================================
      CARGA
   ===================================================== */
+useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+    setSessionLoading(false);
+  });
 
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+    setSessionLoading(false);
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
   useEffect(() => {
     const load = async () => {
       try {
@@ -520,7 +531,7 @@ export default function App() {
         if (savedProfile) {
           const data = JSON.parse(savedProfile);
 
-          setProfileName(data.name || 'Javi');
+          setProfileName(data.name || '');
           setCurrentWeight(data.currentWeight || '');
           setTargetWeight(data.targetWeight || '');
           setStartWeight(data.startWeight || '');
@@ -542,10 +553,9 @@ export default function App() {
           const league = JSON.parse(savedLeague);
 
           setLeagueName(
-            league.name || 'Liga de Titanes'
+            league.name || ''
           );
-        }
-      } catch {
+        }      } catch {
         Alert.alert(
           'Aviso',
           'No se pudieron recuperar todos los datos guardados.'
@@ -626,34 +636,71 @@ export default function App() {
       nextStartWeight = currentWeight;
     }
 
-    const cleanName = profileName.trim() || 'Javi';
+    const cleanName = profileName.trim();
+    if (!cleanName) {
+  Alert.alert(
+    'Nombre obligatorio',
+    'Escribe un nombre para tu perfil.'
+  );
+  return;
+}
 
-    try {
-      await AsyncStorage.setItem(
-        PROFILE_KEY,
-        JSON.stringify({
-          name: cleanName,
-          currentWeight,
-          targetWeight,
-          startWeight: nextStartWeight,
-        })
-      );
+  try {
+  // 1. Obtenemos el usuario real conectado
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-      setProfileName(cleanName);
-      setStartWeight(nextStartWeight);
+  if (userError || !user) {
+    throw new Error('No hay ningún usuario conectado.');
+  }
 
-      await notificationHaptic();
+  // 2. Guardamos/actualizamos su nombre real en Supabase
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: user.id,
+        username: cleanName,
+      },
+      {
+        onConflict: 'id',
+      }
+    );
 
-      Alert.alert(
-        'Guardado',
-        'Tu perfil se ha actualizado.'
-      );
-    } catch {
-      Alert.alert(
-        'Aviso',
-        'No se pudo guardar el perfil.'
-      );
-    }
+  if (profileError) {
+    throw profileError;
+  }
+
+  // 3. Seguimos guardando los datos privados del perfil en el dispositivo
+  await AsyncStorage.setItem(
+    PROFILE_KEY,
+    JSON.stringify({
+      name: cleanName,
+      currentWeight,
+      targetWeight,
+      startWeight: nextStartWeight,
+    })
+  );
+
+  setProfileName(cleanName);
+  setStartWeight(nextStartWeight);
+
+  await notificationHaptic();
+
+  Alert.alert(
+    'Guardado',
+    'Tu perfil se ha actualizado.'
+  );
+} catch (error) {
+  console.log('ERROR GUARDANDO PERFIL:', error);
+
+  Alert.alert(
+    'No se pudo guardar el perfil',
+    error?.message || 'Inténtalo de nuevo.'
+  );
+}
   };
 
   const saveSettings = async (
@@ -703,14 +750,7 @@ export default function App() {
     }
   };
 
-  const openFriendCode = async () => {
-    await impact();
-
-    Alert.alert(
-      'Añadir amigo',
-      'Aquí aparecerá tu código personal cuando conectemos la Liga.'
-    );
-  };
+  
 
   /* =====================================================
      NOTIFICACIÓN DE PRUEBA
@@ -799,39 +839,485 @@ export default function App() {
   /* =====================================================
      LIGA
   ===================================================== */
+const loadRealLeaguePlayers = async () => {
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
+    if (userError || !user) {
+      throw new Error('No hay usuario conectado');
+    }
+setCurrentUserId(user.id);
+    const { data: membership, error: membershipError } = await supabase
+  .from('league_members')
+  .select('league_id')
+  .eq('user_id', user.id)
+  .order('joined_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+if (membershipError) {
+  throw membershipError;
+}
+
+if (!membership) {
+  setRealLeaguePlayers([]);
+  return;
+}
+
+const { data: league, error: leagueError } = await supabase
+  .from('leagues')
+  .select('id, name, invite_code')
+  .eq('id', membership.league_id)
+  .single();
+
+    if (leagueError) {
+      throw leagueError;
+    }
+setLeagueName(league.name || '');
+setCurrentLeagueId(league.id);
+const { data: weeklyCount, error: weeklyCountError } = await supabase.rpc(
+  'get_weekly_scored_workouts',
+  {
+    target_league_id: league.id,
+  }
+);
+
+if (weeklyCountError) {
+  throw weeklyCountError;
+}
+
+setWeeklyScoredWorkouts(Number(weeklyCount || 0));
+const { data: activity, error: activityError } = await supabase.rpc(
+  'get_league_activity_feed',
+  {
+    target_league_id: league.id,
+  }
+);
+
+if (activityError) {
+  throw activityError;
+}
+
+setLeagueActivity(activity || []);
+setInviteCode(league.invite_code || '');
+setRealLeagueId(league.id);
+    if (!league) {
+      setRealLeaguePlayers([]);
+      return;
+    }
+
+  const { data: members, error: membersError } = await supabase.rpc(
+  'get_my_league_members',
+  {
+    target_league_id: league.id,
+  }
+);
+
+    if (membersError) {
+      throw membersError;
+    }
+
+    setRealLeaguePlayers(members || []);
+
+    const { data: latestMonthlyResult, error: monthlyResultError } =
+  await supabase
+    .from('league_monthly_results')
+    .select('id, month')
+    .eq('league_id', league.id)
+    .order('month', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+if (monthlyResultError) {
+  throw monthlyResultError;
+}
+
+if (latestMonthlyResult?.id) {
+  const { data: awards, error: awardsError } = await supabase
+    .from('league_monthly_awards')
+    .select('user_id, award_type, points, record_points')
+    .eq('result_id', latestMonthlyResult.id);
+
+  if (awardsError) {
+    throw awardsError;
+  }
+
+  setMonthlyAwards(
+    (awards || []).map((award) => ({
+      ...award,
+      month: latestMonthlyResult.month,
+    }))
+  );
+} else {
+  setMonthlyAwards([]);
+}
+    console.log('MIEMBROS REALES DE LA LIGA:', members);
+  } catch (error) {
+  console.log('ERROR CARGANDO MIEMBROS:', error);
+  Alert.alert(
+    'Error cargando la liga',
+    error?.message || JSON.stringify(error)
+  );
+}
+};
+useEffect(() => {
+  if (session?.user) {
+    loadRealLeaguePlayers();
+  }
+}, [session]);
   const saveLeagueName = async () => {
-    const clean = leagueName.trim();
-    const finalName = clean || 'Liga de Titanes';
+  const clean = leagueName.trim();
+  const finalName = clean;
 
-    try {
-      await AsyncStorage.setItem(
-        LEAGUE_KEY,
-        JSON.stringify({
+if (!finalName) {
+  Alert.alert(
+    'Nombre obligatorio',
+    'Escribe un nombre para tu liga.'
+  );
+  return;
+}
+
+  try {
+    // Guardado local
+    await AsyncStorage.setItem(
+      LEAGUE_KEY,
+      JSON.stringify({
+        name: finalName,
+      })
+    );
+
+    // Usuario actualmente conectado
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      throw new Error('No hay usuario conectado');
+    }
+
+    // Comprobamos si este usuario ya tiene una liga creada
+    const { data: existingLeague, error: searchError } = await supabase
+      .from('leagues')
+      .select('id, name, invite_code')
+      .eq('owner_id', user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (searchError) {
+      throw searchError;
+    }
+
+    if (existingLeague) {
+      // Si ya existe, actualizamos su nombre
+      const { error: updateError } = await supabase
+        .from('leagues')
+        .update({
           name: finalName,
         })
-      );
+        .eq('id', existingLeague.id);
 
-      setLeagueName(finalName);
-      setEditingLeagueName(false);
-
-      await impact(
-        Haptics.ImpactFeedbackStyle.Medium
+      if (updateError) {
+        throw updateError;
+      }
+setInviteCode(existingLeague.invite_code || '');
+      console.log(
+        'LIGA ACTUALIZADA:',
+        existingLeague.id
       );
-    } catch {}
-  };
+    } else {
+      // Si todavía no existe, creamos la liga
+      const { data: newLeague, error: createError } = await supabase
+        .from('leagues')
+        .insert({
+          name: finalName,
+          owner_id: user.id,
+        })
+        .select('id, name, invite_code')
+        .single();
+
+      if (createError) {
+        throw createError;
+      }
+setInviteCode(newLeague.invite_code || '');
+      console.log(
+        'LIGA CREADA:',
+        newLeague
+      );
+    }
+
+    setLeagueName(finalName);
+    setEditingLeagueName(false);
+
+    await impact(
+      Haptics.ImpactFeedbackStyle.Medium
+    );
+  } catch (error) {
+    console.log(
+      'ERROR GUARDANDO LIGA:',
+      error.message
+    );
+
+    Alert.alert(
+      'Error',
+      'No se pudo guardar la liga.'
+    );
+  }
+};
 
   const inviteFriends = async () => {
     await impact(
       Haptics.ImpactFeedbackStyle.Medium
     );
 
-    Alert.alert(
-      'Invitar rivales',
-      'Aquí aparecerá el enlace o código de invitación cuando conectemos la Liga online.'
-    );
+  Alert.alert(
+  'Invitar rivales',
+  inviteCode
+    ? `Código de invitación: ${inviteCode}\n\nComparte este código con la persona que quieras añadir a la liga.`
+    : 'No se ha podido obtener el código de invitación.'
+);
   };
+const joinLeague = async () => {
+  const cleanCode = joinLeagueCode.trim().toUpperCase();
 
+  if (!cleanCode) {
+    Alert.alert(
+      'Código necesario',
+      'Introduce un código de invitación.'
+    );
+    return;
+  }
+
+  try {
+    setJoiningLeague(true);
+
+    const { data, error } = await supabase.rpc(
+      'join_league_by_code',
+      {
+        p_invite_code: cleanCode,
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    setJoinLeagueCode('');
+
+    await loadRealLeaguePlayers();
+
+    Alert.alert(
+      'Liga encontrada',
+      'Te has unido correctamente a la liga.'
+    );
+  } catch (error) {
+    console.log('ERROR UNIÉNDOSE A LA LIGA:', error);
+
+    Alert.alert(
+      'No se pudo unir a la liga',
+      error?.message || 'Comprueba el código e inténtalo de nuevo.'
+    );
+  } finally {
+    setJoiningLeague(false);
+  }
+};
+const loginUser = async () => {
+  const email = authEmail.trim().toLowerCase();
+
+  if (!email || !authPassword) {
+    Alert.alert(
+      'Datos necesarios',
+      'Introduce tu email y contraseña.'
+    );
+    return;
+  }
+
+  try {
+    setAuthLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: authPassword,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    setAuthPassword('');
+
+    await loadRealLeaguePlayers();
+
+    Alert.alert(
+      'Sesión iniciada',
+      'Has iniciado sesión correctamente.'
+    );
+  } catch (error) {
+    console.log('ERROR INICIANDO SESIÓN:', error);
+
+    Alert.alert(
+      'No se pudo iniciar sesión',
+      error?.message || 'Comprueba tus datos e inténtalo de nuevo.'
+    );
+  } finally {
+    setAuthLoading(false);
+  }
+};
+const signupWithEmail = async () => {
+  const email = authEmail.trim().toLowerCase();
+
+  if (!email || !authPassword) {
+    Alert.alert(
+      'Datos necesarios',
+      'Introduce tu email y contraseña.'
+    );
+    return;
+  }
+
+  try {
+    setAuthLoading(true);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password: authPassword,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    Alert.alert(
+      'Cuenta creada',
+      'Tu cuenta se ha creado correctamente.'
+    );
+
+    setShowEmailAuth(false);
+    setAuthPassword('');
+  } catch (error) {
+    console.log('ERROR CREANDO CUENTA:', error);
+
+    Alert.alert(
+      'No se pudo crear la cuenta',
+      error?.message || 'Inténtalo de nuevo.'
+    );
+  } finally {
+    setAuthLoading(false);
+  }
+};
+const loginWithApple = async () => {
+  try {
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+
+    if (!credential.identityToken) {
+      throw new Error('Apple no devolvió un token de identidad.');
+    }
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: credential.identityToken,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    
+
+    Alert.alert(
+      'Sesión iniciada',
+      'Has iniciado sesión con Apple correctamente.'
+    );
+  } catch (error) {
+    if (error?.code === 'ERR_REQUEST_CANCELED') {
+      return;
+    }
+
+    console.log('ERROR INICIANDO CON APPLE:', error);
+
+    Alert.alert(
+      'No se pudo iniciar sesión con Apple',
+      error?.message || 'Inténtalo de nuevo.'
+    );
+  }
+};
+const loginWithGoogle = async () => {
+  try {
+    const redirectTo = 'tempapp://auth/callback';
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.url) {
+      throw new Error('Google no devolvió una URL de autenticación.');
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(
+      data.url,
+      redirectTo
+    );
+
+    if (result.type !== 'success' || !result.url) {
+      return;
+    }
+
+    const callbackUrl = result.url;
+
+    const fragment = callbackUrl.includes('#')
+      ? callbackUrl.split('#')[1]
+      : callbackUrl.split('?')[1];
+
+    if (!fragment) {
+      throw new Error('No se recibieron los datos de sesión de Google.');
+    }
+
+    const params = new URLSearchParams(fragment);
+
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      throw new Error('Google no devolvió una sesión válida.');
+    }
+
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    Alert.alert(
+      'Sesión iniciada',
+      'Has iniciado sesión con Google correctamente.'
+    );
+  } catch (error) {
+    console.log('ERROR INICIANDO CON GOOGLE:', error);
+
+    Alert.alert(
+      'No se pudo iniciar sesión con Google',
+      error?.message || 'Inténtalo de nuevo.'
+    );
+  }
+};
   const leagueWorkoutsThisWeek = workouts
     .filter((workout) =>
       isSameWeek(workout.finishedAt)
@@ -845,8 +1331,7 @@ export default function App() {
   const leagueScoringWorkouts =
     leagueWorkoutsThisWeek.slice(0, 4);
 
-  const leagueScoringCount =
-    leagueScoringWorkouts.length;
+  const leagueScoringCount = weeklyScoredWorkouts;
 
   const leagueWeeklyLimitReached =
     leagueScoringCount >= 4;
@@ -1888,7 +2373,29 @@ export default function App() {
         WEEK_CHECKS_KEY,
         JSON.stringify(nextChecks)
       );
+   } if (currentLeagueId) {
+  try {
+    const workoutKey = `${finishedAt}-${activeRoutine?.id || 'quick'}`;
+    const recordPoints = totalCurrentPRs * 3;
+
+    const { error: scoreError } = await supabase.rpc(
+      'score_league_workout',
+      {
+        target_league_id: currentLeagueId,
+        target_workout_key: workoutKey,
+        target_record_points: recordPoints,
+      }
+    );
+
+    if (scoreError) {
+      throw scoreError;
     }
+
+    await loadRealLeaguePlayers();
+  } catch (error) {
+    console.log('ERROR PUNTUANDO ENTRENAMIENTO:', error);
+  }
+}
   };
 
   const finishWorkout = () => {
@@ -2129,13 +2636,13 @@ export default function App() {
   const Home = () => (
     <>
       <View style={styles.homeScreen}>
-        <AppGradient />
+        
 
         <View style={styles.container}>
           <View style={styles.header}>
             <View>
               <Text style={styles.hello}>
-                Hola, {profileName || 'Javi'}
+                Hola, {profileName || ''}
               </Text>
 
               <Text style={styles.subtitle}>
@@ -2313,16 +2820,21 @@ export default function App() {
   ===================================================== */
 
   const League = () => {
-    const leaguePlayers = LEAGUE_DEMO_PLAYERS
-      .map((player) =>
-        player.me
-          ? {
-              ...player,
-              name: profileName || 'Javi',
-            }
-          : player
-      )
-      .sort((a, b) => b.points - a.points);
+  const leaguePlayers = realLeaguePlayers
+  .map((member) => ({
+    id: member.user_id,
+    user_id: member.user_id,
+    name: member.username || 'Miembro',
+    points: Number(member.points || 0),
+    me: member.user_id === currentUserId,
+  }))
+  .sort((a, b) => b.points - a.points)
+  .map((player, index, players) => ({
+    ...player,
+    isMonthlyMvp: index === 0,
+    isRevengeMode:
+      players.length > 1 && index === players.length - 1,
+  }));
 
     const myIndex = leaguePlayers.findIndex(
       (player) => player.me
@@ -2335,7 +2847,7 @@ export default function App() {
       myIndex >= 0
         ? leaguePlayers[myIndex]
         : {
-            name: profileName || 'Javi',
+            name: profileName ,
             points: 0,
           };
 
@@ -2382,13 +2894,251 @@ export default function App() {
     return (
       <>
         <View style={styles.leaguePage}>
-          <AppGradient />
+          
 
           <ScrollView
             contentContainerStyle={styles.leagueContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            <View
+  style={{
+    marginBottom: 16,
+    gap: 10,
+  }}
+>
+
+{Platform.OS === 'ios' && (
+  <AppleAuthentication.AppleAuthenticationButton
+    buttonType={
+      AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+    }
+    buttonStyle={
+      AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+    }
+    cornerRadius={14}
+    style={{
+      width: '100%',
+      height: 48,
+      marginBottom: 12,
+    }}
+    onPress={loginWithApple}
+  />
+)}
+<TouchableOpacity
+  activeOpacity={0.85}
+  onPress={loginWithGoogle}
+  style={{
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  }}
+>
+  <Text
+    style={{
+      color: '#111111',
+      fontSize: 16,
+      fontWeight: '700',
+    }}
+  >
+    G
+  </Text>
+
+  <Text
+    style={{
+      color: '#111111',
+      fontSize: 16,
+      fontWeight: '600',
+    }}
+  >
+    Iniciar sesión con Google
+  </Text>
+</TouchableOpacity>
+<TouchableOpacity
+  activeOpacity={0.85}
+  onPress={() => setShowEmailAuth(true)}
+  style={{
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#343840',
+    backgroundColor: '#111318',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  }}
+>
+  <Text
+    style={{
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '700',
+    }}
+  >
+    Continuar con correo
+  </Text>
+</TouchableOpacity>
+{showEmailAuth && (
+  <View
+    style={{
+      width: '100%',
+      marginBottom: 12,
+      gap: 10,
+    }}
+  >
+    <TextInput
+      value={authEmail}
+      onChangeText={setAuthEmail}
+      placeholder="Email"
+      placeholderTextColor="#626873"
+      autoCapitalize="none"
+      keyboardType="email-address"
+      style={{
+        height: 48,
+        borderWidth: 1,
+        borderColor: '#343840',
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        color: '#FFFFFF',
+        backgroundColor: '#111318',
+      }}
+    />
+
+    <TextInput
+      value={authPassword}
+      onChangeText={setAuthPassword}
+      placeholder="Contraseña"
+      placeholderTextColor="#626873"
+      secureTextEntry
+      style={{
+        height: 48,
+        borderWidth: 1,
+        borderColor: '#343840',
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        color: '#FFFFFF',
+        backgroundColor: '#111318',
+      }}
+    />
+
+    <View
+      style={{
+        flexDirection: 'row',
+        gap: 10,
+      }}
+    >
+      <TouchableOpacity
+        activeOpacity={0.85}
+        disabled={authLoading}
+        onPress={loginUser}
+        style={{
+          flex: 1,
+          height: 48,
+          borderRadius: 14,
+          backgroundColor: COLORS.orange,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: authLoading ? 0.55 : 1,
+        }}
+      >
+        <Text
+          style={{
+            color: '#111111',
+            fontSize: 14,
+            fontWeight: '900',
+          }}
+        >
+          ENTRAR
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        activeOpacity={0.85}
+        disabled={authLoading}
+        onPress={signupWithEmail}
+        style={{
+          flex: 1,
+          height: 48,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: COLORS.orange,
+          backgroundColor: '#111318',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: authLoading ? 0.55 : 1,
+        }}
+      >
+        <Text
+          style={{
+            color: COLORS.orange,
+            fontSize: 14,
+            fontWeight: '900',
+          }}
+        >
+          CREAR CUENTA
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+)}
+</View>
+            <View
+  style={{
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  }}
+>
+  <TextInput
+    value={joinLeagueCode}
+    onChangeText={setJoinLeagueCode}
+    placeholder="Código de liga"
+    placeholderTextColor="#626873"
+    autoCapitalize="characters"
+    maxLength={6}
+    style={{
+      flex: 1,
+      height: 48,
+      borderWidth: 1,
+      borderColor: 'rgba(255,176,0,0.35)',
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      color: '#FFFFFF',
+      backgroundColor: '#0D0F13',
+    }}
+  />
+
+  <TouchableOpacity
+    onPress={joinLeague}
+    disabled={joiningLeague}
+    style={{
+      minWidth: 105,
+      height: 48,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: COLORS.orange,
+      opacity: joiningLeague ? 0.55 : 1,
+    }}
+  >
+    <Text
+      style={{
+        color: '#111111',
+        fontWeight: '900',
+        fontSize: 13,
+      }}
+    >
+      {joiningLeague ? 'UNIENDO...' : 'UNIRSE'}
+    </Text>
+  </TouchableOpacity>
+</View>
             <View style={styles.leagueHero}>
               <Text style={styles.leagueHeroSmall}>
                 AQUÍ NO VALEN LAS EXCUSAS
@@ -2477,10 +3227,33 @@ export default function App() {
                         />
                       </TouchableOpacity>
                     </View>
+                {inviteCode ? (
+  <TouchableOpacity
+    activeOpacity={0.7}
+    onPress={async () => {
+      await Clipboard.setStringAsync(inviteCode);
+      await impact();
+      Alert.alert('Código copiado', inviteCode);
+    }}
+  >
+    <Text style={styles.leagueInviteCode}>
+      Código: {inviteCode} · COPIAR
+    </Text>
+  </TouchableOpacity>
+) : null}
+                <View
+  style={{
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  }}
+>
+  <Text style={styles.leagueMetaText}>
+    {leaguePlayers.length} miembros · Ranking mensual
+  </Text>
 
-                    <Text style={styles.leagueMetaText}>
-                      {leaguePlayers.length} miembros · Ranking mensual
-                    </Text>
+  
+</View>
                   </>
                 )}
               </View>
@@ -2500,6 +3273,25 @@ export default function App() {
                   {myPlayer.points} PTS
                 </Text>
               </View>
+              <TouchableOpacity
+  activeOpacity={0.7}
+  onPress={() => setScreen('leagueHistory')}
+  style={{
+    alignSelf: 'flex-end',
+    marginBottom: 10,
+  }}
+>
+  <Text
+    style={{
+      color: COLORS.orange,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.4,
+    }}
+  >
+    HISTORIAL DE LIGA ›
+  </Text>
+</TouchableOpacity>
             </View>
 
             <View style={styles.leagueChaseCard}>
@@ -2766,13 +3558,19 @@ export default function App() {
                         {player.name}
                       </Text>
 
-                      <Text style={styles.leaguePlayerStatus}>
-                        {position === 1
-                          ? 'Líder de la liga'
-                          : player.me
-                          ? 'Tu posición actual'
-                          : `${player.points} puntos este mes`}
-                      </Text>
+                  <View style={styles.leaguePlayerAwardBox}>
+  {player.isMonthlyMvp && (
+    <Text style={styles.leaguePlayerAward}>
+      🏆 MVP DEL MES
+    </Text>
+  )}
+
+  {player.isRevengeMode && (
+    <Text style={styles.leaguePlayerAward}>
+      🔥 MODO VENGANZA
+    </Text>
+  )}
+</View>
                     </View>
 
                     <View style={styles.leaguePlayerPointsBox}>
@@ -2853,36 +3651,62 @@ export default function App() {
                 />
               </View>
 
-              {LEAGUE_DEMO_ACTIVITY.map(
-                (activity, index) => (
-                  <View
-                    key={activity.id}
-                    style={[
-                      styles.leagueActivityRow,
-                      index ===
-                        LEAGUE_DEMO_ACTIVITY.length -
-                          1 &&
-                        styles.leagueActivityRowLast,
-                    ]}
-                  >
-                    <View style={styles.leagueActivityDot} />
+            {leagueActivity.length > 0 ? (
+  leagueActivity.map((activity, index) => {
+    const hasRecord = Number(activity.record_points || 0) > 0;
+const isJoined = activity.event_type === 'joined';
 
-                    <View style={styles.leagueActivityInfo}>
-                      <Text style={styles.leagueActivityText}>
-                        <Text style={styles.leagueActivityName}>
-                          {activity.name}{' '}
-                        </Text>
+const activityText = isJoined
+  ? 'se ha unido a la liga'
+  : hasRecord
+    ? `ha completado un entrenamiento y conseguido récords · +${activity.total_points} pts`
+    : `ha completado un entrenamiento · +${activity.total_points} pts`;
 
-                        {activity.text}
-                      </Text>
-                    </View>
+const activityDate = new Date(activity.event_at);
+    const diffMs = Date.now() - activityDate.getTime();
+    const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
 
-                    <Text style={styles.leagueActivityTime}>
-                      {activity.time}
-                    </Text>
-                  </View>
-                )
-              )}
+    const timeText =
+      diffMinutes < 1
+        ? 'Ahora'
+        : diffMinutes < 60
+        ? `Hace ${diffMinutes} min`
+        : diffMinutes < 1440
+        ? `Hace ${Math.floor(diffMinutes / 60)} h`
+        : `Hace ${Math.floor(diffMinutes / 1440)} d`;
+
+    return (
+      <View
+        key={activity.event_id}
+        style={[
+          styles.leagueActivityRow,
+          index === leagueActivity.length - 1 &&
+            styles.leagueActivityRowLast,
+        ]}
+      >
+        <View style={styles.leagueActivityDot} />
+
+        <View style={styles.leagueActivityInfo}>
+          <Text style={styles.leagueActivityText}>
+            <Text style={styles.leagueActivityName}>
+              {activity.username || 'Miembro'}{' '}
+            </Text>
+
+            {activityText}
+          </Text>
+        </View>
+
+        <Text style={styles.leagueActivityTime}>
+          {timeText}
+        </Text>
+      </View>
+    );
+  })
+) : (
+  <Text style={styles.leagueSectionSubtitle}>
+    Aún no hay actividad en la liga
+  </Text>
+)}
             </View>
           </ScrollView>
         </View>
@@ -2895,10 +3719,173 @@ export default function App() {
   /* =====================================================
      PERFIL
   ===================================================== */
+const logoutUser = async () => {
+  try {
+    const { error } = await supabase.auth.signOut();
 
+    if (error) {
+      throw error;
+    }
+
+    setCurrentUserId(null);
+    setRealLeaguePlayers([]);
+    setLeagueActivity([]);
+    setCurrentLeagueId(null);
+    setInviteCode('');
+    setWeeklyScoredWorkouts(0);
+
+    Alert.alert(
+      'Sesión cerrada',
+      'Has cerrado sesión correctamente.'
+    );
+  } catch (error) {
+    console.log('ERROR CERRANDO SESIÓN:', error);
+
+    Alert.alert(
+      'No se pudo cerrar sesión',
+      error?.message || 'Inténtalo de nuevo.'
+    );
+  }
+};
+const AuthScreen = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
+      Alert.alert(
+        'Datos necesarios',
+        'Introduce tu email y contraseña.'
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      Alert.alert(
+        'No se pudo iniciar sesión',
+        error?.message || 'Comprueba tus datos e inténtalo de nuevo.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#08090C"
+      />
+
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          paddingHorizontal: 28,
+        }}
+      >
+        <Text
+          style={{
+            color: COLORS.text,
+            fontSize: 30,
+            fontWeight: '900',
+            marginBottom: 8,
+          }}
+        >
+          INICIAR SESIÓN
+        </Text>
+
+        <Text
+          style={{
+            color: '#626873',
+            fontSize: 14,
+            marginBottom: 28,
+          }}
+        >
+          Entra en tu cuenta para continuar
+        </Text>
+
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Email"
+          placeholderTextColor="#626873"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          style={{
+            backgroundColor: '#111318',
+            color: COLORS.text,
+            borderWidth: 1,
+            borderColor: '#252830',
+            borderRadius: 14,
+            paddingHorizontal: 16,
+            height: 54,
+            marginBottom: 12,
+          }}
+        />
+
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Contraseña"
+          placeholderTextColor="#626873"
+          secureTextEntry
+          style={{
+            backgroundColor: '#111318',
+            color: COLORS.text,
+            borderWidth: 1,
+            borderColor: '#252830',
+            borderRadius: 14,
+            paddingHorizontal: 16,
+            height: 54,
+            marginBottom: 18,
+          }}
+        />
+
+        <TouchableOpacity
+          activeOpacity={0.82}
+          disabled={loading}
+          onPress={handleLogin}
+          style={{
+            height: 54,
+            borderRadius: 14,
+            backgroundColor: COLORS.orange,
+            justifyContent: 'center',
+            alignItems: 'center',
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          <Text
+            style={{
+              color: COLORS.darkText,
+              fontSize: 14,
+              fontWeight: '900',
+            }}
+          >
+            {loading ? 'ENTRANDO...' : 'ENTRAR'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+};
   const Profile = () => (
     <View style={styles.page}>
-      <AppGradient />
+    
 
       <PageHeader
         title="Perfil"
@@ -2910,21 +3897,7 @@ export default function App() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity
-          style={styles.friendCodeButton}
-          activeOpacity={0.72}
-          onPress={openFriendCode}
-        >
-          <MaterialCommunityIcons
-            name="account-plus-outline"
-            size={18}
-            color={COLORS.orange}
-          />
-
-          <Text style={styles.friendCodeText}>
-            Añadir amigo
-          </Text>
-        </TouchableOpacity>
+        
 
         <View style={styles.profileIdentity}>
           <View style={styles.profileAvatarDepth}>
@@ -2940,14 +3913,17 @@ export default function App() {
           </Text>
 
           <View style={styles.nameEditBox}>
-            <TextInput
-              value={profileName}
-              onChangeText={setProfileName}
-              placeholder="Tu nombre"
-              placeholderTextColor="#626873"
-              style={styles.nameInput}
-              maxLength={20}
-            />
+          <TextInput
+  value={profileName}
+  onChangeText={setProfileName}
+  placeholder="Tu nombre"
+  placeholderTextColor="#626873"
+  style={styles.nameInput}
+  maxLength={20}
+  returnKeyType="done"
+  onSubmitEditing={saveProfile}
+  onBlur={saveProfile}
+/>
 
             <MaterialCommunityIcons
               name="pencil-outline"
@@ -3245,6 +4221,28 @@ export default function App() {
             </Text>
           </View>
         </TouchableOpacity>
+        <TouchableOpacity
+  activeOpacity={0.85}
+  onPress={logoutUser}
+  style={{
+    marginTop: 18,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+  }}
+>
+  <Text
+    style={{
+      color: '#FF5A5F',
+      fontSize: 13,
+      fontWeight: '800',
+    }}
+  >
+    CERRAR SESIÓN
+  </Text>
+</TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -3397,6 +4395,31 @@ export default function App() {
               </View>
             </View>
           </TouchableOpacity>
+          <View style={styles.comingSoonRoutineCard}>
+  <View style={styles.comingSoonRoutineIcon}>
+    <MaterialCommunityIcons
+      name="lightning-bolt"
+      size={24}
+      color={COLORS.orange}
+    />
+  </View>
+
+  <View style={styles.comingSoonRoutineContent}>
+    <Text style={styles.comingSoonRoutineTitle}>
+      NUEVAS RUTINAS
+    </Text>
+
+    <Text style={styles.comingSoonRoutineSubtitle}>
+      Próximamente encontrarás nuevas rutinas aquí
+    </Text>
+  </View>
+
+  <View style={styles.comingSoonRoutineBadge}>
+    <Text style={styles.comingSoonRoutineBadgeText}>
+      PRÓXIMAMENTE
+    </Text>
+  </View>
+</View>
         </ScrollView>
       </View>
 
@@ -3410,7 +4433,7 @@ export default function App() {
 
   const Editor = () => (
     <View style={styles.page}>
-      <AppGradient />
+      
 
       <PageHeader
         title={
@@ -3661,7 +4684,7 @@ export default function App() {
 
   const Achievements = () => (
     <View style={styles.page}>
-      <AppGradient />
+      
 
       <PageHeader
         title="Logros"
@@ -3782,7 +4805,7 @@ export default function App() {
 
     return (
       <View style={styles.page}>
-        <AppGradient />
+        
 
         <PageHeader
           title="Entrena ahora"
@@ -4011,7 +5034,7 @@ export default function App() {
     return (
       <>
         <View style={styles.page}>
-          <AppGradient />
+          
 
           <PageHeader
             title="Historial"
@@ -4286,7 +5309,7 @@ export default function App() {
 
     return (
       <View style={styles.page}>
-        <AppGradient />
+        
 
         <PageHeader
           title={
@@ -4742,9 +5765,244 @@ export default function App() {
   /* =====================================================
      RENDER
   ===================================================== */
-
+if (sessionLoading) {
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.screen} />
+  );
+}
+const LeagueHistory = () => {
+    const [leagueHistory, setLeagueHistory] = useState([]);
+  const [leagueHistoryLoading, setLeagueHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    const loadLeagueHistory = async () => {
+      if (!realLeagueId) {
+        setLeagueHistory([]);
+        setLeagueHistoryLoading(false);
+        return;
+      }
+
+      setLeagueHistoryLoading(true);
+
+      const { data, error } = await supabase.rpc(
+        'get_league_monthly_history',
+        {
+          target_league_id: realLeagueId,
+        }
+      );
+
+      if (error) {
+        console.log('Error cargando historial de liga:', error);
+        setLeagueHistory([]);
+      } else {
+        setLeagueHistory(data || []);
+      }
+
+      setLeagueHistoryLoading(false);
+    };
+
+    loadLeagueHistory();
+  }, [realLeagueId]);
+  return (
+    <ScrollView
+      contentContainerStyle={{
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 40,
+      }}
+      showsVerticalScrollIndicator={false}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginBottom: 28,
+        }}
+      >
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => setScreen('league')}
+          style={{
+            width: 40,
+            height: 40,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 10,
+          }}
+        >
+          <MaterialCommunityIcons
+            name="chevron-left"
+            size={30}
+            color="#FFFFFF"
+          />
+        </TouchableOpacity>
+
+        <View>
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 24,
+              fontWeight: '900',
+              letterSpacing: -0.5,
+            }}
+          >
+            HISTORIAL DE LIGA
+          </Text>
+
+          <Text
+            style={{
+              color: '#8C9099',
+              fontSize: 13,
+              marginTop: 3,
+            }}
+          >
+            Resultados de meses anteriores
+          </Text>
+        </View>
+        {leagueHistoryLoading ? (
+  <Text
+    style={{
+      color: '#8C9099',
+      fontSize: 14,
+      marginTop: 10,
+    }}
+  >
+    Cargando resultados...
+  </Text>
+) : leagueHistory.length === 0 ? (
+  <View
+    style={{
+      marginTop: 12,
+      padding: 18,
+      borderRadius: 16,
+      backgroundColor: 'rgba(255,255,255,0.04)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.06)',
+    }}
+  >
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '800',
+        marginBottom: 4,
+      }}
+    >
+      Aún no hay meses cerrados
+    </Text>
+
+    <Text
+      style={{
+        color: '#8C9099',
+        fontSize: 13,
+        lineHeight: 18,
+      }}
+    >
+      Cuando termine un mes, su clasificación aparecerá aquí.
+    </Text>
+  </View>
+) : (
+  leagueHistory.map((monthResult) => (
+    <View
+      key={monthResult.result_id}
+      style={{
+        marginBottom: 18,
+        padding: 16,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+      }}
+    >
+      <Text
+        style={{
+          color: '#FFFFFF',
+          fontSize: 17,
+          fontWeight: '900',
+          marginBottom: 12,
+        }}
+      >
+        {monthResult.month_label}
+      </Text>
+
+      {monthResult.standings.map((player) => (
+        <View
+          key={player.user_id}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingVertical: 9,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              flex: 1,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  player.position === 1
+                    ? COLORS.orange
+                    : '#FFFFFF',
+                fontSize: 14,
+                fontWeight: '900',
+                width: 34,
+              }}
+            >
+              {player.position}º
+            </Text>
+
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 14,
+                fontWeight: '700',
+                flex: 1,
+              }}
+              numberOfLines={1}
+            >
+              {player.username}
+            </Text>
+          </View>
+
+          <Text
+            style={{
+              color: '#A8ACB6',
+              fontSize: 13,
+              fontWeight: '800',
+            }}
+          >
+            {player.points} pts
+          </Text>
+        </View>
+      ))}
+    </View>
+  ))
+)}
+      </View>
+    </ScrollView>
+  );
+};
+
+return (
+<LinearGradient
+  colors={[
+    'rgba(255,176,0,0.34)',
+    'rgba(255,176,0,0.18)',
+    'rgba(255,176,0,0.07)',
+    'rgba(8,9,12,0.97)',
+    '#08090C',
+  ]}
+  locations={[0, 0.16, 0.31, 0.52, 0.70]}
+  style={styles.screen}
+>
+  <SafeAreaView style={styles.flex}>
+
+  
       <StatusBar
         barStyle="light-content"
         backgroundColor="#08090C"
@@ -4752,9 +6010,11 @@ export default function App() {
 
       {screen === 'home'
         ? Home()
-        : screen === 'league'
-        ? League()
-        : screen === 'profile'
+    : screen === 'league'
+? League()
+: screen === 'leagueHistory'
+? <LeagueHistory />
+: screen === 'profile'
         ? Profile()
         : screen === 'routines'
         ? Routines()
@@ -4768,7 +6028,8 @@ export default function App() {
         ? QuickStart()
         : Workout()}
     </SafeAreaView>
-  );
+</LinearGradient>
+);
 }
 
 /* =========================================================
@@ -4776,24 +6037,24 @@ export default function App() {
 ========================================================= */
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+screen: {
+  flex: 1,
+  backgroundColor: '#08090C',
+},
 
   flex: {
     flex: 1,
   },
 
-  page: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+page: {
+  flex: 1,
+  backgroundColor: 'transparent',
+},
 
-  homeScreen: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+homeScreen: {
+  flex: 1,
+  backgroundColor: 'transparent',
+},
 
   container: {
     flex: 1,
@@ -4823,7 +6084,7 @@ const styles = StyleSheet.create({
 
   avatarDepth: {
     width: 50,
-    height: 54,
+    height: 52,
     borderRadius: 25,
     backgroundColor: COLORS.darkOrange,
     shadowColor: COLORS.orange,
@@ -4831,9 +6092,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: 6,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 9,
-    elevation: 7,
+    shadowOpacity: 0.10,
+    shadowRadius: 4,
+    elevation: 3,
   },
 
   avatarDepthPressed: {
@@ -4847,7 +6108,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.orange,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: 'rgba(255,213,74,0.35)',
   },
 
@@ -5098,7 +6359,64 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 3,
   },
+comingSoonRoutineCard: {
+  marginTop: 14,
+  minHeight: 78,
+  borderRadius: 22,
+  borderWidth: 1,
+  borderColor: '#24272F',
+  backgroundColor: '#111318',
+  paddingHorizontal: 15,
+  paddingVertical: 12,
+  flexDirection: 'row',
+  alignItems: 'center',
+},
 
+comingSoonRoutineIcon: {
+  width: 44,
+  height: 44,
+  borderRadius: 14,
+  backgroundColor: 'rgba(255,176,0,0.10)',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginRight: 12,
+},
+
+comingSoonRoutineContent: {
+  flex: 1,
+  paddingRight: 8,
+},
+
+comingSoonRoutineTitle: {
+  color: COLORS.text,
+  fontSize: 14,
+  fontWeight: '900',
+  letterSpacing: 0.2,
+},
+
+comingSoonRoutineSubtitle: {
+  color: COLORS.muted,
+  fontSize: 10,
+  fontWeight: '600',
+  marginTop: 3,
+  lineHeight: 14,
+},
+
+comingSoonRoutineBadge: {
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: 'rgba(255,176,0,0.30)',
+  backgroundColor: 'rgba(255,176,0,0.08)',
+  paddingHorizontal: 8,
+  paddingVertical: 5,
+},
+
+comingSoonRoutineBadgeText: {
+  color: COLORS.orange,
+  fontSize: 8,
+  fontWeight: '900',
+  letterSpacing: 0.4,
+},
   secondaryButton: {
     marginTop: 18,
     minHeight: 68,
@@ -5231,7 +6549,7 @@ const styles = StyleSheet.create({
 
   leaguePage: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: 'transparent',
   },
 
   leagueContent: {
@@ -5332,9 +6650,9 @@ const styles = StyleSheet.create({
 
   leagueNameTitle: {
     color: COLORS.text,
-    fontSize: 15,
+    fontSize: 22,
     fontWeight: '900',
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
     flexShrink: 1,
   },
 
@@ -5354,6 +6672,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.orange,
   },
+  leagueInviteCode: {
+  marginTop: 2,
+  fontSize: 8,
+  fontWeight: '600',
+  color: '#FFB000',
+  letterSpacing: 0.8,
+  opacity: 0.9,
+},
 
   leagueMetaText: {
     color: '#858A94',
@@ -5720,16 +7046,16 @@ const styles = StyleSheet.create({
   },
 
   leaguePlayerName: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '800',
-  },
+  color: COLORS.text,
+  fontSize: 18,
+  fontWeight: '900',
+},
 
-  leaguePlayerNameMe: {
-    color: COLORS.orange,
-    fontSize: 16,
-    fontWeight: '900',
-  },
+leaguePlayerNameMe: {
+  color: COLORS.orange,
+  fontSize: 19,
+  fontWeight: '900',
+},
 
   leaguePlayerStatus: {
     color: '#686D76',
@@ -5737,6 +7063,25 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
+  leaguePlayerAwardBox: {
+  justifyContent: 'center',
+  alignItems: 'flex-end',
+  marginLeft: 8,
+  marginRight: 10,
+},
+
+leaguePlayerAward: {
+  color: COLORS.orange,
+  fontSize: 10,
+  fontWeight: '900',
+  letterSpacing: 0.4,
+  backgroundColor: 'rgba(255,176,0,0.10)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,176,0,0.35)',
+  borderRadius: 8,
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+},
   leaguePlayerPointsBox: {
     width: 50,
     alignItems: 'flex-end',
