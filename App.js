@@ -2553,27 +2553,57 @@ const loginWithGoogle = async () => {
               style={styles.navVectorIcon}
             />
           ) : tab === 'Liga' ? (
-            <MaterialCommunityIcons
-              name="crown-outline"
-              size={22}
-              color={
-                selectedTab === tab
-                  ? COLORS.orange
-                  : '#5C5D61'
-              }
-              style={styles.navVectorIcon}
-            />
-          ) : (
-            <Text
-              style={[
-                styles.navIcon,
-                selectedTab === tab &&
-                  styles.navIconSelected,
-              ]}
-            >
-              {tab === 'Inicio' ? '⌂' : '▥'}
-            </Text>
-          )}
+  <Text
+    style={{
+      fontSize: 16,
+      fontWeight: '900',
+      letterSpacing: -0.8,
+      color:
+        selectedTab === tab
+          ? COLORS.orange
+          : '#5C5D61',
+      marginBottom: 1,
+    }}
+  >
+    VS
+  </Text>
+        ) : tab === 'Historial' ? (
+  <View
+    style={{
+      height: 22,
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 2,
+      marginBottom: 1,
+    }}
+  >
+    {[8, 14, 11, 19].map((height, index) => (
+      <View
+        key={index}
+        style={{
+          width: 4,
+          height,
+          borderRadius: 2,
+          backgroundColor:
+            selectedTab === tab
+              ? COLORS.orange
+              : '#5C5D61',
+        }}
+      />
+    ))}
+  </View>
+) : (
+<MaterialCommunityIcons
+  name="home-outline"
+  size={22}
+  color={
+    selectedTab === tab
+      ? COLORS.orange
+      : '#5C5D61'
+  }
+  style={styles.navVectorIcon}
+/>
+)}
 
           <Text
             style={[
