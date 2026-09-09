@@ -3273,25 +3273,7 @@ const loginWithGoogle = async () => {
                   {myPlayer.points} PTS
                 </Text>
               </View>
-              <TouchableOpacity
-  activeOpacity={0.7}
-  onPress={() => setScreen('leagueHistory')}
-  style={{
-    alignSelf: 'flex-end',
-    marginBottom: 10,
-  }}
->
-  <Text
-    style={{
-      color: COLORS.orange,
-      fontSize: 12,
-      fontWeight: '800',
-      letterSpacing: 0.4,
-    }}
-  >
-    HISTORIAL DE LIGA ›
-  </Text>
-</TouchableOpacity>
+          
             </View>
 
             <View style={styles.leagueChaseCard}>
@@ -3471,7 +3453,29 @@ const loginWithGoogle = async () => {
                 </View>
               </TouchableOpacity>
             </View>
+</View>
 
+<TouchableOpacity
+  activeOpacity={0.7}
+  onPress={() => setScreen('leagueHistory')}
+  style={{
+    alignSelf: 'flex-end',
+    marginBottom: 10,
+  }}
+>
+  <Text
+    style={{
+      color: COLORS.orange,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.4,
+    }}
+  >
+    HISTORIAL DE LIGA ›
+  </Text>
+</TouchableOpacity>
+
+<View style={styles.leagueRankingCard}></View>
             <View style={styles.leagueRankingCard}>
               <View style={styles.leagueSectionHeader}>
                 <View style={styles.leagueSectionHeading}>
