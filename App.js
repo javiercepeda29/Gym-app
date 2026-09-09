@@ -2940,7 +2940,7 @@ const leagueDaysRemaining = Math.max(
     style={{
       width: '100%',
       height: 48,
-      marginBottom: 12,
+    
     }}
     onPress={loginWithApple}
   />
@@ -2957,7 +2957,7 @@ const leagueDaysRemaining = Math.max(
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 12,
+    
   }}
 >
   <Text
@@ -2992,7 +2992,7 @@ const leagueDaysRemaining = Math.max(
     backgroundColor: '#111318',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    
   }}
 >
   <Text
