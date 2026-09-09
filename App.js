@@ -431,6 +431,9 @@ const [realLeagueId, setRealLeagueId] = useState(null);
     const [weeklyScoredWorkouts, setWeeklyScoredWorkouts] = useState(0);
     const [leagueActivity, setLeagueActivity] = useState([]);
     const [monthlyAwards, setMonthlyAwards] = useState([]);
+    const [leagueChallenge, setLeagueChallenge] = useState(null);
+const [challengeDraft, setChallengeDraft] = useState('');
+const [challengeLoading, setChallengeLoading] = useState(false);
     const [joinLeagueCode, setJoinLeagueCode] = useState('');
 const [joiningLeague, setJoiningLeague] = useState(false);
 const [authEmail, setAuthEmail] = useState('');
@@ -904,6 +907,16 @@ if (activityError) {
 setLeagueActivity(activity || []);
 setInviteCode(league.invite_code || '');
 setRealLeagueId(league.id);
+const { data: challengeState, error: challengeError } =
+  await supabase.rpc('get_league_challenge_state', {
+    target_league_id: league.id,
+  });
+
+if (challengeError) {
+  throw challengeError;
+}
+
+setLeagueChallenge(challengeState || null);
     if (!league) {
       setRealLeaguePlayers([]);
       return;
@@ -968,6 +981,104 @@ useEffect(() => {
     loadRealLeaguePlayers();
   }
 }, [session]);
+const submitLeagueChallenge = async () => {
+  const cleanChallenge = challengeDraft.trim();
+
+  if (!cleanChallenge) {
+    Alert.alert(
+      'Escribe un reto',
+      'Introduce el reto que quieres proponer.'
+    );
+    return;
+  }
+
+  if (cleanChallenge.length > 120) {
+    Alert.alert(
+      'Reto demasiado largo',
+      'El reto puede tener un máximo de 120 caracteres.'
+    );
+    return;
+  }
+
+  if (!realLeagueId) {
+    return;
+  }
+
+  try {
+    setChallengeLoading(true);
+
+    const { error } = await supabase.rpc(
+      'submit_league_challenge',
+      {
+        target_league_id: realLeagueId,
+        target_challenge_text: cleanChallenge,
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    setChallengeDraft('');
+
+    await loadRealLeaguePlayers();
+
+    await notificationHaptic();
+
+    Alert.alert(
+      'Reto enviado',
+      'Tu propuesta se ha guardado.'
+    );
+  } catch (error) {
+    console.log('ERROR ENVIANDO RETO:', error);
+
+    Alert.alert(
+      'No se pudo enviar',
+      error?.message || 'Inténtalo de nuevo.'
+    );
+  } finally {
+    setChallengeLoading(false);
+  }
+};
+const voteLeagueChallenge = async (proposalId) => {
+  if (!realLeagueId || !proposalId) {
+    return;
+  }
+
+  try {
+    setChallengeLoading(true);
+
+    const { error } = await supabase.rpc(
+      'vote_league_challenge',
+      {
+        target_league_id: realLeagueId,
+        target_proposal_id: proposalId,
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    await loadRealLeaguePlayers();
+
+    await notificationHaptic();
+
+    Alert.alert(
+      'Voto registrado',
+      'Tu voto se ha guardado.'
+    );
+  } catch (error) {
+    console.log('ERROR VOTANDO RETO:', error);
+
+    Alert.alert(
+      'No se pudo votar',
+      error?.message || 'Inténtalo de nuevo.'
+    );
+  } finally {
+    setChallengeLoading(false);
+  }
+};
   const saveLeagueName = async () => {
   const clean = leagueName.trim();
   const finalName = clean;
@@ -3509,6 +3620,154 @@ const leagueDaysRemaining = Math.max(
               </TouchableOpacity>
             </View>
 
+
+{leagueChallenge?.phase === 'proposing' && (
+  <View
+    style={{
+      backgroundColor: '#111318',
+      borderWidth: 1,
+      borderColor: 'rgba(255,176,0,0.30)',
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 16,
+    }}
+  >
+    <Text
+      style={{
+        color: COLORS.orange,
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 0.8,
+        marginBottom: 6,
+      }}
+    >
+      🔥 RETO DEL MES
+    </Text>
+
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '900',
+        marginBottom: 4,
+      }}
+    >
+      Propón un reto
+    </Text>
+
+    <Text
+      style={{
+        color: '#8E939E',
+        fontSize: 13,
+        lineHeight: 18,
+        marginBottom: 14,
+      }}
+    >
+      Cada rival propone uno. Cuando todos hayan participado se abrirá la votación.
+    </Text>
+
+    {leagueChallenge.own_proposal_id ? (
+      <View
+        style={{
+          backgroundColor: '#0B0D11',
+          borderRadius: 14,
+          padding: 14,
+        }}
+      >
+        <Text
+          style={{
+            color: '#747A85',
+            fontSize: 11,
+            fontWeight: '800',
+            marginBottom: 5,
+          }}
+        >
+          TU PROPUESTA
+        </Text>
+
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 14,
+            fontWeight: '700',
+          }}
+        >
+          {leagueChallenge.own_proposal_text}
+        </Text>
+      </View>
+    ) : (
+      <>
+        <TextInput
+          value={challengeDraft}
+          onChangeText={setChallengeDraft}
+          maxLength={120}
+          multiline
+          placeholder="Escribe tu reto..."
+          placeholderTextColor="#626873"
+          style={{
+            minHeight: 78,
+            backgroundColor: '#0B0D11',
+            borderWidth: 1,
+            borderColor: '#2B2F37',
+            borderRadius: 14,
+            padding: 12,
+            color: '#FFFFFF',
+            fontSize: 14,
+            textAlignVertical: 'top',
+          }}
+        />
+
+        <Text
+          style={{
+            color: '#646A75',
+            fontSize: 11,
+            textAlign: 'right',
+            marginTop: 5,
+            marginBottom: 10,
+          }}
+        >
+          {challengeDraft.length}/120
+        </Text>
+
+        <TouchableOpacity
+          disabled={challengeLoading}
+          activeOpacity={0.85}
+          onPress={submitLeagueChallenge}
+          style={{
+            height: 46,
+            borderRadius: 14,
+            backgroundColor: COLORS.orange,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: challengeLoading ? 0.5 : 1,
+          }}
+        >
+          <Text
+            style={{
+              color: '#111111',
+              fontSize: 13,
+              fontWeight: '900',
+            }}
+          >
+            {challengeLoading
+              ? 'ENVIANDO...'
+              : 'ENVIAR RETO'}
+          </Text>
+        </TouchableOpacity>
+      </>
+    )}
+
+    <Text
+      style={{
+        color: '#777D88',
+        fontSize: 11,
+        marginTop: 12,
+      }}
+    >
+      {leagueChallenge.proposal_count}/{leagueChallenge.member_count} propuestas recibidas
+    </Text>
+  </View>
+)}
 <TouchableOpacity
   activeOpacity={0.7}
   onPress={() => setScreen('leagueHistory')}
