@@ -5861,6 +5861,7 @@ const LeagueHistory = () => {
             Resultados de meses anteriores
           </Text>
         </View>
+        </View>
         {leagueHistoryLoading ? (
   <Text
     style={{
@@ -5985,7 +5986,7 @@ const LeagueHistory = () => {
     </View>
   ))
 )}
-      </View>
+
     </ScrollView>
   );
 };
