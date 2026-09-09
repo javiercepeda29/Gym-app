@@ -3652,7 +3652,7 @@ const leagueDaysRemaining = Math.max(
         marginBottom: 4,
       }}
     >
-      Propón un reto para el último
+      PROPÓN UN RETO PARA EL ÚLTIMO
     </Text>
 
     <Text
@@ -3765,6 +3765,142 @@ const leagueDaysRemaining = Math.max(
       }}
     >
       {leagueChallenge.proposal_count}/{leagueChallenge.member_count} propuestas recibidas
+    </Text>
+  </View>
+)}
+{leagueChallenge?.phase === 'voting' && (
+  <View
+    style={{
+      backgroundColor: '#111318',
+      borderWidth: 1,
+      borderColor: 'rgba(255,176,0,0.30)',
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 16,
+    }}
+  >
+    <Text
+      style={{
+        color: COLORS.orange,
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 0.8,
+        marginBottom: 6,
+      }}
+    >
+      🔥 VOTACIÓN DEL RETO
+    </Text>
+
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '900',
+        marginBottom: 4,
+      }}
+    >
+      Elige el reto
+    </Text>
+
+    <Text
+      style={{
+        color: '#8E939E',
+        fontSize: 13,
+        lineHeight: 18,
+        marginBottom: 14,
+      }}
+    >
+      Las propuestas son anónimas. Vota la que deberá cumplir el último clasificado.
+    </Text>
+
+    {(leagueChallenge.proposals || []).map(
+      (proposal, index) => {
+        const selected =
+          leagueChallenge.own_vote_proposal_id ===
+          proposal.id;
+
+        return (
+          <TouchableOpacity
+            key={proposal.id}
+            activeOpacity={0.82}
+            disabled={challengeLoading}
+            onPress={() =>
+              voteLeagueChallenge(proposal.id)
+            }
+            style={{
+              minHeight: 58,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: selected
+                ? COLORS.orange
+                : '#2B2F37',
+              backgroundColor: selected
+                ? 'rgba(255,176,0,0.10)'
+                : '#0B0D11',
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              marginBottom: 9,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+          >
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 11,
+                backgroundColor: selected
+                  ? COLORS.orange
+                  : '#1B1E24',
+              }}
+            >
+              {selected ? (
+                <MaterialCommunityIcons
+                  name="check"
+                  size={17}
+                  color="#111111"
+                />
+              ) : (
+                <Text
+                  style={{
+                    color: '#777D88',
+                    fontSize: 11,
+                    fontWeight: '900',
+                  }}
+                >
+                  {index + 1}
+                </Text>
+              )}
+            </View>
+
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 14,
+                fontWeight: '700',
+                flex: 1,
+                lineHeight: 19,
+              }}
+            >
+              {proposal.challenge_text}
+            </Text>
+          </TouchableOpacity>
+        );
+      }
+    )}
+
+    <Text
+      style={{
+        color: '#777D88',
+        fontSize: 11,
+        marginTop: 3,
+      }}
+    >
+      {leagueChallenge.vote_count}/
+      {leagueChallenge.member_count} votos recibidos
     </Text>
   </View>
 )}
