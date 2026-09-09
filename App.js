@@ -2820,6 +2820,26 @@ const loginWithGoogle = async () => {
   ===================================================== */
 
   const League = () => {
+    const now = new Date();
+
+const todayUtc = Date.UTC(
+  now.getFullYear(),
+  now.getMonth(),
+  now.getDate()
+);
+
+const nextMonthUtc = Date.UTC(
+  now.getFullYear(),
+  now.getMonth() + 1,
+  1
+);
+
+const leagueDaysRemaining = Math.max(
+  1,
+  Math.ceil(
+    (nextMonthUtc - todayUtc) / (1000 * 60 * 60 * 24)
+  )
+);
   const leaguePlayers = realLeaguePlayers
   .map((member) => ({
     id: member.user_id,
@@ -3494,9 +3514,10 @@ const loginWithGoogle = async () => {
                   </View>
                 </View>
 
-                <Text style={styles.leagueMonthBadge}>
-                  14 DÍAS
-                </Text>
+              <Text style={styles.leagueMonthBadge}>
+  {leagueDaysRemaining}{' '}
+  {leagueDaysRemaining === 1 ? 'DÍA' : 'DÍAS'}
+</Text>
               </View>
 
               <View style={styles.leagueRankingLabels}>
