@@ -2879,14 +2879,10 @@ const leagueDaysRemaining = Math.max(
     me: member.user_id === currentUserId,
   }))
   .sort((a, b) => b.points - a.points)
-  .map((player) => ({
+  .map((player , index) => ({
   ...player,
 
-  isMonthlyMvp: monthlyAwards.some(
-    (award) =>
-      award.user_id === player.user_id &&
-      award.award_type === 'mvp'
-  ),
+  isMonthlyMvp: index === 0,
 
   isRevengeMode: monthlyAwards.some(
     (award) =>
