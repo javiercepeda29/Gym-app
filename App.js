@@ -2688,7 +2688,7 @@ const loginWithGoogle = async () => {
           </View>
 
           <View style={styles.pointsCard}>
-            <View style={styles.glow} />
+          
 
             <Text style={styles.pointsLabel}>
               PRÓXIMO LOGRO
