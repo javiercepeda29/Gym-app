@@ -1,14 +1,14 @@
 {
   "expo": {
   "name": "RivalSet",
-    "slug": "rivalset",
+    "slug": "temp-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/Logo.png",
+    "icon": "./assets/images/Logo.png",
     "scheme": "rivalset",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/Logo.png",
+      "icon": "./assets/images/Logo.png",
       "bundleIdentifier": "com.javiercepeda29.rivalset",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -33,7 +33,7 @@
         "expo-splash-screen",
         {
         "backgroundColor": "#08090C",
-        "image": "./assets/Logo.png",
+        "image": "./assets/images/Logo.png",
         "imageWidth": 150
         }
       ],
