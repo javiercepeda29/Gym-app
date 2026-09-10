@@ -5044,36 +5044,41 @@ const AuthScreen = () => {
         new Date(b.finishedAt) -
         new Date(a.finishedAt)
     );
-const activeWeeks = new Set(
-  workouts.map((workout) =>
-    localDayKey(mondayFor(workout.finishedAt))
-  )
-).size;
+const historyYear = new Date().getFullYear();
+const currentMonthIndex = new Date().getMonth();
 
-const recordExerciseNames = new Set();
+const monthInitials = [
+  'E', 'F', 'M', 'A', 'M', 'J',
+  'J', 'A', 'S', 'O', 'N', 'D',
+];
 
-workouts.forEach((workout) => {
-  (workout.exercises || []).forEach((exercise) => {
-    const hasValidMark =
-      Array.isArray(exercise.sets) &&
-      exercise.sets.some(
-        (set) =>
-          set.completed !== false &&
-          parseNumber(set.weight) !== null &&
-          parseNumber(set.reps) !== null
-      );
+const monthlyTrainingDays = monthInitials.map(
+  (label, monthIndex) => {
+    const days = new Set();
 
-    if (hasValidMark) {
-      const key = normalizeExerciseName(exercise.name || '');
+    workouts.forEach((workout) => {
+      const date = new Date(workout.finishedAt);
 
-      if (key) {
-        recordExerciseNames.add(key);
+      if (
+        date.getFullYear() === historyYear &&
+        date.getMonth() === monthIndex
+      ) {
+        days.add(localDayKey(date));
       }
-    }
-  });
-});
+    });
 
-const personalRecordsCount = recordExerciseNames.size;
+    return {
+      label,
+      monthIndex,
+      count: days.size,
+    };
+  }
+);
+
+const maxMonthlyTrainingDays = Math.max(
+  1,
+  ...monthlyTrainingDays.map((item) => item.count)
+);
     const muscleDays = MUSCLE_GROUPS.reduce(
       (result, muscle) => {
         result[muscle] = new Set();
@@ -5137,34 +5142,121 @@ const personalRecordsCount = recordExerciseNames.size;
             contentContainerStyle={styles.pageContent}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.historySummary}>
-              <View>
-                <Text style={styles.historySummaryNumber}>
-                  {activeWeeks}
-                </Text>
+<View
+  style={{
+    marginBottom: 22,
+  }}
+>
+  <View
+    style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+    }}
+  >
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '900',
+      }}
+    >
+      ACTIVIDAD ANUAL
+    </Text>
 
-                <Text style={styles.historySummaryLabel}>
-{activeWeeks === 1
-  ? 'semana activa'
-  : 'semanas activas'}
-                </Text>
-              </View>
+    <Text
+      style={{
+        color: '#858A95',
+        fontSize: 13,
+        fontWeight: '700',
+      }}
+    >
+      {historyYear}
+    </Text>
+  </View>
 
-              <View style={styles.historySummaryDivider} />
+  <View
+    style={{
+      height: 125,
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+    }}
+  >
+    {monthlyTrainingDays.map((item) => {
+      const isCurrentMonth =
+        item.monthIndex === currentMonthIndex;
 
-              <View>
-                <Text style={styles.historySummaryNumber}>
-                  {personalRecordsCount}
-                </Text>
+      const isPastMonth =
+        item.monthIndex < currentMonthIndex;
 
-                <Text style={styles.historySummaryLabel}>
-{personalRecordsCount === 1
-  ? 'récord personal'
-  : 'récords personales'}
-                </Text>
-              </View>
-            </View>
-           <TouchableOpacity
+      const barHeight =
+        item.count > 0
+          ? Math.max(
+              8,
+              (item.count / maxMonthlyTrainingDays) * 78
+            )
+          : 3;
+
+      return (
+        <View
+          key={item.monthIndex}
+          style={{
+            flex: 1,
+            alignItems: 'center',
+          }}
+        >
+          <Text
+            style={{
+              color: isCurrentMonth
+                ? '#FFFFFF'
+                : '#858A95',
+              fontSize: 10,
+              fontWeight: '800',
+              marginBottom: 5,
+              opacity: item.monthIndex > currentMonthIndex
+                ? 0.3
+                : 1,
+            }}
+          >
+            {item.count}
+          </Text>
+
+          <View
+            style={{
+              width: 10,
+              height: barHeight,
+              borderRadius: 5,
+              backgroundColor: COLORS.orange,
+              opacity: isCurrentMonth
+                ? 1
+                : isPastMonth
+                ? 0.42
+                : 0.12,
+            }}
+          />
+
+          <Text
+            style={{
+              color: isCurrentMonth
+                ? COLORS.orange
+                : '#858A95',
+              fontSize: 11,
+              fontWeight: isCurrentMonth ? '900' : '700',
+              marginTop: 7,
+              opacity: item.monthIndex > currentMonthIndex
+                ? 0.35
+                : 1,
+            }}
+          >
+            {item.label}
+          </Text>
+        </View>
+      );
+    })}
+  </View>
+</View>           <TouchableOpacity
   activeOpacity={0.8}
   onPress={() => setScreen('personalRecords')}
   style={{
