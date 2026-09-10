@@ -1,14 +1,19 @@
 {
   "expo": {
-    "name": "temp-app",
-    "slug": "temp-app",
+  "name": "RivalSet",
+    "slug": "rivalset",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/Logo.png",
-    "scheme": "tempapp",
+    "scheme": "rivalset",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/Logo.png",
+      "bundleIdentifier": "com.javiercepeda29.rivalset",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,19 +29,29 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-    
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+        "backgroundColor": "#08090C",
+        "image": "./assets/Logo.png",
+        "imageWidth": 150
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
-      
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4be49330-2380-419a-a8be-614e0e03d201"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/4be49330-2380-419a-a8be-614e0e03d201"
     }
   }
 }
