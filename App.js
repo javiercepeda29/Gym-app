@@ -5135,63 +5135,36 @@ const AuthScreen = () => {
                 </Text>
               </View>
             </View>
-<TouchableOpacity
-  activeOpacity={0.82}
+           <TouchableOpacity
+  activeOpacity={0.8}
   onPress={() => setScreen('personalRecords')}
   style={{
+    height: 50,
     backgroundColor: '#111318',
     borderWidth: 1,
-    borderColor: 'rgba(255,176,0,0.35)',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 22,
+    borderColor: 'rgba(255,176,0,0.22)',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    marginBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   }}
 >
-  <View
+  <Text
     style={{
-      width: 46,
-      height: 46,
-      borderRadius: 14,
-      backgroundColor: 'rgba(255,176,0,0.12)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 14,
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '900',
+      letterSpacing: 0.3,
     }}
   >
-    <MaterialCommunityIcons
-      name="trophy-outline"
-      size={24}
-      color={COLORS.orange}
-    />
-  </View>
-
-  <View style={{ flex: 1 }}>
-    <Text
-      style={{
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '900',
-        marginBottom: 4,
-      }}
-    >
-      TUS MEJORES MARCAS
-    </Text>
-
-    <Text
-      style={{
-        color: '#858A95',
-        fontSize: 13,
-      }}
-    >
-      Consulta tus récords por ejercicio
-    </Text>
-  </View>
+    TUS MEJORES MARCAS
+  </Text>
 
   <MaterialCommunityIcons
     name="chevron-right"
-    size={24}
+    size={22}
     color={COLORS.orange}
   />
 </TouchableOpacity>
