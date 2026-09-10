@@ -478,7 +478,8 @@ const [realLeagueId, setRealLeagueId] = useState(null);
 
   const [notificationsEnabled, setNotificationsEnabled] =
     useState(true);
-
+const [settingsLoaded, setSettingsLoaded] =
+  useState(false);
   const [vibrationEnabled, setVibrationEnabled] =
     useState(true);
 
@@ -626,6 +627,7 @@ useEffect(() => {
           'No se pudieron recuperar todos los datos guardados.'
         );
       }
+      setSettingsLoaded(true);
     };
 
     load();
@@ -783,19 +785,61 @@ useEffect(() => {
     } catch {}
   };
 
-  const toggleNotifications = async () => {
-    const next = !notificationsEnabled;
+const toggleNotifications = async () => {
+  const next = !notificationsEnabled;
 
-    setNotificationsEnabled(next);
+  if (next) {
+    if (Platform.OS !== 'web') {
+      const currentPermissions =
+        await Notifications.getPermissionsAsync();
+
+      let finalStatus = currentPermissions.status;
+
+      if (finalStatus !== 'granted') {
+        const requestedPermissions =
+          await Notifications.requestPermissionsAsync();
+
+        finalStatus = requestedPermissions.status;
+      }
+
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          'Notificaciones desactivadas',
+          'Necesitas permitir las notificaciones para recibir los recordatorios.'
+        );
+        return;
+      }
+    }
+
+    setNotificationsEnabled(true);
 
     await saveSettings(
-      next,
+      true,
       vibrationEnabled
     );
 
-    await impact();
-  };
+    await scheduleDailyNotifications();
+  } else {
+    setNotificationsEnabled(false);
 
+    await saveSettings(
+      false,
+      vibrationEnabled
+    );
+
+    if (Platform.OS !== 'web') {
+      await Notifications.cancelScheduledNotificationAsync(
+        'rivalset-morning'
+      ).catch(() => {});
+
+      await Notifications.cancelScheduledNotificationAsync(
+        'rivalset-evening'
+      ).catch(() => {});
+    }
+  }
+
+  await impact();
+};
   const toggleVibration = async () => {
     const next = !vibrationEnabled;
 
@@ -844,9 +888,9 @@ useEffect(() => {
     try {
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync(
-          'rivalzone-default',
+          'rivalset-default',
           {
-            name: 'RivalZone',
+            name: 'RivalSet',
             importance: Notifications.AndroidImportance.HIGH,
             vibrationPattern: [0, 250, 150, 250],
             lightColor: '#FFB000',
@@ -878,7 +922,7 @@ useEffect(() => {
 
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'RivalZone',
+          title: 'RivalSet',
           body: '🔥 ¿Listo para entrenar? Tu próxima sesión puede acercarte al primer puesto.',
           sound: 'default',
           data: {
@@ -900,7 +944,83 @@ useEffect(() => {
       setSendingTestNotification(false);
     }
   };
+const scheduleDailyNotifications = async () => {
+  if (Platform.OS === 'web') return;
 
+  try {
+    const currentPermissions =
+      await Notifications.getPermissionsAsync();
+
+    let finalStatus = currentPermissions.status;
+
+    if (finalStatus !== 'granted') {
+      const requestedPermissions =
+        await Notifications.requestPermissionsAsync();
+
+      finalStatus = requestedPermissions.status;
+    }
+
+    if (finalStatus !== 'granted') {
+      return;
+    }
+
+    await Notifications.cancelScheduledNotificationAsync(
+      'rivalset-morning'
+    ).catch(() => {});
+
+    await Notifications.cancelScheduledNotificationAsync(
+      'rivalset-evening'
+    ).catch(() => {});
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'rivalset-morning',
+      content: {
+        title:
+          'Nuevo día, nueva oportunidad para seguir creciendo. 💪',
+        sound: 'default',
+        data: {
+          type: 'morning-reminder',
+        },
+      },
+      trigger: {
+        type:
+          Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 8,
+        minute: 0,
+      },
+    });
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'rivalset-evening',
+      content: {
+        title: 'RivalSet',
+        body:
+          '🔥 ¿Listo para entrenar? Tu próxima sesión puede acercarte al primer puesto.',
+        sound: 'default',
+        data: {
+          type: 'evening-reminder',
+        },
+      },
+      trigger: {
+        type:
+          Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 19,
+        minute: 0,
+      },
+    });
+  } catch (error) {
+    console.log(
+      'ERROR PROGRAMANDO NOTIFICACIONES:',
+      error
+    );
+  }
+};
+useEffect(() => {
+  if (!settingsLoaded) return;
+  if (!notificationsEnabled) return;
+
+  scheduleDailyNotifications();
+}, [settingsLoaded, notificationsEnabled]);
   /* =====================================================
      LIGA
   ===================================================== */
