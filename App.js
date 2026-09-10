@@ -5439,59 +5439,33 @@ const PersonalRecords = () => {
         contentContainerStyle={styles.pageContent}
         showsVerticalScrollIndicator={false}
       >
-        <View
-          style={{
-            backgroundColor: '#111318',
-            borderWidth: 1,
-            borderColor: 'rgba(255,176,0,0.35)',
-            borderRadius: 18,
-            padding: 18,
-            marginBottom: 20,
-            flexDirection: 'row',
-            alignItems: 'center',
-          }}
-        >
-          <View
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: 15,
-              backgroundColor: 'rgba(255,176,0,0.12)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 14,
-            }}
-          >
-            <MaterialCommunityIcons
-              name="trophy-outline"
-              size={27}
-              color={COLORS.orange}
-            />
-          </View>
+<View
+  style={{
+    marginBottom: 22,
+  }}
+>
+  <Text
+    style={{
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: '900',
+      letterSpacing: 0.2,
+      marginBottom: 6,
+    }}
+  >
+  AQUÍ ES DONDE VES TU PROGRESO
+  </Text>
 
-          <View>
-            <Text
-              style={{
-                color: '#FFFFFF',
-                fontSize: 24,
-                fontWeight: '900',
-              }}
-            >
-              {personalRecords.length}
-            </Text>
-
-            <Text
-              style={{
-                color: '#858A95',
-                fontSize: 13,
-                marginTop: 2,
-              }}
-            >
-              ejercicios con marca registrada
-            </Text>
-          </View>
-        </View>
-
+  <Text
+    style={{
+      color: '#858A95',
+      fontSize: 13,
+      lineHeight: 19,
+    }}
+  >
+    ¡Esto es lo que estás construyendo! Sigue avanzando.
+  </Text>
+</View>
         {personalRecords.length > 0 ? (
           personalRecords.map((record) => (
             <View
