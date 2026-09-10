@@ -5051,26 +5051,21 @@ const monthInitials = [
   'E', 'F', 'M', 'A', 'M', 'J',
   'J', 'A', 'S', 'O', 'N', 'D',
 ];
-
 const monthlyTrainingDays = monthInitials.map(
   (label, monthIndex) => {
-    const days = new Set();
-
-    workouts.forEach((workout) => {
+    const count = workouts.filter((workout) => {
       const date = new Date(workout.finishedAt);
 
-      if (
+      return (
         date.getFullYear() === historyYear &&
         date.getMonth() === monthIndex
-      ) {
-        days.add(localDayKey(date));
-      }
-    });
+      );
+    }).length;
 
     return {
       label,
       monthIndex,
-      count: days.size,
+      count,
     };
   }
 );
