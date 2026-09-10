@@ -3623,13 +3623,13 @@ const leagueDaysRemaining = Math.max(
                   <View style={styles.leaguePlayerAwardBox}>
   {player.isMonthlyMvp && (
     <Text style={styles.leaguePlayerAward}>
-      🏆 MVP DEL MES
+     MVP DEL MES
     </Text>
   )}
 
   {player.isRevengeMode && (
     <Text style={styles.leaguePlayerAward}>
-    🔻 ÚLTIMO DEL MES
+    ÚLTIMO DEL MES
     </Text>
   )}
 </View>
