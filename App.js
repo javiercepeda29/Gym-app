@@ -5044,7 +5044,36 @@ const AuthScreen = () => {
         new Date(b.finishedAt) -
         new Date(a.finishedAt)
     );
+const activeWeeks = new Set(
+  workouts.map((workout) =>
+    localDayKey(mondayFor(workout.finishedAt))
+  )
+).size;
 
+const recordExerciseNames = new Set();
+
+workouts.forEach((workout) => {
+  (workout.exercises || []).forEach((exercise) => {
+    const hasValidMark =
+      Array.isArray(exercise.sets) &&
+      exercise.sets.some(
+        (set) =>
+          set.completed !== false &&
+          parseNumber(set.weight) !== null &&
+          parseNumber(set.reps) !== null
+      );
+
+    if (hasValidMark) {
+      const key = normalizeExerciseName(exercise.name || '');
+
+      if (key) {
+        recordExerciseNames.add(key);
+      }
+    }
+  });
+});
+
+const personalRecordsCount = recordExerciseNames.size;
     const muscleDays = MUSCLE_GROUPS.reduce(
       (result, muscle) => {
         result[muscle] = new Set();
@@ -5111,13 +5140,13 @@ const AuthScreen = () => {
             <View style={styles.historySummary}>
               <View>
                 <Text style={styles.historySummaryNumber}>
-                  {uniqueTrainingDays}
+                  {activeWeeks}
                 </Text>
 
                 <Text style={styles.historySummaryLabel}>
-                  {uniqueTrainingDays === 1
-                    ? 'día entrenado'
-                    : 'días entrenados'}
+{activeWeeks === 1
+  ? 'semana activa'
+  : 'semanas activas'}
                 </Text>
               </View>
 
@@ -5125,13 +5154,13 @@ const AuthScreen = () => {
 
               <View>
                 <Text style={styles.historySummaryNumber}>
-                  {workouts.length}
+                  {personalRecordsCount}
                 </Text>
 
                 <Text style={styles.historySummaryLabel}>
-                  {workouts.length === 1
-                    ? 'sesión'
-                    : 'sesiones'}
+{personalRecordsCount === 1
+  ? 'récord personal'
+  : 'récords personales'}
                 </Text>
               </View>
             </View>
