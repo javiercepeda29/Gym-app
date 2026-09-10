@@ -3629,7 +3629,7 @@ const leagueDaysRemaining = Math.max(
 
   {player.isRevengeMode && (
     <Text style={styles.leaguePlayerAward}>
-      🔥 MODO VENGANZA
+    🔻 ÚLTIMO DEL MES
     </Text>
   )}
 </View>
