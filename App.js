@@ -1758,6 +1758,8 @@ const loginWithGoogle = async () => {
     if (screen === 'editor') {
       setEditingRoutineId(null);
       setScreen('routines');
+      } else if (screen === 'personalRecords') {
+  setScreen('history');
     } else if (screen === 'workout') {
       setScreen(
         workoutOrigin === 'league'
@@ -5133,7 +5135,66 @@ const AuthScreen = () => {
                 </Text>
               </View>
             </View>
+<TouchableOpacity
+  activeOpacity={0.82}
+  onPress={() => setScreen('personalRecords')}
+  style={{
+    backgroundColor: '#111318',
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.35)',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+  }}
+>
+  <View
+    style={{
+      width: 46,
+      height: 46,
+      borderRadius: 14,
+      backgroundColor: 'rgba(255,176,0,0.12)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 14,
+    }}
+  >
+    <MaterialCommunityIcons
+      name="trophy-outline"
+      size={24}
+      color={COLORS.orange}
+    />
+  </View>
 
+  <View style={{ flex: 1 }}>
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '900',
+        marginBottom: 4,
+      }}
+    >
+      TUS MEJORES MARCAS
+    </Text>
+
+    <Text
+      style={{
+        color: '#858A95',
+        fontSize: 13,
+      }}
+    >
+      Consulta tus récords por ejercicio
+    </Text>
+  </View>
+
+  <MaterialCommunityIcons
+    name="chevron-right"
+    size={24}
+    color={COLORS.orange}
+  />
+</TouchableOpacity>
             <Text style={styles.historySectionTitle}>
               Grupos trabajados
             </Text>
@@ -5336,7 +5397,239 @@ const AuthScreen = () => {
       </>
     );
   };
+/* =====================================================
+   MEJORES MARCAS
+===================================================== */
 
+const PersonalRecords = () => {
+  const recordsByExercise = {};
+
+  workouts.forEach((workout) => {
+    (workout.exercises || []).forEach((exercise) => {
+      const key = normalizeExerciseName(exercise.name || '');
+
+      if (!key) return;
+
+      const sets = Array.isArray(exercise.sets)
+        ? exercise.sets.filter(
+            (set) => set.completed !== false
+          )
+        : [];
+
+      sets.forEach((set) => {
+        const weight = parseNumber(set.weight);
+        const reps = parseNumber(set.reps);
+
+        if (weight === null || reps === null) {
+          return;
+        }
+
+        const current = recordsByExercise[key];
+
+        const isBetter =
+          !current ||
+          weight > current.weight ||
+          (weight === current.weight &&
+            reps > current.reps);
+
+        if (isBetter) {
+          recordsByExercise[key] = {
+            name: exercise.name,
+            weight,
+            reps,
+            muscles: muscleText(exercise),
+            finishedAt: workout.finishedAt,
+          };
+        }
+      });
+    });
+  });
+
+  const personalRecords = Object.values(
+    recordsByExercise
+  ).sort((a, b) =>
+    a.name.localeCompare(b.name, 'es', {
+      sensitivity: 'base',
+    })
+  );
+
+  return (
+    <View style={styles.page}>
+      <AppGradient />
+
+      <PageHeader
+        title="Mejores marcas"
+        subtitle="Tus récords personales"
+      />
+
+      <ScrollView
+        contentContainerStyle={styles.pageContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={{
+            backgroundColor: '#111318',
+            borderWidth: 1,
+            borderColor: 'rgba(255,176,0,0.35)',
+            borderRadius: 18,
+            padding: 18,
+            marginBottom: 20,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}
+        >
+          <View
+            style={{
+              width: 50,
+              height: 50,
+              borderRadius: 15,
+              backgroundColor: 'rgba(255,176,0,0.12)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 14,
+            }}
+          >
+            <MaterialCommunityIcons
+              name="trophy-outline"
+              size={27}
+              color={COLORS.orange}
+            />
+          </View>
+
+          <View>
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 24,
+                fontWeight: '900',
+              }}
+            >
+              {personalRecords.length}
+            </Text>
+
+            <Text
+              style={{
+                color: '#858A95',
+                fontSize: 13,
+                marginTop: 2,
+              }}
+            >
+              ejercicios con marca registrada
+            </Text>
+          </View>
+        </View>
+
+        {personalRecords.length > 0 ? (
+          personalRecords.map((record) => (
+            <View
+              key={normalizeExerciseName(record.name)}
+              style={{
+                backgroundColor: '#111318',
+                borderWidth: 1,
+                borderColor: '#252830',
+                borderRadius: 18,
+                padding: 16,
+                marginBottom: 12,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    paddingRight: 12,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 16,
+                      fontWeight: '900',
+                      marginBottom: 5,
+                    }}
+                  >
+                    {record.name}
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: '#777D88',
+                      fontSize: 12,
+                    }}
+                  >
+                    {record.muscles}
+                  </Text>
+                </View>
+
+                <View
+                  style={{
+                    alignItems: 'flex-end',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: COLORS.orange,
+                      fontSize: 20,
+                      fontWeight: '900',
+                    }}
+                  >
+                    {record.weight} kg
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 12,
+                      fontWeight: '700',
+                      marginTop: 2,
+                    }}
+                  >
+                    {record.reps} reps
+                  </Text>
+                </View>
+              </View>
+
+              <Text
+                style={{
+                  color: '#555B65',
+                  fontSize: 11,
+                  marginTop: 12,
+                }}
+              >
+                Récord ·{' '}
+                {new Date(
+                  record.finishedAt
+                ).toLocaleDateString('es-ES')}
+              </Text>
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyCard}>
+            <MaterialCommunityIcons
+              name="trophy-outline"
+              size={32}
+              color="#4C5058"
+            />
+
+            <Text style={styles.emptyTitle}>
+              Aún no hay marcas
+            </Text>
+
+            <Text style={styles.emptyText}>
+              Cuando registres peso y repeticiones,
+              tus mejores marcas aparecerán aquí.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+};
   /* =====================================================
      WORKOUT
   ===================================================== */
@@ -6134,11 +6427,13 @@ return (
         ? Editor()
         : screen === 'achievements'
         ? Achievements()
-        : screen === 'history'
-        ? History()
-        : screen === 'quickStart'
-        ? QuickStart()
-        : Workout()}
+: screen === 'personalRecords'
+? PersonalRecords()
+: screen === 'history'
+? History()
+: screen === 'quickStart'
+? QuickStart()
+: Workout()}
     </SafeAreaView>
 </LinearGradient>
 );
