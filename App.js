@@ -245,16 +245,68 @@ const muscleText = (exercise = {}) => {
   return muscles.length > 0 ? muscles.join(' · ') : 'Sin grupo';
 };
 
+const isCardioExercise = (exercise = {}) =>
+  getExerciseMuscles(exercise).includes('Cardio');
+
 const emptyExercise = () => ({
   id: Date.now() + Math.random(),
   name: '',
   series: '',
   reps: '',
   weight: '',
+  duration: '',
+  distance: '',
+  heartRate: '',
   muscles: [],
 });
 
 const exercisePlan = (exercise) => {
+  if (isCardioExercise(exercise)) {
+    const duration = parseNumber(exercise.duration);
+    const distance = parseNumber(exercise.distance);
+    const heartRate = parseNumber(exercise.heartRate);
+
+    const parts = [];
+
+    if (duration !== null && duration > 0) {
+      parts.push(`${duration} min`);
+    }
+
+    if (distance !== null && distance > 0) {
+      parts.push(`${distance} km`);
+    }
+
+    if (
+      duration !== null &&
+      duration > 0 &&
+      distance !== null &&
+      distance > 0
+    ) {
+      const totalSeconds = Math.round(
+        (duration / distance) * 60
+      );
+
+      const paceMinutes = Math.floor(
+        totalSeconds / 60
+      );
+
+      const paceSeconds = totalSeconds % 60;
+
+      parts.push(
+        `${paceMinutes}:${String(paceSeconds).padStart(
+          2,
+          '0'
+        )} min/km`
+      );
+    }
+
+    if (heartRate !== null && heartRate > 0) {
+      parts.push(`${Math.round(heartRate)} PPM`);
+    }
+
+    return parts.join(' · ');
+  }
+
   if (exercise.series && exercise.reps) {
     return `${exercise.series} series · ${exercise.reps} rep${
       exercise.weight ? ` · ${exercise.weight} kg` : ''
@@ -263,8 +315,22 @@ const exercisePlan = (exercise) => {
 
   return exercise.plan || '';
 };
-
 const buildWorkoutSets = (exercise) => {
+  if (isCardioExercise(exercise)) {
+    return [
+      {
+        id: `${exercise.id}-cardio-${Date.now()}-${Math.random()}`,
+        duration: exercise.duration || '',
+        distance: exercise.distance || '',
+        heartRate: exercise.heartRate || '',
+        completed: false,
+        prType: null,
+        prText: '',
+        prData: null,
+      },
+    ];
+  }
+
   const amount = Math.max(
     1,
     parseInt(exercise.series, 10) || 1
@@ -280,7 +346,6 @@ const buildWorkoutSets = (exercise) => {
     prData: null,
   }));
 };
-
 /* =========================================================
    DEGRADADO GENERAL
 ========================================================= */
@@ -1829,33 +1894,55 @@ const loginWithGoogle = async () => {
     );
   };
 
-  const toggleExerciseMuscle = async (
-    exerciseId,
-    muscle
-  ) => {
-    await impact();
+const toggleExerciseMuscle = async (
+  exerciseId,
+  muscle
+) => {
+  await impact();
 
-    setDraftExercises((items) =>
-      items.map((exercise) => {
-        if (exercise.id !== exerciseId) {
-          return exercise;
-        }
+  setDraftExercises((items) =>
+    items.map((exercise) => {
+      if (exercise.id !== exerciseId) {
+        return exercise;
+      }
 
-        const current = getExerciseMuscles(exercise);
+      const current = getExerciseMuscles(exercise);
 
-        const next = current.includes(muscle)
-          ? current.filter((item) => item !== muscle)
-          : [...current, muscle];
+      if (muscle === 'Cardio') {
+        const selectingCardio =
+          !current.includes('Cardio');
 
         return {
           ...exercise,
-          muscles: next,
+          muscles: selectingCardio ? ['Cardio'] : [],
           muscle: undefined,
+          series: selectingCardio ? '' : exercise.series,
+          reps: selectingCardio ? '' : exercise.reps,
+          weight: selectingCardio ? '' : exercise.weight,
         };
-      })
-    );
-  };
+      }
 
+      const withoutCardio = current.filter(
+        (item) => item !== 'Cardio'
+      );
+
+      const next = withoutCardio.includes(muscle)
+        ? withoutCardio.filter(
+            (item) => item !== muscle
+          )
+        : [...withoutCardio, muscle];
+
+      return {
+        ...exercise,
+        muscles: next,
+        muscle: undefined,
+        duration: '',
+        distance: '',
+        heartRate: '',
+      };
+    })
+  );
+};
   const addExercise = async () => {
     await impact();
 
@@ -1878,24 +1965,29 @@ const loginWithGoogle = async () => {
   };
 
   const saveRoutine = async () => {
-    const clean = draftExercises
-      .map((item) => ({
-        ...item,
-        name: item.name.trim(),
-        series: (item.series || '').trim(),
-        reps: (item.reps || '').trim(),
-        weight: (item.weight || '').trim(),
-        muscles: getExerciseMuscles(item),
-      }))
-      .filter(
-        (item) =>
-          item.name ||
-          item.series ||
-          item.reps ||
-          item.weight ||
-          item.muscles.length > 0
-      );
-
+ const clean = draftExercises
+  .map((item) => ({
+    ...item,
+    name: item.name.trim(),
+    series: (item.series || '').trim(),
+    reps: (item.reps || '').trim(),
+    weight: (item.weight || '').trim(),
+    duration: (item.duration || '').trim(),
+    distance: (item.distance || '').trim(),
+    heartRate: (item.heartRate || '').trim(),
+    muscles: getExerciseMuscles(item),
+  }))
+  .filter(
+    (item) =>
+      item.name ||
+      item.series ||
+      item.reps ||
+      item.weight ||
+      item.duration ||
+      item.distance ||
+      item.heartRate ||
+      item.muscles.length > 0
+  );
     if (!routineName.trim()) {
       Alert.alert(
         'Falta el nombre',
@@ -1905,24 +1997,31 @@ const loginWithGoogle = async () => {
       return;
     }
 
-    if (
-      !clean.length ||
-      clean.some(
-        (item) =>
-          !item.name ||
-          !item.series ||
-          !item.reps ||
-          item.muscles.length === 0
-      )
-    ) {
-      Alert.alert(
-        'Revisa los ejercicios',
-        'Cada ejercicio necesita nombre, series, repeticiones y al menos un grupo muscular. Los kilos son opcionales.'
-      );
+if (
+  !clean.length ||
+  clean.some((item) => {
+    const isCardio = isCardioExercise(item);
 
-      return;
+    if (!item.name || item.muscles.length === 0) {
+      return true;
     }
 
+    if (isCardio) {
+      const duration = parseNumber(item.duration);
+
+      return duration === null || duration <= 0;
+    }
+
+    return !item.series || !item.reps;
+  })
+) {
+  Alert.alert(
+    'Revisa los ejercicios',
+    'Los ejercicios de fuerza necesitan nombre, series, repeticiones y grupo muscular. Cardio necesita nombre y duración.'
+  );
+
+  return;
+}
     if (editingRoutineId !== null) {
       const next = routines.map((routine) =>
         routine.id === editingRoutineId
@@ -2245,43 +2344,60 @@ const loginWithGoogle = async () => {
       return;
     }
 
-    const weight = parseNumber(
-      targetSet.weight
+const isCardio = isCardioExercise(exercise);
+
+const duration = parseNumber(
+  targetSet.duration
+);
+
+const weight = parseNumber(
+  targetSet.weight
+);
+
+const reps = parseNumber(
+  targetSet.reps
+);
+
+if (isCardio) {
+  if (
+    duration === null ||
+    duration <= 0
+  ) {
+    Alert.alert(
+      'Revisa la duración',
+      'Introduce los minutos realizados para completar el cardio.'
     );
 
-    const reps = parseNumber(
-      targetSet.reps
+    return;
+  }
+} else {
+  if (
+    weight === null ||
+    weight < 0
+  ) {
+    Alert.alert(
+      'Revisa el peso',
+      'Introduce un peso válido para completar la serie.'
     );
 
-    if (
-      weight === null ||
-      weight < 0
-    ) {
-      Alert.alert(
-        'Revisa el peso',
-        'Introduce un peso válido para completar la serie.'
-      );
+    return;
+  }
 
-      return;
-    }
-
-    if (
-      reps === null ||
-      reps <= 0
-    ) {
-      Alert.alert(
-        'Revisa las repeticiones',
-        'Introduce las repeticiones realizadas.'
-      );
-
-      return;
-    }
-
-    const pr = detectPR(
-      exercise,
-      targetSet
+  if (
+    reps === null ||
+    reps <= 0
+  ) {
+    Alert.alert(
+      'Revisa las repeticiones',
+      'Introduce las repeticiones realizadas.'
     );
 
+    return;
+  }
+}
+const pr = isCardio
+  ? null
+  : detectPR(exercise, targetSet);
     const next = workoutExercises.map((item) =>
       item.id !== exerciseId
         ? item
@@ -4568,55 +4684,105 @@ const AuthScreen = () => {
                     }
                   />
 
-                  <View style={styles.exerciseMetricsRow}>
-                    <TextInput
-                      style={styles.metricInput}
-                      placeholder="Series"
-                      placeholderTextColor="#626873"
-                      keyboardType="number-pad"
-                      value={exercise.series}
-                      onChangeText={(value) =>
-                        updateExercise(
-                          exercise.id,
-                          'series',
-                          value
-                        )
-                      }
-                    />
 
-                    <TextInput
-                      style={styles.metricInput}
-                      placeholder="Reps"
-                      placeholderTextColor="#626873"
-                      keyboardType="number-pad"
-                      value={exercise.reps}
-                      onChangeText={(value) =>
-                        updateExercise(
-                          exercise.id,
-                          'reps',
-                          value
-                        )
-                      }
-                    />
+                  {isCardioExercise(exercise) ? (
+  <View style={styles.exerciseMetricsRow}>
+    <TextInput
+      style={styles.metricInput}
+      placeholder="Min"
+      placeholderTextColor="#626873"
+      keyboardType="number-pad"
+      value={exercise.duration}
+      onChangeText={(value) =>
+        updateExercise(
+          exercise.id,
+          'duration',
+          value
+        )
+      }
+    />
 
-                    <TextInput
-                      style={[
-                        styles.metricInput,
-                        styles.weightInput,
-                      ]}
-                      placeholder="Kg"
-                      placeholderTextColor="#8B773B"
-                      keyboardType="decimal-pad"
-                      value={exercise.weight}
-                      onChangeText={(value) =>
-                        updateExercise(
-                          exercise.id,
-                          'weight',
-                          value
-                        )
-                      }
-                    />
-                  </View>
+    <TextInput
+      style={styles.metricInput}
+      placeholder="Km"
+      placeholderTextColor="#626873"
+      keyboardType="decimal-pad"
+      value={exercise.distance}
+      onChangeText={(value) =>
+        updateExercise(
+          exercise.id,
+          'distance',
+          value
+        )
+      }
+    />
+
+    <TextInput
+      style={styles.metricInput}
+      placeholder="PPM"
+      placeholderTextColor="#626873"
+      keyboardType="number-pad"
+      value={exercise.heartRate}
+      onChangeText={(value) =>
+        updateExercise(
+          exercise.id,
+          'heartRate',
+          value
+        )
+      }
+    />
+  </View>
+) : (
+  <View style={styles.exerciseMetricsRow}>
+    <TextInput
+      style={styles.metricInput}
+      placeholder="Series"
+      placeholderTextColor="#626873"
+      keyboardType="number-pad"
+      value={exercise.series}
+      onChangeText={(value) =>
+        updateExercise(
+          exercise.id,
+          'series',
+          value
+        )
+      }
+    />
+
+    <TextInput
+      style={styles.metricInput}
+      placeholder="Reps"
+      placeholderTextColor="#626873"
+      keyboardType="number-pad"
+      value={exercise.reps}
+      onChangeText={(value) =>
+        updateExercise(
+          exercise.id,
+          'reps',
+          value
+        )
+      }
+    />
+
+    <TextInput
+      style={[
+        styles.metricInput,
+        styles.weightInput,
+      ]}
+      placeholder="Kg"
+      placeholderTextColor="#8B773B"
+      keyboardType="decimal-pad"
+      value={exercise.weight}
+      onChangeText={(value) =>
+        updateExercise(
+          exercise.id,
+          'weight',
+          value
+        )
+      }
+    />
+  </View>
+)}
 
                   <View style={styles.muscleLabelRow}>
                     <Text style={styles.muscleLabel}>
@@ -5432,37 +5598,48 @@ const maxMonthlyTrainingDays = Math.max(
                         )}
                       </View>
 
-                      {sets.length > 0 ? (
-                        sets.map((set, index) => (
-                          <View
-                            key={set.id || index}
-                            style={styles.historySetRow}
-                          >
-                            <Text style={styles.historySetNumber}>
-                              {index + 1}
-                            </Text>
+{isCardioExercise(exercise) ? (
+  <Text style={styles.legacyWorkoutText}>
+    {exercisePlan({
+      ...exercise,
+      duration:
+        sets[0]?.duration ?? exercise.duration,
+      distance:
+        sets[0]?.distance ?? exercise.distance,
+      heartRate:
+        sets[0]?.heartRate ?? exercise.heartRate,
+    })}
+  </Text>
+) : sets.length > 0 ? (
+  sets.map((set, index) => (
+    <View
+      key={set.id || index}
+      style={styles.historySetRow}
+    >
+      <Text style={styles.historySetNumber}>
+        {index + 1}
+      </Text>
 
-                            <Text style={styles.historySetValue}>
-                              {set.weight} kg
-                            </Text>
+      <Text style={styles.historySetValue}>
+        {set.weight} kg
+      </Text>
 
-                            <Text style={styles.historySetValue}>
-                              {set.reps} reps
-                            </Text>
+      <Text style={styles.historySetValue}>
+        {set.reps} reps
+      </Text>
 
-                            {!!set.prType && (
-                              <Text style={styles.historySetPR}>
-                                PR
-                              </Text>
-                            )}
-                          </View>
-                        ))
-                      ) : (
-                        <Text style={styles.legacyWorkoutText}>
-                          {exercisePlan(exercise)}
-                        </Text>
-                      )}
-                    </View>
+      {!!set.prType && (
+        <Text style={styles.historySetPR}>
+          PR
+        </Text>
+      )}
+    </View>
+  ))
+) : (
+  <Text style={styles.legacyWorkoutText}>
+    {exercisePlan(exercise)}
+  </Text>
+)}                    </View>
                   );
                 })}
               </View>
@@ -5879,7 +6056,7 @@ const PersonalRecords = () => {
                           styles.setNumberColumn,
                         ]}
                       >
-                        SERIE
+                      {isCardioExercise(exercise) ? 'MIN' : 'SERIE'}
                       </Text>
 
                       <Text
@@ -5888,7 +6065,7 @@ const PersonalRecords = () => {
                           styles.setFieldColumn,
                         ]}
                       >
-                        KG
+                        {isCardioExercise(exercise) ? 'KM' : 'KG'}
                       </Text>
 
                       <Text
@@ -5897,7 +6074,7 @@ const PersonalRecords = () => {
                           styles.setFieldColumn,
                         ]}
                       >
-                        REPS
+                        {isCardioExercise(exercise) ? 'PPM' : 'REPS'}
                       </Text>
 
                       <View style={styles.setCheckColumn} />
@@ -5949,66 +6126,119 @@ const PersonalRecords = () => {
                                 />
                               )}
 
-                              <View style={styles.setNumberColumn}>
-                                <Text
-                                  style={[
-                                    styles.liveSetNumber,
-                                    !!set.prType &&
-                                      styles.liveSetNumberPR,
-                                  ]}
-                                >
-                                  {index + 1}
-                                </Text>
-                              </View>
-
-                              <View style={styles.setFieldColumn}>
-                                <TextInput
-                                  value={String(
-                                    set.weight ?? ''
-                                  )}
-                                  onChangeText={(value) =>
-                                    updateWorkoutSet(
-                                      exercise.id,
-                                      set.id,
-                                      'weight',
-                                      value
-                                    )
-                                  }
-                                  keyboardType="decimal-pad"
-                                  placeholder="0"
-                                  placeholderTextColor="#50545D"
-                                  style={[
-                                    styles.liveSetInput,
-                                    !!set.prType &&
-                                      styles.liveSetInputPR,
-                                  ]}
-                                />
-                              </View>
-
-                              <View style={styles.setFieldColumn}>
-                                <TextInput
-                                  value={String(
-                                    set.reps ?? ''
-                                  )}
-                                  onChangeText={(value) =>
-                                    updateWorkoutSet(
-                                      exercise.id,
-                                      set.id,
-                                      'reps',
-                                      value
-                                    )
-                                  }
-                                  keyboardType="number-pad"
-                                  placeholder="0"
-                                  placeholderTextColor="#50545D"
-                                  style={[
-                                    styles.liveSetInput,
-                                    !!set.prType &&
-                                      styles.liveSetInputPR,
-                                  ]}
-                                />
-                              </View>
-
+{isCardioExercise(exercise) ? (
+  <View style={styles.setFieldColumn}>
+    <TextInput
+      value={String(set.duration ?? '')}
+      onChangeText={(value) =>
+        updateWorkoutSet(
+          exercise.id,
+          set.id,
+          'duration',
+          value
+        )
+      }
+      keyboardType="number-pad"
+      placeholder="0"
+      placeholderTextColor="#50545D"
+      style={styles.liveSetInput}
+    />
+  </View>
+) : (
+  <View style={styles.setNumberColumn}>
+    <Text
+      style={[
+        styles.liveSetNumber,
+        !!set.prType &&
+          styles.liveSetNumberPR,
+      ]}
+    >
+      {index + 1}
+    </Text>
+  </View>
+)}
+{isCardioExercise(exercise) ? (
+  <View style={styles.setFieldColumn}>
+    <TextInput
+      value={String(set.distance ?? '')}
+      onChangeText={(value) =>
+        updateWorkoutSet(
+          exercise.id,
+          set.id,
+          'distance',
+          value
+        )
+      }
+      keyboardType="decimal-pad"
+      placeholder="0"
+      placeholderTextColor="#50545D"
+      style={styles.liveSetInput}
+    />
+  </View>
+) : (
+  <View style={styles.setFieldColumn}>
+    <TextInput
+      value={String(set.weight ?? '')}
+      onChangeText={(value) =>
+        updateWorkoutSet(
+          exercise.id,
+          set.id,
+          'weight',
+          value
+        )
+      }
+      keyboardType="decimal-pad"
+      placeholder="0"
+      placeholderTextColor="#50545D"
+      style={[
+        styles.liveSetInput,
+        !!set.prType &&
+          styles.liveSetInputPR,
+      ]}
+    />
+  </View>
+)}
+{isCardioExercise(exercise) ? (
+  <View style={styles.setFieldColumn}>
+    <TextInput
+      value={String(set.heartRate ?? '')}
+      onChangeText={(value) =>
+        updateWorkoutSet(
+          exercise.id,
+          set.id,
+          'heartRate',
+          value
+        )
+      }
+      keyboardType="number-pad"
+      placeholder="0"
+      placeholderTextColor="#50545D"
+      style={styles.liveSetInput}
+    />
+  </View>
+) : (
+  <View style={styles.setFieldColumn}>
+    <TextInput
+      value={String(set.reps ?? '')}
+      onChangeText={(value) =>
+        updateWorkoutSet(
+          exercise.id,
+          set.id,
+          'reps',
+          value
+        )
+      }
+      keyboardType="number-pad"
+      placeholder="0"
+      placeholderTextColor="#50545D"
+      style={[
+        styles.liveSetInput,
+        !!set.prType &&
+          styles.liveSetInputPR,
+      ]}
+    />
+  </View>
+)}
                               <View style={styles.setCheckColumn}>
                                 <TouchableOpacity
                                   activeOpacity={0.75}
@@ -6083,24 +6313,25 @@ const PersonalRecords = () => {
                       }
                     )}
 
-                    <TouchableOpacity
-                      style={styles.addLiveSetButton}
-                      activeOpacity={0.75}
-                      onPress={() =>
-                        addWorkoutSet(exercise.id)
-                      }
-                    >
-                      <MaterialCommunityIcons
-                        name="plus"
-                        size={17}
-                        color={COLORS.orange}
-                      />
+{!isCardioExercise(exercise) && (
+  <TouchableOpacity
+    style={styles.addLiveSetButton}
+    activeOpacity={0.75}
+    onPress={() =>
+      addWorkoutSet(exercise.id)
+    }
+  >
+    <MaterialCommunityIcons
+      name="plus"
+      size={17}
+      color={COLORS.orange}
+    />
 
-                      <Text style={styles.addLiveSetText}>
-                        Añadir serie
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+    <Text style={styles.addLiveSetText}>
+      Añadir serie
+    </Text>
+  </TouchableOpacity>
+)}                  </View>
                 )}
               </View>
             );
