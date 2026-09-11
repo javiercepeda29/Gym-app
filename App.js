@@ -20,6 +20,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, {
+  Path,
+  Circle,
+  Ellipse,
+} from 'react-native-svg';
 import * as Notifications from 'expo-notifications';
 import { supabase } from './supabase';
 import * as WebBrowser from 'expo-web-browser';
@@ -449,7 +454,349 @@ const ProfileButton = ({
 /* =========================================================
    APP
 ========================================================= */
+const MuscleBodyMap = ({
+  muscleIntensity = {},
+  selectedMuscle = null,
+  onSelectMuscle = () => {},
+}) => {
+  const getColor = (muscle) => {
+    const value = muscleIntensity[muscle] || 0;
 
+    if (value >= 0.75) return '#FFB000';
+    if (value >= 0.45) return '#A86C00';
+    if (value > 0) return '#554015';
+
+    return '#292C32';
+  };
+
+  const getStroke = (muscle) =>
+    selectedMuscle === muscle
+      ? '#FFFFFF'
+      : 'rgba(255,255,255,0.08)';
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 18,
+      }}
+    >
+      {/* FRONTAL */}
+      <View style={{ alignItems: 'center' }}>
+        <Text
+          style={{
+            color: '#777D88',
+            fontSize: 10,
+            fontWeight: '900',
+            letterSpacing: 1.2,
+            marginBottom: 6,
+          }}
+        >
+          FRONTAL
+        </Text>
+
+        <Svg width={130} height={270} viewBox="0 0 120 260">
+          <Circle
+            cx="60"
+            cy="20"
+            r="14"
+            fill="#1D2025"
+            stroke="#353941"
+            strokeWidth="1"
+          />
+
+          {/* Cuello */}
+          <Path
+            d="M53 34 L67 34 L69 48 L51 48 Z"
+            fill="#1D2025"
+          />
+
+          {/* Hombros */}
+          <Ellipse
+            cx="38"
+            cy="55"
+            rx="14"
+            ry="10"
+            fill={getColor('Hombro')}
+            stroke={getStroke('Hombro')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Hombro')}
+          />
+
+          <Ellipse
+            cx="82"
+            cy="55"
+            rx="14"
+            ry="10"
+            fill={getColor('Hombro')}
+            stroke={getStroke('Hombro')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Hombro')}
+          />
+
+          {/* Pecho */}
+          <Path
+            d="M44 49 Q52 45 59 51 L58 79 Q48 79 42 70 Z"
+            fill={getColor('Pecho')}
+            stroke={getStroke('Pecho')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Pecho')}
+          />
+
+          <Path
+            d="M76 49 Q68 45 61 51 L62 79 Q72 79 78 70 Z"
+            fill={getColor('Pecho')}
+            stroke={getStroke('Pecho')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Pecho')}
+          />
+
+          {/* Bíceps */}
+          <Ellipse
+            cx="30"
+            cy="84"
+            rx="8"
+            ry="20"
+            fill={getColor('Bíceps')}
+            stroke={getStroke('Bíceps')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Bíceps')}
+          />
+
+          <Ellipse
+            cx="90"
+            cy="84"
+            rx="8"
+            ry="20"
+            fill={getColor('Bíceps')}
+            stroke={getStroke('Bíceps')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Bíceps')}
+          />
+
+          {/* Antebrazos neutros */}
+          <Path
+            d="M25 103 L34 103 L30 137 L20 137 Z"
+            fill="#1D2025"
+          />
+
+          <Path
+            d="M86 103 L95 103 L100 137 L90 137 Z"
+            fill="#1D2025"
+          />
+
+          {/* Abdomen */}
+          <Path
+            d="M47 79 L73 79 L76 128 Q68 139 60 140 Q52 139 44 128 Z"
+            fill={getColor('Abdomen')}
+            stroke={getStroke('Abdomen')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Abdomen')}
+          />
+
+          {/* Cadera */}
+          <Path
+            d="M45 129 Q60 140 75 129 L78 151 L42 151 Z"
+            fill="#1D2025"
+          />
+
+          {/* Cuádriceps */}
+          <Path
+            d="M43 151 L59 151 L56 206 L43 206 Q38 177 43 151 Z"
+            fill={getColor('Cuádriceps')}
+            stroke={getStroke('Cuádriceps')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Cuádriceps')}
+          />
+
+          <Path
+            d="M61 151 L77 151 Q82 177 77 206 L64 206 Z"
+            fill={getColor('Cuádriceps')}
+            stroke={getStroke('Cuádriceps')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Cuádriceps')}
+          />
+
+          {/* Gemelos */}
+          <Path
+            d="M43 207 L56 207 L53 245 L45 245 Q40 226 43 207 Z"
+            fill={getColor('Gemelo')}
+            stroke={getStroke('Gemelo')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Gemelo')}
+          />
+
+          <Path
+            d="M64 207 L77 207 Q80 226 75 245 L67 245 Z"
+            fill={getColor('Gemelo')}
+            stroke={getStroke('Gemelo')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Gemelo')}
+          />
+        </Svg>
+      </View>
+
+      {/* TRASERO */}
+      <View style={{ alignItems: 'center' }}>
+        <Text
+          style={{
+            color: '#777D88',
+            fontSize: 10,
+            fontWeight: '900',
+            letterSpacing: 1.2,
+            marginBottom: 6,
+          }}
+        >
+          TRASERO
+        </Text>
+
+        <Svg width={130} height={270} viewBox="0 0 120 260">
+          <Circle
+            cx="60"
+            cy="20"
+            r="14"
+            fill="#1D2025"
+            stroke="#353941"
+            strokeWidth="1"
+          />
+
+          <Path
+            d="M53 34 L67 34 L69 48 L51 48 Z"
+            fill="#1D2025"
+          />
+
+          {/* Hombros */}
+          <Ellipse
+            cx="38"
+            cy="55"
+            rx="14"
+            ry="10"
+            fill={getColor('Hombro')}
+            stroke={getStroke('Hombro')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Hombro')}
+          />
+
+          <Ellipse
+            cx="82"
+            cy="55"
+            rx="14"
+            ry="10"
+            fill={getColor('Hombro')}
+            stroke={getStroke('Hombro')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Hombro')}
+          />
+
+          {/* Espalda */}
+          <Path
+            d="M45 48
+               Q60 43 75 48
+               L80 78
+               Q75 110 60 130
+               Q45 110 40 78
+               Z"
+            fill={getColor('Espalda')}
+            stroke={getStroke('Espalda')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Espalda')}
+          />
+
+          {/* Tríceps */}
+          <Ellipse
+            cx="29"
+            cy="84"
+            rx="8"
+            ry="21"
+            fill={getColor('Tríceps')}
+            stroke={getStroke('Tríceps')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Tríceps')}
+          />
+
+          <Ellipse
+            cx="91"
+            cy="84"
+            rx="8"
+            ry="21"
+            fill={getColor('Tríceps')}
+            stroke={getStroke('Tríceps')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Tríceps')}
+          />
+
+          <Path
+            d="M24 103 L33 103 L29 137 L19 137 Z"
+            fill="#1D2025"
+          />
+
+          <Path
+            d="M87 103 L96 103 L101 137 L91 137 Z"
+            fill="#1D2025"
+          />
+
+          {/* Glúteos */}
+          <Ellipse
+            cx="50"
+            cy="143"
+            rx="12"
+            ry="15"
+            fill={getColor('Glúteo')}
+            stroke={getStroke('Glúteo')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Glúteo')}
+          />
+
+          <Ellipse
+            cx="70"
+            cy="143"
+            rx="12"
+            ry="15"
+            fill={getColor('Glúteo')}
+            stroke={getStroke('Glúteo')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Glúteo')}
+          />
+
+          {/* Femoral */}
+          <Path
+            d="M42 155 Q50 158 59 154 L56 207 L43 207 Q38 180 42 155 Z"
+            fill={getColor('Femoral')}
+            stroke={getStroke('Femoral')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Femoral')}
+          />
+
+          <Path
+            d="M61 154 Q70 158 78 155 Q82 180 77 207 L64 207 Z"
+            fill={getColor('Femoral')}
+            stroke={getStroke('Femoral')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Femoral')}
+          />
+
+          {/* Gemelos */}
+          <Path
+            d="M43 208 L56 208 L53 245 L45 245 Q40 226 43 208 Z"
+            fill={getColor('Gemelo')}
+            stroke={getStroke('Gemelo')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Gemelo')}
+          />
+
+          <Path
+            d="M64 208 L77 208 Q80 226 75 245 L67 245 Z"
+            fill={getColor('Gemelo')}
+            stroke={getStroke('Gemelo')}
+            strokeWidth="1.2"
+            onPress={() => onSelectMuscle('Gemelo')}
+          />
+        </Svg>
+      </View>
+    </View>
+  );
+};
 export default function App() {
 
   const [selectedTab, setSelectedTab] = useState('Inicio');
@@ -468,6 +815,8 @@ const [realLeagueId, setRealLeagueId] = useState(null);
 
   const [workoutExercises, setWorkoutExercises] = useState([]);
   const [workouts, setWorkouts] = useState([]);
+  const [musclePeriod, setMusclePeriod] = useState(7);
+const [selectedMuscle, setSelectedMuscle] = useState(null);
   const [checkedDays, setCheckedDays] = useState([]);
   const [workoutOrigin, setWorkoutOrigin] = useState('home');
 
@@ -5380,54 +5729,127 @@ const maxMonthlyTrainingDays = Math.max(
   1,
   ...monthlyTrainingDays.map((item) => item.count)
 );
-    const muscleDays = MUSCLE_GROUPS.reduce(
-      (result, muscle) => {
-        result[muscle] = new Set();
-        return result;
-      },
-      {}
-    );
+const muscleActivity = MUSCLE_GROUPS.reduce(
+  (result, muscle) => {
+    result[muscle] = {
+      sessions: new Set(),
+      series: 0,
+      lastWorkout: null,
+    };
 
-    workouts.forEach((workout) => {
-      const workoutDay = localDayKey(
-        workout.finishedAt
-      );
+    return result;
+  },
+  {}
+);
 
-      const musclesToday = new Set();
+const periodStart = new Date();
 
-      (workout.exercises || []).forEach(
-        (exercise) => {
-          getExerciseMuscles(exercise).forEach(
-            (muscle) => {
-              if (muscle) {
-                musclesToday.add(muscle);
-              }
-            }
+periodStart.setHours(0, 0, 0, 0);
+periodStart.setDate(
+  periodStart.getDate() - (musclePeriod - 1)
+);
+
+const musclePeriodWorkouts = workouts.filter(
+  (workout) => {
+    const date = new Date(workout.finishedAt);
+
+    return date >= periodStart;
+  }
+);
+
+musclePeriodWorkouts.forEach((workout) => {
+  const workoutDay = localDayKey(
+    workout.finishedAt
+  );
+
+  (workout.exercises || []).forEach(
+    (exercise) => {
+      const muscles = getExerciseMuscles(exercise);
+
+      if (
+        muscles.includes('Cardio') ||
+        muscles.includes('Otro')
+      ) {
+        return;
+      }
+
+      const completedSets = Array.isArray(
+        exercise.sets
+      )
+        ? exercise.sets.filter(
+            (set) => set.completed !== false
+          ).length
+        : Math.max(
+            1,
+            parseInt(exercise.series, 10) || 1
           );
-        }
-      );
 
-      musclesToday.forEach((muscle) => {
-        if (muscleDays[muscle]) {
-          muscleDays[muscle].add(workoutDay);
+      muscles.forEach((muscle) => {
+        if (!muscleActivity[muscle]) return;
+
+        muscleActivity[muscle].sessions.add(
+          workoutDay
+        );
+
+        muscleActivity[muscle].series +=
+          completedSets;
+
+        const workoutDate = new Date(
+          workout.finishedAt
+        );
+
+        if (
+          !muscleActivity[muscle].lastWorkout ||
+          workoutDate >
+            muscleActivity[muscle].lastWorkout
+        ) {
+          muscleActivity[muscle].lastWorkout =
+            workoutDate;
         }
       });
-    });
+    }
+  );
+});
 
-    const muscleStats = MUSCLE_GROUPS.map(
-      (muscle) => ({
-        muscle,
-        days: muscleDays[muscle].size,
-      })
-    )
-      .filter((item) => item.days > 0)
-      .sort((a, b) => b.days - a.days);
+const intensityTarget =
+  musclePeriod === 7
+    ? 12
+    : musclePeriod === 30
+    ? 40
+    : 90;
 
-    const maximumMuscleDays = Math.max(
+const muscleStats = MUSCLE_GROUPS
+  .filter(
+    (muscle) =>
+      muscle !== 'Cardio' &&
+      muscle !== 'Otro'
+  )
+  .map((muscle) => ({
+    muscle,
+    sessions:
+      muscleActivity[muscle].sessions.size,
+    series: muscleActivity[muscle].series,
+    lastWorkout:
+      muscleActivity[muscle].lastWorkout,
+    intensity: Math.min(
       1,
-      ...muscleStats.map((item) => item.days)
-    );
+      muscleActivity[muscle].series /
+        intensityTarget
+    ),
+  }));
 
+const muscleIntensity = muscleStats.reduce(
+  (result, item) => {
+    result[item.muscle] = item.intensity;
+    return result;
+  },
+  {}
+);
+
+const selectedMuscleStats =
+  muscleStats.find(
+    (item) => item.muscle === selectedMuscle
+  ) || null;
     return (
       <>
         <View style={styles.page}>
@@ -5590,70 +6012,262 @@ const maxMonthlyTrainingDays = Math.max(
     color={COLORS.orange}
   />
 </TouchableOpacity>
-            <Text style={styles.historySectionTitle}>
-              Grupos trabajados
-            </Text>
+<Text style={styles.historySectionTitle}>
+  Mapa muscular
+</Text>
 
-            <Text style={styles.historySectionSubtitle}>
-              Días distintos que has trabajado cada grupo
-            </Text>
+<Text style={styles.historySectionSubtitle}>
+  Toca una zona para ver cuánto la has trabajado
+</Text>
 
-            <View style={styles.muscleStatsCard}>
-              {muscleStats.length > 0 ? (
-                muscleStats.map((item) => {
-                  const percentage = Math.max(
-                    5,
-                    (item.days /
-                      maximumMuscleDays) *
-                      100
-                  );
+<View
+  style={{
+    backgroundColor: '#111318',
+    borderWidth: 1,
+    borderColor: '#24272E',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 22,
+  }}
+>
+  {/* FILTRO 7 / 30 / 90 DÍAS */}
+  <View
+    style={{
+      flexDirection: 'row',
+      backgroundColor: '#0B0D11',
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 20,
+    }}
+  >
+    {[7, 30, 90].map((period) => {
+      const active = musclePeriod === period;
 
-                  return (
-                    <View
-                      key={item.muscle}
-                      style={styles.muscleStatRow}
-                    >
-                      <View style={styles.muscleStatTop}>
-                        <Text style={styles.muscleStatName}>
-                          {item.muscle}
-                        </Text>
+      return (
+        <TouchableOpacity
+          key={period}
+          activeOpacity={0.8}
+          onPress={() => {
+            setMusclePeriod(period);
+            setSelectedMuscle(null);
+          }}
+          style={{
+            flex: 1,
+            height: 38,
+            borderRadius: 9,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: active
+              ? COLORS.orange
+              : 'transparent',
+          }}
+        >
+          <Text
+            style={{
+              color: active
+                ? '#17120A'
+                : '#777D88',
+              fontSize: 12,
+              fontWeight: '900',
+            }}
+          >
+            {period} DÍAS
+          </Text>
+        </TouchableOpacity>
+      );
+    })}
+  </View>
 
-                        <Text style={styles.muscleStatDays}>
-                          {item.days}{' '}
-                          {item.days === 1
-                            ? 'día'
-                            : 'días'}
-                        </Text>
-                      </View>
+  {/* CUERPO */}
+  <MuscleBodyMap
+    muscleIntensity={muscleIntensity}
+    selectedMuscle={selectedMuscle}
+    onSelectMuscle={setSelectedMuscle}
+  />
 
-                      <View style={styles.muscleBarTrack}>
-                        <View
-                          style={[
-                            styles.muscleBarFill,
-                            {
-                              width: `${percentage}%`,
-                            },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                  );
-                })
-              ) : (
-                <View style={styles.muscleStatsEmpty}>
-                  <MaterialCommunityIcons
-                    name="chart-bar"
-                    size={25}
-                    color="#4C5058"
-                  />
+  {/* DETALLE DEL MÚSCULO */}
+  {selectedMuscleStats ? (
+    <View
+      style={{
+        marginTop: 18,
+        backgroundColor: '#0B0D11',
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(255,176,0,0.20)',
+        padding: 15,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 10,
+        }}
+      >
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 16,
+            fontWeight: '900',
+          }}
+        >
+          {selectedMuscleStats.muscle.toUpperCase()}
+        </Text>
 
-                  <Text style={styles.historyEmptyText}>
-                    Cuando completes entrenamientos, aquí verás qué grupos musculares has trabajado.
-                  </Text>
-                </View>
-              )}
-            </View>
+        <Text
+          style={{
+            color: COLORS.orange,
+            fontSize: 12,
+            fontWeight: '900',
+          }}
+        >
+          ÚLTIMOS {musclePeriod} DÍAS
+        </Text>
+      </View>
 
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: 10,
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: '#111318',
+            borderRadius: 12,
+            padding: 12,
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 22,
+              fontWeight: '900',
+            }}
+          >
+            {selectedMuscleStats.sessions}
+          </Text>
+
+          <Text
+            style={{
+              color: '#777D88',
+              fontSize: 11,
+              marginTop: 3,
+            }}
+          >
+            {selectedMuscleStats.sessions === 1
+              ? 'sesión'
+              : 'sesiones'}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: '#111318',
+            borderRadius: 12,
+            padding: 12,
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 22,
+              fontWeight: '900',
+            }}
+          >
+            {selectedMuscleStats.series}
+          </Text>
+
+          <Text
+            style={{
+              color: '#777D88',
+              fontSize: 11,
+              marginTop: 3,
+            }}
+          >
+            {selectedMuscleStats.series === 1
+              ? 'serie'
+              : 'series'}
+          </Text>
+        </View>
+      </View>
+
+      {selectedMuscleStats.lastWorkout && (
+        <Text
+          style={{
+            color: '#666C76',
+            fontSize: 11,
+            marginTop: 12,
+          }}
+        >
+          Último entrenamiento:{' '}
+          {selectedMuscleStats.lastWorkout.toLocaleDateString(
+            'es-ES'
+          )}
+        </Text>
+      )}
+    </View>
+  ) : (
+    <Text
+      style={{
+        color: '#5E646E',
+        fontSize: 12,
+        textAlign: 'center',
+        marginTop: 14,
+      }}
+    >
+      Selecciona un grupo muscular
+    </Text>
+  )}
+
+  {/* LEYENDA */}
+  <View
+    style={{
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 18,
+    }}
+  >
+    {[
+      ['#292C32', 'Sin trabajo'],
+      ['#554015', 'Bajo'],
+      ['#A86C00', 'Medio'],
+      ['#FFB000', 'Alto'],
+    ].map(([color, label]) => (
+      <View
+        key={label}
+        style={{
+          alignItems: 'center',
+          gap: 5,
+        }}
+      >
+        <View
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+            backgroundColor: color,
+          }}
+        />
+
+        <Text
+          style={{
+            color: '#666C76',
+            fontSize: 9,
+            fontWeight: '700',
+          }}
+        >
+          {label}
+        </Text>
+      </View>
+    ))}
+  </View>
+</View>
             <Text
               style={[
                 styles.historySectionTitle,
