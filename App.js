@@ -3194,194 +3194,7 @@ const leagueDaysRemaining = Math.max(
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <View
-  style={{
-    marginBottom: 16,
-    gap: 10,
-  }}
->
 
-{Platform.OS === 'ios' && (
-  <AppleAuthentication.AppleAuthenticationButton
-    buttonType={
-      AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
-    }
-    buttonStyle={
-      AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-    }
-    cornerRadius={14}
-    style={{
-      width: '100%',
-      height: 48,
-    
-    }}
-    onPress={loginWithApple}
-  />
-)}
-<TouchableOpacity
-  activeOpacity={0.85}
-  onPress={loginWithGoogle}
-  style={{
-    width: '100%',
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
-    
-  }}
->
-  <Text
-    style={{
-      color: '#111111',
-      fontSize: 16,
-      fontWeight: '700',
-    }}
-  >
-    G
-  </Text>
-
-  <Text
-    style={{
-      color: '#111111',
-      fontSize: 16,
-      fontWeight: '600',
-    }}
-  >
-    Iniciar sesión con Google
-  </Text>
-</TouchableOpacity>
-<TouchableOpacity
-  activeOpacity={0.85}
-  onPress={() => setShowEmailAuth(true)}
-  style={{
-    width: '100%',
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#343840',
-    backgroundColor: '#111318',
-    alignItems: 'center',
-    justifyContent: 'center',
-    
-  }}
->
-  <Text
-    style={{
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '700',
-    }}
-  >
-    Continuar con correo
-  </Text>
-</TouchableOpacity>
-{showEmailAuth && (
-  <View
-    style={{
-      width: '100%',
-      marginBottom: 12,
-      gap: 10,
-    }}
-  >
-    <TextInput
-      value={authEmail}
-      onChangeText={setAuthEmail}
-      placeholder="Email"
-      placeholderTextColor="#626873"
-      autoCapitalize="none"
-      keyboardType="email-address"
-      style={{
-        height: 48,
-        borderWidth: 1,
-        borderColor: '#343840',
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        color: '#FFFFFF',
-        backgroundColor: '#111318',
-      }}
-    />
-
-    <TextInput
-      value={authPassword}
-      onChangeText={setAuthPassword}
-      placeholder="Contraseña"
-      placeholderTextColor="#626873"
-      secureTextEntry
-      style={{
-        height: 48,
-        borderWidth: 1,
-        borderColor: '#343840',
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        color: '#FFFFFF',
-        backgroundColor: '#111318',
-      }}
-    />
-
-    <View
-      style={{
-        flexDirection: 'row',
-        gap: 10,
-      }}
-    >
-      <TouchableOpacity
-        activeOpacity={0.85}
-        disabled={authLoading}
-        onPress={loginUser}
-        style={{
-          flex: 1,
-          height: 48,
-          borderRadius: 14,
-          backgroundColor: COLORS.orange,
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: authLoading ? 0.55 : 1,
-        }}
-      >
-        <Text
-          style={{
-            color: '#111111',
-            fontSize: 14,
-            fontWeight: '900',
-          }}
-        >
-          ENTRAR
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        activeOpacity={0.85}
-        disabled={authLoading}
-        onPress={signupWithEmail}
-        style={{
-          flex: 1,
-          height: 48,
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: COLORS.orange,
-          backgroundColor: '#111318',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: authLoading ? 0.55 : 1,
-        }}
-      >
-        <Text
-          style={{
-            color: COLORS.orange,
-            fontSize: 14,
-            fontWeight: '900',
-          }}
-        >
-          CREAR CUENTA
-        </Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-)}
-</View>
             <View
   style={{
     flexDirection: 'row',
@@ -4181,6 +3994,213 @@ const AuthScreen = () => {
     </SafeAreaView>
   );
 };
+const ProfileLogin = () => (
+  <View style={styles.page}>
+    <PageHeader
+      title="Perfil"
+      subtitle="Inicia sesión para acceder a tu cuenta"
+    />
+
+    <ScrollView
+      contentContainerStyle={[
+        styles.profileContent,
+        {
+          paddingTop: 28,
+          gap: 12,
+        },
+      ]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {Platform.OS === 'ios' && (
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={
+            AppleAuthentication
+              .AppleAuthenticationButtonType
+              .SIGN_IN
+          }
+          buttonStyle={
+            AppleAuthentication
+              .AppleAuthenticationButtonStyle
+              .BLACK
+          }
+          cornerRadius={14}
+          style={{
+            width: '100%',
+            height: 50,
+          }}
+          onPress={loginWithApple}
+        />
+      )}
+
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={loginWithGoogle}
+        style={{
+          width: '100%',
+          height: 50,
+          borderRadius: 14,
+          backgroundColor: '#FFFFFF',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'row',
+          gap: 10,
+        }}
+      >
+        <Text
+          style={{
+            color: '#111111',
+            fontSize: 16,
+            fontWeight: '700',
+          }}
+        >
+          G
+        </Text>
+
+        <Text
+          style={{
+            color: '#111111',
+            fontSize: 16,
+            fontWeight: '600',
+          }}
+        >
+          Iniciar sesión con Google
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() =>
+          setShowEmailAuth((current) => !current)
+        }
+        style={{
+          width: '100%',
+          height: 50,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: '#343840',
+          backgroundColor: '#111318',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 16,
+            fontWeight: '700',
+          }}
+        >
+          Continuar con correo
+        </Text>
+      </TouchableOpacity>
+
+      {showEmailAuth && (
+        <View
+          style={{
+            width: '100%',
+            gap: 10,
+            marginTop: 4,
+          }}
+        >
+          <TextInput
+            value={authEmail}
+            onChangeText={setAuthEmail}
+            placeholder="Email"
+            placeholderTextColor="#626873"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            style={{
+              height: 50,
+              borderWidth: 1,
+              borderColor: '#343840',
+              borderRadius: 14,
+              paddingHorizontal: 14,
+              color: '#FFFFFF',
+              backgroundColor: '#111318',
+            }}
+          />
+
+          <TextInput
+            value={authPassword}
+            onChangeText={setAuthPassword}
+            placeholder="Contraseña"
+            placeholderTextColor="#626873"
+            secureTextEntry
+            style={{
+              height: 50,
+              borderWidth: 1,
+              borderColor: '#343840',
+              borderRadius: 14,
+              paddingHorizontal: 14,
+              color: '#FFFFFF',
+              backgroundColor: '#111318',
+            }}
+          />
+
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 10,
+            }}
+          >
+            <TouchableOpacity
+              activeOpacity={0.85}
+              disabled={authLoading}
+              onPress={loginUser}
+              style={{
+                flex: 1,
+                height: 50,
+                borderRadius: 14,
+                backgroundColor: COLORS.orange,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: authLoading ? 0.55 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#111111',
+                  fontSize: 14,
+                  fontWeight: '900',
+                }}
+              >
+                ENTRAR
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              disabled={authLoading}
+              onPress={signupWithEmail}
+              style={{
+                flex: 1,
+                height: 50,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: COLORS.orange,
+                backgroundColor: '#111318',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: authLoading ? 0.55 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  color: COLORS.orange,
+                  fontSize: 14,
+                  fontWeight: '900',
+                }}
+              >
+                CREAR CUENTA
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </ScrollView>
+  </View>
+);
   const Profile = () => (
     <View style={styles.page}>
     
@@ -6834,7 +6854,7 @@ return (
 : screen === 'leagueHistory'
 ? <LeagueHistory />
 : screen === 'profile'
-        ? Profile()
+        ? (session ? Profile() : ProfileLogin())
         : screen === 'routines'
         ? Routines()
         : screen === 'editor'
