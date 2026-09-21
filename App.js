@@ -424,6 +424,37 @@ const exercisePlan = (exercise) => {
   return exercise.plan || '';
 };
 const buildWorkoutSets = (exercise) => {
+  const savedTemplate = Array.isArray(exercise.setsTemplate)
+    ? exercise.setsTemplate
+    : [];
+
+  if (savedTemplate.length > 0) {
+    return savedTemplate.map((set, index) => {
+      if (isCardioExercise(exercise)) {
+        return {
+          id: `${exercise.id}-cardio-${Date.now()}-${index}-${Math.random()}`,
+          duration: set.duration ?? exercise.duration ?? '',
+          distance: set.distance ?? exercise.distance ?? '',
+          heartRate: set.heartRate ?? exercise.heartRate ?? '',
+          completed: false,
+          prType: null,
+          prText: '',
+          prData: null,
+        };
+      }
+
+      return {
+        id: `${exercise.id}-set-${Date.now()}-${index}-${Math.random()}`,
+        weight: set.weight ?? exercise.weight ?? '',
+        reps: set.reps ?? exercise.reps ?? '',
+        completed: false,
+        prType: null,
+        prText: '',
+        prData: null,
+      };
+    });
+  }
+
   if (isCardioExercise(exercise)) {
     return [
       {
@@ -453,6 +484,65 @@ const buildWorkoutSets = (exercise) => {
     prText: '',
     prData: null,
   }));
+};
+
+const routineExerciseFromWorkout = (exercise) => {
+  const { expanded, sets = [], ...baseExercise } = exercise;
+
+  if (isCardioExercise(exercise)) {
+    const cardioSet = sets[0] || {};
+
+    const duration = String(
+      cardioSet.duration ?? baseExercise.duration ?? ''
+    );
+    const distance = String(
+      cardioSet.distance ?? baseExercise.distance ?? ''
+    );
+    const heartRate = String(
+      cardioSet.heartRate ?? baseExercise.heartRate ?? ''
+    );
+
+    return {
+      ...baseExercise,
+      duration,
+      distance,
+      heartRate,
+      setsTemplate: [
+        {
+          duration,
+          distance,
+          heartRate,
+        },
+      ],
+    };
+  }
+
+  const setsTemplate = sets.map((set) => ({
+    weight: String(set.weight ?? ''),
+    reps: String(set.reps ?? ''),
+  }));
+
+  const firstSet =
+    setsTemplate[0] || {
+      weight: String(baseExercise.weight ?? ''),
+      reps: String(baseExercise.reps ?? ''),
+    };
+
+  return {
+    ...baseExercise,
+    series: String(Math.max(1, setsTemplate.length)),
+    weight: firstSet.weight,
+    reps: firstSet.reps,
+    setsTemplate:
+      setsTemplate.length > 0
+        ? setsTemplate
+        : [
+            {
+              weight: firstSet.weight,
+              reps: firstSet.reps,
+            },
+          ],
+  };
 };
 /* =========================================================
    DEGRADADO GENERAL
@@ -2797,12 +2887,24 @@ if (tab === 'Liga') {
     field,
     value
   ) => {
+    const templateFields = [
+      'series',
+      'reps',
+      'weight',
+      'duration',
+      'distance',
+      'heartRate',
+    ];
+
     setDraftExercises((items) =>
       items.map((item) =>
         item.id === id
           ? {
               ...item,
               [field]: value,
+              setsTemplate: templateFields.includes(field)
+                ? undefined
+                : item.setsTemplate,
             }
           : item
       )
@@ -2829,6 +2931,7 @@ const toggleExerciseMuscle = async (
 
         return {
           ...exercise,
+          setsTemplate: undefined,
           muscles: selectingCardio ? ['Cardio'] : [],
           muscle: undefined,
           series: selectingCardio ? '' : exercise.series,
@@ -2849,6 +2952,7 @@ const toggleExerciseMuscle = async (
 
       return {
         ...exercise,
+        setsTemplate: undefined,
         muscles: next,
         muscle: undefined,
         duration: '',
@@ -3365,6 +3469,31 @@ const pr = isCardio
     }
   };
 
+  const updateRoutineFromWorkout = async () => {
+    if (!activeRoutine?.id) return;
+
+    const routineExists = routines.some(
+      (routine) => routine.id === activeRoutine.id
+    );
+
+    if (!routineExists) return;
+
+    const updatedExercises = workoutExercises.map(
+      routineExerciseFromWorkout
+    );
+
+    const nextRoutines = routines.map((routine) =>
+      routine.id === activeRoutine.id
+        ? {
+            ...routine,
+            exercises: updatedExercises,
+          }
+        : routine
+    );
+
+    await persistRoutines(nextRoutines);
+  };
+
   const recordWorkout = async () => {
     if (workoutSaved.current) {
       return;
@@ -3450,6 +3579,7 @@ const pr = isCardio
 
     const finish = async () => {
       await recordWorkout();
+      await updateRoutineFromWorkout();
       await AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
       setActiveRoutine(null);
 setWorkoutExercises([]);
