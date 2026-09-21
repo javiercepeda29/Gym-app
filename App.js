@@ -4,13 +4,15 @@ import {
   Alert,
   Animated,
   Image,
+  InputAccessoryView,
+Keyboard,
   Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
+  TextInput as RNTextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -25,10 +27,91 @@ import Svg, {
   Circle,
   Ellipse,
 } from 'react-native-svg';
+import Body from 'react-native-body-highlighter';
+import mobileAds, {
+  BannerAd,
+  BannerAdSize,
+  TestIds,
+  InterstitialAd,
+  AdEventType,
+} from 'react-native-google-mobile-ads';
+
 import * as Notifications from 'expo-notifications';
 import { supabase } from './supabase';
 import * as WebBrowser from 'expo-web-browser';
+import * as ImagePicker from 'expo-image-picker';
 import * as AppleAuthentication from 'expo-apple-authentication';
+const GLOBAL_INPUT_ACCESSORY_ID = 'rivalset_input_done';
+
+const TextInput = (props) => {
+  const {
+    onSubmitEditing,
+    returnKeyType,
+    blurOnSubmit,
+    ...rest
+  } = props;
+
+  return (
+    <RNTextInput
+      {...rest}
+      returnKeyType={returnKeyType || 'done'}
+      blurOnSubmit={blurOnSubmit ?? true}
+      inputAccessoryViewID={
+        Platform.OS === 'ios'
+          ? GLOBAL_INPUT_ACCESSORY_ID
+          : undefined
+      }
+      onSubmitEditing={(event) => {
+        if (onSubmitEditing) {
+          onSubmitEditing(event);
+        }
+
+        Keyboard.dismiss();
+      }}
+    />
+  );
+};
+const GlobalInputAccessory = () => {
+  if (Platform.OS !== 'ios') return null;
+
+  return (
+    <InputAccessoryView nativeID={GLOBAL_INPUT_ACCESSORY_ID}>
+      <View
+        style={{
+          backgroundColor: '#111318',
+          borderTopWidth: 1,
+          borderTopColor: '#24272E',
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          alignItems: 'flex-end',
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => Keyboard.dismiss()}
+          activeOpacity={0.7}
+          style={{
+            backgroundColor: '#08090C',
+            width: 42,
+            height: 34,
+            borderRadius: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 20,
+              fontWeight: '900',
+            }}
+          >
+            ✓
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </InputAccessoryView>
+  );
+};
 /* =========================================================
    NOTIFICACIONES LOCALES
 ========================================================= */
@@ -41,7 +124,14 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
-
+const leagueInterstitial = InterstitialAd.createForAdRequest(
+  TestIds.INTERSTITIAL,
+  {
+    requestNonPersonalizedAdsOnly: true,
+  }
+);
+const LEAGUE_AD_COOLDOWN_MS = 10 * 60 * 1000;
+let lastLeagueAdShownAt = 0;
 /* =========================================================
    STORAGE
 ========================================================= */
@@ -52,7 +142,17 @@ const WEEK_CHECKS_KEY = '@app_gym_week_checks';
 const PROFILE_KEY = '@app_gym_profile';
 const SETTINGS_KEY = '@app_gym_settings';
 const LEAGUE_KEY = '@app_gym_league';
+const NUTRITION_KEY = '@rivalset_nutrition';
+const NUTRITION_GOALS_KEY = '@rivalset_nutrition_goals';
+const ACTIVE_WORKOUT_KEY = '@rivalset_active_workout';
+const getNutritionDateKey = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
 
+  return `${year}-${month}-${day}`;
+};
 /* =========================================================
    ASSETS
 ========================================================= */
@@ -73,8 +173,11 @@ const LEAGUE_BADGE = require('./assets/Medalla-liga.png');
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 const MUSCLE_GROUPS = [
+  
+  'Trapecio',
+  'Dorsal',
   'Pecho',
-  'Espalda',
+  'Lumbar',
   'Hombro',
   'Bíceps',
   'Tríceps',
@@ -459,6 +562,22 @@ const MuscleBodyMap = ({
   selectedMuscle = null,
   onSelectMuscle = () => {},
 }) => {
+  const muscleConfig = {
+    chest: 'Pecho',
+    deltoids: 'Hombro',
+    biceps: 'Bíceps',
+    triceps: 'Tríceps',
+    abs: 'Abdomen',
+obliques: 'Abdomen',
+    quadriceps: 'Cuádriceps',
+    calves: 'Gemelo',
+    trapezius: 'Trapecio',
+    'upper-back': 'Dorsal',
+    'lower-back': 'Lumbar',
+    gluteal: 'Glúteo',
+    hamstring: 'Femoral',
+  };
+
   const getColor = (muscle) => {
     const value = muscleIntensity[muscle] || 0;
 
@@ -469,21 +588,57 @@ const MuscleBodyMap = ({
     return '#292C32';
   };
 
-  const getStroke = (muscle) =>
-    selectedMuscle === muscle
-      ? '#FFFFFF'
-      : 'rgba(255,255,255,0.08)';
+  const bodyData = Object.entries(muscleConfig).map(
+    ([slug, muscle]) => ({
+      slug,
+      intensity: 1,
+      styles: {
+        fill: getColor(muscle),
+        stroke:
+          selectedMuscle === muscle
+            ? '#FFFFFF'
+            : '#16191F',
+        strokeWidth:
+          selectedMuscle === muscle ? 2 : 0.8,
+      },
+    })
+  );
 
+const handlePress = (bodyPart) => {
+  const rawSlug = bodyPart?.slug || '';
+
+  const normalizedSlug = rawSlug
+    .replace('-left-front', '')
+    .replace('-right-front', '')
+    .replace('-left-back', '')
+    .replace('-right-back', '')
+    .replace('-left', '')
+    .replace('-right', '');
+
+  const muscle =
+    muscleConfig[rawSlug] ||
+    muscleConfig[normalizedSlug];
+
+  if (muscle) {
+    onSelectMuscle(muscle);
+  }
+};
   return (
     <View
       style={{
         flexDirection: 'row',
         justifyContent: 'center',
+        alignItems: 'flex-start',
         gap: 18,
       }}
     >
       {/* FRONTAL */}
-      <View style={{ alignItems: 'center' }}>
+      <View
+        style={{
+          alignItems: 'center',
+          width: 140,
+        }}
+      >
         <Text
           style={{
             color: '#777D88',
@@ -496,149 +651,26 @@ const MuscleBodyMap = ({
           FRONTAL
         </Text>
 
-        <Svg width={130} height={270} viewBox="0 0 120 260">
-          <Circle
-            cx="60"
-            cy="20"
-            r="14"
-            fill="#1D2025"
-            stroke="#353941"
-            strokeWidth="1"
-          />
-
-          {/* Cuello */}
-          <Path
-            d="M53 34 L67 34 L69 48 L51 48 Z"
-            fill="#1D2025"
-          />
-
-          {/* Hombros */}
-          <Ellipse
-            cx="38"
-            cy="55"
-            rx="14"
-            ry="10"
-            fill={getColor('Hombro')}
-            stroke={getStroke('Hombro')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Hombro')}
-          />
-
-          <Ellipse
-            cx="82"
-            cy="55"
-            rx="14"
-            ry="10"
-            fill={getColor('Hombro')}
-            stroke={getStroke('Hombro')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Hombro')}
-          />
-
-          {/* Pecho */}
-          <Path
-            d="M44 49 Q52 45 59 51 L58 79 Q48 79 42 70 Z"
-            fill={getColor('Pecho')}
-            stroke={getStroke('Pecho')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Pecho')}
-          />
-
-          <Path
-            d="M76 49 Q68 45 61 51 L62 79 Q72 79 78 70 Z"
-            fill={getColor('Pecho')}
-            stroke={getStroke('Pecho')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Pecho')}
-          />
-
-          {/* Bíceps */}
-          <Ellipse
-            cx="30"
-            cy="84"
-            rx="8"
-            ry="20"
-            fill={getColor('Bíceps')}
-            stroke={getStroke('Bíceps')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Bíceps')}
-          />
-
-          <Ellipse
-            cx="90"
-            cy="84"
-            rx="8"
-            ry="20"
-            fill={getColor('Bíceps')}
-            stroke={getStroke('Bíceps')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Bíceps')}
-          />
-
-          {/* Antebrazos neutros */}
-          <Path
-            d="M25 103 L34 103 L30 137 L20 137 Z"
-            fill="#1D2025"
-          />
-
-          <Path
-            d="M86 103 L95 103 L100 137 L90 137 Z"
-            fill="#1D2025"
-          />
-
-          {/* Abdomen */}
-          <Path
-            d="M47 79 L73 79 L76 128 Q68 139 60 140 Q52 139 44 128 Z"
-            fill={getColor('Abdomen')}
-            stroke={getStroke('Abdomen')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Abdomen')}
-          />
-
-          {/* Cadera */}
-          <Path
-            d="M45 129 Q60 140 75 129 L78 151 L42 151 Z"
-            fill="#1D2025"
-          />
-
-          {/* Cuádriceps */}
-          <Path
-            d="M43 151 L59 151 L56 206 L43 206 Q38 177 43 151 Z"
-            fill={getColor('Cuádriceps')}
-            stroke={getStroke('Cuádriceps')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Cuádriceps')}
-          />
-
-          <Path
-            d="M61 151 L77 151 Q82 177 77 206 L64 206 Z"
-            fill={getColor('Cuádriceps')}
-            stroke={getStroke('Cuádriceps')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Cuádriceps')}
-          />
-
-          {/* Gemelos */}
-          <Path
-            d="M43 207 L56 207 L53 245 L45 245 Q40 226 43 207 Z"
-            fill={getColor('Gemelo')}
-            stroke={getStroke('Gemelo')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Gemelo')}
-          />
-
-          <Path
-            d="M64 207 L77 207 Q80 226 75 245 L67 245 Z"
-            fill={getColor('Gemelo')}
-            stroke={getStroke('Gemelo')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Gemelo')}
-          />
-        </Svg>
+        <Body
+          data={bodyData}
+          gender="male"
+          side="front"
+          scale={0.80}
+          border="#444A55"
+          defaultFill="#292C32"
+          defaultStroke="#16191F"
+          defaultStrokeWidth={0.8}
+          onBodyPartPress={handlePress}
+        />
       </View>
 
       {/* TRASERO */}
-      <View style={{ alignItems: 'center' }}>
+      <View
+        style={{
+          alignItems: 'center',
+          width: 140,
+        }}
+      >
         <Text
           style={{
             color: '#777D88',
@@ -651,162 +683,483 @@ const MuscleBodyMap = ({
           TRASERO
         </Text>
 
-        <Svg width={130} height={270} viewBox="0 0 120 260">
-          <Circle
-            cx="60"
-            cy="20"
-            r="14"
-            fill="#1D2025"
-            stroke="#353941"
-            strokeWidth="1"
-          />
-
-          <Path
-            d="M53 34 L67 34 L69 48 L51 48 Z"
-            fill="#1D2025"
-          />
-
-          {/* Hombros */}
-          <Ellipse
-            cx="38"
-            cy="55"
-            rx="14"
-            ry="10"
-            fill={getColor('Hombro')}
-            stroke={getStroke('Hombro')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Hombro')}
-          />
-
-          <Ellipse
-            cx="82"
-            cy="55"
-            rx="14"
-            ry="10"
-            fill={getColor('Hombro')}
-            stroke={getStroke('Hombro')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Hombro')}
-          />
-
-          {/* Espalda */}
-          <Path
-            d="M45 48
-               Q60 43 75 48
-               L80 78
-               Q75 110 60 130
-               Q45 110 40 78
-               Z"
-            fill={getColor('Espalda')}
-            stroke={getStroke('Espalda')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Espalda')}
-          />
-
-          {/* Tríceps */}
-          <Ellipse
-            cx="29"
-            cy="84"
-            rx="8"
-            ry="21"
-            fill={getColor('Tríceps')}
-            stroke={getStroke('Tríceps')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Tríceps')}
-          />
-
-          <Ellipse
-            cx="91"
-            cy="84"
-            rx="8"
-            ry="21"
-            fill={getColor('Tríceps')}
-            stroke={getStroke('Tríceps')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Tríceps')}
-          />
-
-          <Path
-            d="M24 103 L33 103 L29 137 L19 137 Z"
-            fill="#1D2025"
-          />
-
-          <Path
-            d="M87 103 L96 103 L101 137 L91 137 Z"
-            fill="#1D2025"
-          />
-
-          {/* Glúteos */}
-          <Ellipse
-            cx="50"
-            cy="143"
-            rx="12"
-            ry="15"
-            fill={getColor('Glúteo')}
-            stroke={getStroke('Glúteo')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Glúteo')}
-          />
-
-          <Ellipse
-            cx="70"
-            cy="143"
-            rx="12"
-            ry="15"
-            fill={getColor('Glúteo')}
-            stroke={getStroke('Glúteo')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Glúteo')}
-          />
-
-          {/* Femoral */}
-          <Path
-            d="M42 155 Q50 158 59 154 L56 207 L43 207 Q38 180 42 155 Z"
-            fill={getColor('Femoral')}
-            stroke={getStroke('Femoral')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Femoral')}
-          />
-
-          <Path
-            d="M61 154 Q70 158 78 155 Q82 180 77 207 L64 207 Z"
-            fill={getColor('Femoral')}
-            stroke={getStroke('Femoral')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Femoral')}
-          />
-
-          {/* Gemelos */}
-          <Path
-            d="M43 208 L56 208 L53 245 L45 245 Q40 226 43 208 Z"
-            fill={getColor('Gemelo')}
-            stroke={getStroke('Gemelo')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Gemelo')}
-          />
-
-          <Path
-            d="M64 208 L77 208 Q80 226 75 245 L67 245 Z"
-            fill={getColor('Gemelo')}
-            stroke={getStroke('Gemelo')}
-            strokeWidth="1.2"
-            onPress={() => onSelectMuscle('Gemelo')}
-          />
-        </Svg>
+        <Body
+          data={bodyData}
+          gender="male"
+          side="back"
+          scale={0.80}
+          border="#444A55"
+          defaultFill="#292C32"
+          defaultStroke="#16191F"
+          defaultStrokeWidth={0.8}
+          onBodyPartPress={handlePress}
+        />
       </View>
     </View>
   );
-};
-export default function App() {
-
-  const [selectedTab, setSelectedTab] = useState('Inicio');
+};export default function App() {
+useEffect(() => {
+  mobileAds().initialize().then(() => {
+    leagueInterstitial.load();
+  });
+}, []);  const [selectedTab, setSelectedTab] = useState('Inicio');
   
   const [screen, setScreen] = useState('home');
 const [realLeagueId, setRealLeagueId] = useState(null);
   const [routines, setRoutines] = useState([]);
   const [routineName, setRoutineName] = useState('');
   const [editingRoutineId, setEditingRoutineId] = useState(null);
+const [showNutritionManual, setShowNutritionManual] = useState(false);
 
+const [nutritionDraft, setNutritionDraft] = useState({
+  meal: 'Comida',
+  name: '',
+  grams: '',
+  calories: '',
+  protein: '',
+  carbs: '',
+  fats: '',
+});
+const [nutritionEntries, setNutritionEntries] = useState([]);
+const [foodSearchQuery, setFoodSearchQuery] = useState('');
+const [foodSearchResults, setFoodSearchResults] = useState([]);
+const [foodSearchLoading, setFoodSearchLoading] = useState(false);
+const [selectedFood, setSelectedFood] = useState(null);
+const [nutritionUnit, setNutritionUnit] = useState('g');
+const [nutritionPhoto, setNutritionPhoto] = useState(null);
+const [nutritionPhotoLoading, setNutritionPhotoLoading] = useState(false);
+const [nutritionPhotoResult, setNutritionPhotoResult] = useState(null);
+const pickNutritionPhoto = () => {
+  Alert.alert(
+    'Escanear comida',
+    'Elige de dónde quieres obtener la foto',
+    [
+      {
+        text: 'Cámara',
+        onPress: async () => {
+          const permission =
+            await ImagePicker.requestCameraPermissionsAsync();
+
+          if (!permission.granted) {
+            Alert.alert(
+              'Permiso necesario',
+              'Necesitas permitir el acceso a la cámara para hacer una foto.'
+            );
+            return;
+          }
+
+          const result =
+            await ImagePicker.launchCameraAsync({
+              mediaTypes: ['images'],
+              allowsEditing: false,
+              quality: 0.6,
+base64: true,
+            });
+
+          if (!result.canceled) {
+            setNutritionPhoto(result.assets[0]);
+            setNutritionPhotoResult(null);
+          }
+        },
+      },
+      {
+        text: 'Galería',
+        onPress: async () => {
+          const permission =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+          if (!permission.granted) {
+            Alert.alert(
+              'Permiso necesario',
+              'Necesitas permitir el acceso a tus fotos.'
+            );
+            return;
+          }
+
+          const result =
+            await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ['images'],
+              allowsEditing: false,
+              quality: 0.6,
+base64: true,
+            });
+
+          if (!result.canceled) {
+            setNutritionPhoto(result.assets[0]);
+            setNutritionPhotoResult(null);
+          }
+        },
+      },
+      {
+        text: 'Cancelar',
+        style: 'cancel',
+      },
+    ]
+  );
+};
+const analyzeNutritionPhoto = async () => {
+  if (!nutritionPhoto?.base64) {
+    Alert.alert(
+      'Sin foto',
+      'Primero haz una foto o elige una de la galería.'
+    );
+    return;
+  }
+
+  setNutritionPhotoLoading(true);
+  setNutritionPhotoResult(null);
+
+  try {
+    const { data, error } = await supabase.functions.invoke(
+      'analyze-food-photo',
+      {
+        body: {
+          imageBase64: nutritionPhoto.base64,
+          mimeType:
+            nutritionPhoto.mimeType || 'image/jpeg',
+        },
+      }
+    );
+
+    if (error) {
+      console.log('Error analizando foto:', error);
+      Alert.alert(
+        'Error',
+        'No se ha podido analizar la comida.'
+      );
+      return;
+    }
+
+    if (!data?.foods?.length) {
+      Alert.alert(
+        'No se detectaron alimentos',
+        'Prueba con una foto más clara y con la comida bien visible.'
+      );
+      return;
+    }
+
+    setNutritionPhotoResult(data);
+  } catch (error) {
+    console.log('Error analizando foto:', error);
+
+    Alert.alert(
+      'Error',
+      'No se ha podido analizar la comida.'
+    );
+  } finally {
+    setNutritionPhotoLoading(false);
+  }
+};
+const updateNutritionPhotoFoodGrams = (index, value) => {
+  const grams = Math.max(
+    Number(String(value).replace(',', '.')) || 0,
+    0
+  );
+
+  setNutritionPhotoResult((prev) => {
+    if (!prev?.foods) return prev;
+
+    const foods = prev.foods.map((food, foodIndex) => {
+      if (foodIndex !== index) return food;
+
+      const nutrition = food.nutrition;
+
+      if (!nutrition) {
+        return {
+          ...food,
+          grams,
+        };
+      }
+
+      const ratio = grams / 100;
+
+      return {
+        ...food,
+        grams,
+        nutrition: {
+          ...nutrition,
+          calories: Math.round(
+            (nutrition.calories100 || 0) * ratio
+          ),
+          protein:
+            Math.round(
+              (nutrition.protein100 || 0) *
+                ratio *
+                10
+            ) / 10,
+          carbs:
+            Math.round(
+              (nutrition.carbs100 || 0) *
+                ratio *
+                10
+            ) / 10,
+          fats:
+            Math.round(
+              (nutrition.fats100 || 0) *
+                ratio *
+                10
+            ) / 10,
+        },
+      };
+    });
+
+    const totals = foods.reduce(
+      (total, food) => {
+        if (!food.nutrition) return total;
+
+        total.calories +=
+          Number(food.nutrition.calories) || 0;
+        total.protein +=
+          Number(food.nutrition.protein) || 0;
+        total.carbs +=
+          Number(food.nutrition.carbs) || 0;
+        total.fats +=
+          Number(food.nutrition.fats) || 0;
+
+        return total;
+      },
+      {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fats: 0,
+      }
+    );
+
+    return {
+      ...prev,
+      foods,
+      totals: {
+        calories: Math.round(totals.calories),
+        protein:
+          Math.round(totals.protein * 10) / 10,
+        carbs:
+          Math.round(totals.carbs * 10) / 10,
+        fats:
+          Math.round(totals.fats * 10) / 10,
+      },
+    };
+  });
+};
+const searchFoodProducts = async (query) => {
+  const cleanQuery = query.trim();
+
+  if (cleanQuery.length < 2) {
+    setFoodSearchResults([]);
+    return;
+  }
+
+  setFoodSearchLoading(true);
+
+  try {
+    const normalizedQuery = cleanQuery
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    // OPEN FOOD FACTS
+    const openFoodPromise = (async () => {
+      try {
+const url =
+  `https://es.openfoodfacts.org/cgi/search.pl` +
+  `?search_terms=${encodeURIComponent(cleanQuery)}` +
+  `&search_simple=1` +
+  `&action=process` +
+  `&json=1` +
+  `&page_size=12` +
+  `&fields=code,product_name,product_name_es,brands,nutriments,serving_size,quantity`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        return (data.products || [])
+          .filter(
+            (product) =>
+              product.product_name &&
+              product.nutriments
+          )
+          .map((product) => {
+            const name = product.product_name || '';
+            const brand = product.brands || '';
+
+            const normalizedName = name
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '');
+
+            let score = 0;
+
+            if (normalizedName === normalizedQuery) {
+              score += 100;
+            } else if (normalizedName.startsWith(normalizedQuery)) {
+              score += 70;
+            } else if (normalizedName.includes(normalizedQuery)) {
+              score += 40;
+            }
+
+            if (brand) score += 5;
+            if (product.serving_size) score += 5;
+            if (product.quantity) score += 3;
+
+            return {
+              id: product.code,
+              source: 'openfoodfacts',
+              name,
+              brand,
+              servingSize: product.serving_size || '',
+              quantity: product.quantity || '',
+              calories100:
+                Number(
+                  product.nutriments['energy-kcal_100g']
+                ) || 0,
+              protein100:
+                Number(product.nutriments.proteins_100g) || 0,
+              carbs100:
+                Number(
+                  product.nutriments.carbohydrates_100g
+                ) || 0,
+              fats100:
+                Number(product.nutriments.fat_100g) || 0,
+              score,
+            };
+          })
+          .filter((product) => product.calories100 > 0);
+      } catch (error) {
+        console.log('Error Open Food Facts:', error);
+        return [];
+      }
+    })();
+
+    // USDA
+    const usdaPromise = (async () => {
+      try {
+        const { data, error } =
+          await supabase.functions.invoke(
+            'search-usda-foods',
+            {
+              body: {
+                query: cleanQuery,
+              },
+            }
+          );
+
+        if (error) {
+          console.log('Error USDA:', error);
+          return [];
+        }
+
+        return data?.products || [];
+      } catch (error) {
+        console.log('Error USDA:', error);
+        return [];
+      }
+    })();
+
+    const [openFoodProducts, usdaProducts] =
+      await Promise.all([
+        openFoodPromise,
+        usdaPromise,
+      ]);
+
+    const combinedProducts = [
+      ...usdaProducts,
+      ...openFoodProducts,
+    ];
+
+    const uniqueProducts = [];
+    const seen = new Set();
+
+    combinedProducts.forEach((product) => {
+      const key = `${product.name}-${product.brand || ''}`
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueProducts.push(product);
+      }
+    });
+
+    uniqueProducts.sort(
+      (a, b) => (b.score || 0) - (a.score || 0)
+    );
+
+    setFoodSearchResults(uniqueProducts);
+  } catch (error) {
+    console.log('Error buscando alimentos:', error);
+    setFoodSearchResults([]);
+  } finally {
+    setFoodSearchLoading(false);
+  }
+};const [nutritionGoals, setNutritionGoals] = useState({
+  calories: 2100,
+  protein: 160,
+  carbs: 220,
+  fats: 70,
+});
+const [showNutritionGoals, setShowNutritionGoals] = useState(false);
+const [nutritionLoaded, setNutritionLoaded] = useState(false);
+useEffect(() => {
+  const loadNutrition = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(NUTRITION_KEY);
+      const allNutrition = saved ? JSON.parse(saved) : {};
+      const todayKey = getNutritionDateKey();
+const savedGoals = await AsyncStorage.getItem(NUTRITION_GOALS_KEY);
+
+if (savedGoals) {
+  setNutritionGoals(JSON.parse(savedGoals));
+}
+      setNutritionEntries(allNutrition[todayKey] || []);
+    } catch (error) {
+      console.log('Error cargando nutrición:', error);
+    } finally {
+      setNutritionLoaded(true);
+    }
+  };
+
+  loadNutrition();
+}, []);
+useEffect(() => {
+  if (!nutritionLoaded) return;
+
+  const saveNutrition = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(NUTRITION_KEY);
+      const allNutrition = saved ? JSON.parse(saved) : {};
+      const todayKey = getNutritionDateKey();
+
+      allNutrition[todayKey] = nutritionEntries;
+
+      await AsyncStorage.setItem(
+        NUTRITION_KEY,
+        JSON.stringify(allNutrition)
+      );
+    } catch (error) {
+      console.log('Error guardando nutrición:', error);
+    }
+  };
+
+  saveNutrition();
+}, [nutritionEntries, nutritionLoaded]);
+useEffect(() => {
+  if (!nutritionLoaded) return;
+
+  const saveNutritionGoals = async () => {
+    try {
+      await AsyncStorage.setItem(
+        NUTRITION_GOALS_KEY,
+        JSON.stringify(nutritionGoals)
+      );
+    } catch (error) {
+      console.log('Error guardando objetivos nutricionales:', error);
+    }
+  };
+
+  saveNutritionGoals();
+}, [nutritionGoals, nutritionLoaded]);
+const [editingNutritionEntryId, setEditingNutritionEntryId] = useState(null);
+const [expandedNutritionMeal, setExpandedNutritionMeal] = useState(null);
   const [draftExercises, setDraftExercises] = useState([
     emptyExercise(),
   ]);
@@ -819,7 +1172,63 @@ const [realLeagueId, setRealLeagueId] = useState(null);
 const [selectedMuscle, setSelectedMuscle] = useState(null);
   const [checkedDays, setCheckedDays] = useState([]);
   const [workoutOrigin, setWorkoutOrigin] = useState('home');
+const [activeWorkoutLoaded, setActiveWorkoutLoaded] = useState(false);
+useEffect(() => {
+  const loadActiveWorkout = async () => {
+    try {
+      const savedWorkout = await AsyncStorage.getItem(ACTIVE_WORKOUT_KEY);
 
+      if (savedWorkout) {
+        const parsedWorkout = JSON.parse(savedWorkout);
+
+        if (
+          parsedWorkout?.activeRoutine &&
+          Array.isArray(parsedWorkout?.workoutExercises) &&
+          parsedWorkout.workoutExercises.length > 0
+        ) {
+          setActiveRoutine(parsedWorkout.activeRoutine);
+          setWorkoutExercises(parsedWorkout.workoutExercises);
+          setWorkoutOrigin(parsedWorkout.workoutOrigin || 'home');
+          setScreen('workout');
+        }
+      }
+    } catch (error) {
+      console.log('Error cargando entrenamiento activo:', error);
+    } finally {
+      setActiveWorkoutLoaded(true);
+    }
+  };
+
+  loadActiveWorkout();
+}, []);
+useEffect(() => {
+  if (!activeWorkoutLoaded) return;
+  if (!activeRoutine) return;
+  if (!Array.isArray(workoutExercises) || workoutExercises.length === 0) return;
+
+  const saveActiveWorkout = async () => {
+    try {
+      await AsyncStorage.setItem(
+        ACTIVE_WORKOUT_KEY,
+        JSON.stringify({
+          activeRoutine,
+          workoutExercises,
+          workoutOrigin,
+          savedAt: Date.now(),
+        })
+      );
+    } catch (error) {
+      console.log('Error guardando entrenamiento activo:', error);
+    }
+  };
+
+  saveActiveWorkout();
+}, [
+  activeRoutine,
+  workoutExercises,
+  workoutOrigin,
+  activeWorkoutLoaded,
+]);
   const [profileName, setProfileName] = useState('');
   const [currentWeight, setCurrentWeight] = useState('');
   const [targetWeight, setTargetWeight] = useState('');
@@ -2253,15 +2662,20 @@ const loginWithGoogle = async () => {
      NAVEGACIÓN
   ===================================================== */
 
-  const startWorkout = async () => {
-    await impact(
-      Haptics.ImpactFeedbackStyle.Medium
-    );
+const startWorkout = async () => {
+  await impact(
+    Haptics.ImpactFeedbackStyle.Medium
+  );
 
-    setWorkoutOrigin('home');
-    setScreen('quickStart');
-  };
+  if (routines.length === 0) {
+    setSelectedTab('Rutinas');
+    setScreen('routines');
+    return;
+  }
 
+  setWorkoutOrigin('home');
+  setScreen('quickStart');
+};
   const openProfile = () => {
     setScreen('profile');
   };
@@ -2273,18 +2687,50 @@ const loginWithGoogle = async () => {
       setScreen('home');
     }
 
-    if (tab === 'Liga') {
-      setScreen('league');
-    }
+if (tab === 'Liga') {
+  const now = Date.now();
 
-    if (tab === 'Historial') {
+  const canShowLeagueAd =
+    now - lastLeagueAdShownAt >= LEAGUE_AD_COOLDOWN_MS;
+
+  if (canShowLeagueAd && leagueInterstitial.loaded) {
+    lastLeagueAdShownAt = now;
+
+    const unsubscribe = leagueInterstitial.addAdEventListener(
+      AdEventType.CLOSED,
+      () => {
+        unsubscribe();
+        setScreen('league');
+        leagueInterstitial.load();
+      }
+    );
+
+    leagueInterstitial.show().catch(() => {
+      unsubscribe();
+      setScreen('league');
+      leagueInterstitial.load();
+    });
+  } else {
+    setScreen('league');
+
+    if (!leagueInterstitial.loaded) {
+      leagueInterstitial.load();
+    }
+  }
+
+  return;
+}    if (tab === 'Historial') {
       setScreen('history');
     }
 
     if (tab === 'Rutinas') {
       setScreen('routines');
     }
+    if (tab === 'Nutrición') {
+  setScreen('nutrition');
+}
   };
+
 
   const goBack = async () => {
     await impact();
@@ -2563,7 +3009,15 @@ if (
     await impact(
       Haptics.ImpactFeedbackStyle.Heavy
     );
-
+if (
+  activeWorkoutLoaded &&
+  activeRoutine &&
+  Array.isArray(workoutExercises) &&
+  workoutExercises.length > 0
+) {
+  setScreen('workout');
+  return;
+}
     setActiveRoutine(routine);
 
     setWorkoutExercises(
@@ -2996,6 +3450,9 @@ const pr = isCardio
 
     const finish = async () => {
       await recordWorkout();
+      await AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
+      setActiveRoutine(null);
+setWorkoutExercises([]);
 
       await notificationHaptic();
 
@@ -3121,6 +3578,7 @@ const pr = isCardio
         'Liga',
         'Historial',
         'Rutinas',
+        'Nutrición',
       ].map((tab) => (
         <TouchableOpacity
           key={tab}
@@ -3139,6 +3597,17 @@ const pr = isCardio
               }
               style={styles.navVectorIcon}
             />
+            ) : tab === 'Nutrición' ? (
+  <MaterialCommunityIcons
+    name="silverware-fork-knife"
+    size={22}
+    color={
+      selectedTab === tab
+        ? COLORS.orange
+        : '#5C5D61'
+    }
+    style={styles.navVectorIcon}
+  />
           ) : tab === 'Liga' ? (
   <Text
     style={{
@@ -3427,7 +3896,21 @@ const pr = isCardio
           </TouchableOpacity>
         </View>
       </View>
-
+<View
+  style={{
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 8,
+  }}
+>
+  <BannerAd
+    unitId={TestIds.BANNER}
+    size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+    requestOptions={{
+      requestNonPersonalizedAdsOnly: true,
+    }}
+  />
+</View>
       {BottomNavigation()}
     </>
   );
@@ -3469,7 +3952,11 @@ const leagueDaysRemaining = Math.max(
   .map((player , index) => ({
   ...player,
 
-  isMonthlyMvp: index === 0,
+isMonthlyMvp: monthlyAwards.some(
+  (award) =>
+    award.user_id === player.user_id &&
+    award.award_type === 'mvp'
+),
 
   isRevengeMode: monthlyAwards.some(
     (award) =>
@@ -4917,7 +5404,1623 @@ const ProfileLogin = () => (
   /* =====================================================
      RUTINAS
   ===================================================== */
+  const Nutrition = () => {
+const caloriesGoal = nutritionGoals.calories;
+const proteinGoal = nutritionGoals.protein;
+const carbsGoal = nutritionGoals.carbs;
+const fatsGoal = nutritionGoals.fats;
+const nutritionTotals = nutritionEntries.reduce(
+  (total, item) => ({
+    calories: total.calories + (Number(item.calories) || 0),
+    protein: total.protein + (Number(item.protein) || 0),
+    carbs: total.carbs + (Number(item.carbs) || 0),
+    fats: total.fats + (Number(item.fats) || 0),
+  }),
+  {
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fats: 0,
+  }
+);
 
+const caloriesConsumed = nutritionTotals.calories;
+
+const caloriesRemaining = Math.max(
+  caloriesGoal - caloriesConsumed,
+  0
+);
+
+const calorieProgress = Math.min(
+  caloriesConsumed / caloriesGoal,
+  1
+);  
+const mealSummary = [
+  ['Desayuno', 'coffee-outline'],
+  ['Comida', 'silverware-fork-knife'],
+  ['Cena', 'food-outline'],
+  ['Snacks', 'food-apple-outline'],
+].map(([name, icon]) => ({
+  name,
+  icon,
+  calories: nutritionEntries
+    .filter((item) => item.meal === name)
+    .reduce(
+      (total, item) => total + (Number(item.calories) || 0),
+      0
+    ),
+  items: nutritionEntries.filter((item) => item.meal === name),
+}));
+const MacroRing = ({
+    label,
+    value,
+    goal,
+    unit = 'g',
+    size = 82,
+  }) => {
+    const strokeWidth = 7;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const progress = Math.min(value / goal, 1);
+    const offset =
+      circumference - progress * circumference;
+
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+        }}
+      >
+        <View
+          style={{
+            width: size,
+            height: size,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Svg
+            width={size}
+            height={size}
+            style={{
+              position: 'absolute',
+              transform: [{ rotate: '-90deg' }],
+            }}
+          >
+            <Circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke="#292C32"
+              strokeWidth={strokeWidth}
+              fill="none"
+            />
+
+            <Circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke={COLORS.orange}
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray={`${circumference} ${circumference}`}
+              strokeDashoffset={offset}
+            />
+          </Svg>
+
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 16,
+              fontWeight: '900',
+            }}
+          >
+            {Math.round(progress * 100)}%
+          </Text>
+        </View>
+
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 12,
+            fontWeight: '800',
+            marginTop: 8,
+          }}
+        >
+          {label}
+        </Text>
+
+        <Text
+          style={{
+            color: '#8D9098',
+            fontSize: 11,
+            marginTop: 3,
+          }}
+        >
+          {value} / {goal} {unit}
+        </Text>
+      </View>
+    );
+  };
+
+  const calorieSize = 190;
+  const calorieStroke = 12;
+  const calorieRadius =
+    (calorieSize - calorieStroke) / 2;
+  const calorieCircumference =
+    2 * Math.PI * calorieRadius;
+  const calorieOffset =
+    calorieCircumference -
+    calorieProgress * calorieCircumference;
+
+  return (
+    <>
+      <View style={styles.page}>
+        <AppGradient />
+
+        <PageHeader
+          title="Nutrición"
+          subtitle="Tu alimentación de hoy"
+          showBack={selectedTab !== 'Nutrición'}
+        />
+
+        <ScrollView
+          contentContainerStyle={[
+            styles.pageContent,
+            {
+              paddingBottom: 120,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* CALORÍAS */}
+          <View
+            style={{
+              backgroundColor: '#111318',
+              borderWidth: 1,
+              borderColor: '#24272E',
+              borderRadius: 20,
+              padding: 18,
+              marginBottom: 14,
+              alignItems: 'center',
+            }}
+          >
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 16,
+                fontWeight: '900',
+                marginBottom: 16,
+              }}
+            >
+              Calorías de hoy
+            </Text>
+
+            <View
+              style={{
+                width: calorieSize,
+                height: calorieSize,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Svg
+                width={calorieSize}
+                height={calorieSize}
+                style={{
+                  position: 'absolute',
+                  transform: [{ rotate: '-90deg' }],
+                }}
+              >
+                <Circle
+                  cx={calorieSize / 2}
+                  cy={calorieSize / 2}
+                  r={calorieRadius}
+                  stroke="#292C32"
+                  strokeWidth={calorieStroke}
+                  fill="none"
+                />
+
+                <Circle
+                  cx={calorieSize / 2}
+                  cy={calorieSize / 2}
+                  r={calorieRadius}
+                  stroke={COLORS.orange}
+                  strokeWidth={calorieStroke}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${calorieCircumference} ${calorieCircumference}`}
+                  strokeDashoffset={calorieOffset}
+                />
+              </Svg>
+
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 30,
+                  fontWeight: '900',
+                }}
+              >
+                {caloriesConsumed}
+              </Text>
+
+              <Text
+                style={{
+                  color: '#8D9098',
+                  fontSize: 12,
+                  marginTop: 2,
+                }}
+              >
+                de {caloriesGoal} kcal
+              </Text>
+
+              <Text
+                style={{
+                  color: COLORS.orange,
+                  fontSize: 13,
+                  fontWeight: '800',
+                  marginTop: 7,
+                }}
+              >
+                {caloriesRemaining} restantes
+              </Text>
+            </View>
+          </View>
+
+          {/* MACROS */}
+          <View
+            style={{
+              backgroundColor: '#111318',
+              borderWidth: 1,
+              borderColor: '#24272E',
+              borderRadius: 20,
+              paddingVertical: 18,
+              paddingHorizontal: 8,
+              marginBottom: 14,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+              }}
+            >
+              <MacroRing
+                label="Proteína"
+                value={nutritionTotals.protein}
+goal={proteinGoal}
+              />
+
+              <MacroRing
+                label="Carbohidratos"
+                value={nutritionTotals.carbs}
+goal={carbsGoal}
+              />
+
+              <MacroRing
+                label="Grasas"
+              value={nutritionTotals.fats}
+goal={fatsGoal}
+              />
+            </View>
+          </View>
+
+          {/* ESCANEAR */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={{
+              backgroundColor: COLORS.orange,
+              borderRadius: 16,
+              minHeight: 64,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 10,
+            }}
+          >
+            <MaterialCommunityIcons
+              name="camera-outline"
+              size={25}
+              color="#08090C"
+            />
+
+            <Text
+              style={{
+                color: '#08090C',
+                fontSize: 15,
+                fontWeight: '900',
+                marginLeft: 9,
+              }}
+            >
+              ESCANEAR COMIDA
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => setShowNutritionManual(true)}
+            style={{
+              backgroundColor: '#111318',
+              borderWidth: 1,
+              borderColor: '#24272E',
+              borderRadius: 14,
+              minHeight: 52,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 18,
+            }}
+          >
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 13,
+                fontWeight: '800',
+              }}
+            >
+            {nutritionPhoto && (
+  <View
+    style={{
+      marginBottom: 12,
+      backgroundColor: '#111318',
+      borderWidth: 1,
+      borderColor: '#24272E',
+      borderRadius: 14,
+      padding: 10,
+    }}
+  >
+    <Image
+      source={{ uri: nutritionPhoto.uri }}
+      style={{
+        width: '100%',
+        height: 220,
+        borderRadius: 10,
+        marginBottom: 10,
+      }}
+      resizeMode="cover"
+    />
+
+    <TouchableOpacity
+      onPress={analyzeNutritionPhoto}
+      disabled={nutritionPhotoLoading}
+      activeOpacity={0.8}
+      style={{
+        height: 46,
+        borderRadius: 11,
+        backgroundColor: COLORS.orange,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: nutritionPhotoLoading ? 0.6 : 1,
+      }}
+    >
+      <Text
+        style={{
+          color: '#08090C',
+          fontSize: 13,
+          fontWeight: '900',
+        }}
+      >
+        {nutritionPhotoLoading
+          ? 'ANALIZANDO COMIDA...'
+          : 'ANALIZAR FOTO'}
+      </Text>
+    </TouchableOpacity>
+  </View>
+)}
+              + Añadir manualmente
+            </Text>
+          </TouchableOpacity>
+          {nutritionPhotoResult && (
+  <View
+    style={{
+      backgroundColor: '#111318',
+      borderWidth: 1,
+      borderColor: '#24272E',
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 14,
+    }}
+  >
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '900',
+        marginBottom: 4,
+      }}
+    >
+      {nutritionPhotoResult.mealName || 'Comida detectada'}
+    </Text>
+
+    <Text
+      style={{
+        color: '#8D9098',
+        fontSize: 12,
+        marginBottom: 14,
+      }}
+    >
+      Estimación IA · Confianza {nutritionPhotoResult.confidence || 'media'}
+    </Text>
+
+    {nutritionPhotoResult.foods?.map((food, index) => (
+      <View
+        key={`${food.name}-${index}`}
+        style={{
+          paddingVertical: 10,
+          borderBottomWidth:
+            index < nutritionPhotoResult.foods.length - 1 ? 1 : 0,
+          borderBottomColor: '#24272E',
+        }}
+      >
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 14,
+              fontWeight: '800',
+              flex: 1,
+            }}
+          >
+            {food.name}
+          </Text>
+
+<View
+  style={{
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  }}
+>
+  <TextInput
+    defaultValue={String(food.grams)}
+    keyboardType="decimal-pad"
+    onChangeText={(value) =>
+      updateNutritionPhotoFoodGrams(index, value)
+    }
+    style={{
+      minWidth: 58,
+      height: 34,
+      paddingHorizontal: 8,
+      borderRadius: 8,
+      backgroundColor: '#1A1D23',
+      borderWidth: 1,
+      borderColor: '#343841',
+      color: COLORS.orange,
+      fontSize: 13,
+      fontWeight: '900',
+      textAlign: 'center',
+    }}
+  />
+
+  <Text
+    style={{
+      color: COLORS.orange,
+      fontSize: 13,
+      fontWeight: '900',
+    }}
+  >
+    g
+  </Text>
+</View>        </View>
+
+        {food.nutrition && (
+          <Text
+            style={{
+              color: '#8D9098',
+              fontSize: 12,
+              marginTop: 5,
+            }}
+          >
+            {food.nutrition.calories} kcal · P {food.nutrition.protein} · C{' '}
+            {food.nutrition.carbs} · G {food.nutrition.fats}
+          </Text>
+        )}
+      </View>
+    ))}
+
+    <View
+      style={{
+        marginTop: 14,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#24272E',
+      }}
+    >
+      <Text
+        style={{
+          color: '#FFFFFF',
+          fontSize: 15,
+          fontWeight: '900',
+        }}
+      >
+        Total estimado: {nutritionPhotoResult.totals?.calories || 0} kcal
+      </Text>
+
+      <Text
+        style={{
+          color: '#8D9098',
+          fontSize: 12,
+          marginTop: 4,
+        }}
+      >
+        Proteína {nutritionPhotoResult.totals?.protein || 0} g · Carbohidratos{' '}
+        {nutritionPhotoResult.totals?.carbs || 0} g · Grasas{' '}
+        {nutritionPhotoResult.totals?.fats || 0} g
+      </Text>
+    </View>
+    <TouchableOpacity
+  activeOpacity={0.8}
+  onPress={() => {
+    const entries = (nutritionPhotoResult.foods || []).map(
+      (food, index) => ({
+        id: Date.now() + index,
+        meal: 'Comida',
+        name: food.name,
+        grams: Number(food.grams) || 0,
+        unit: 'g',
+
+        calories:
+          Number(food.nutrition?.calories) || 0,
+        protein:
+          Number(food.nutrition?.protein) || 0,
+        carbs:
+          Number(food.nutrition?.carbs) || 0,
+        fats:
+          Number(food.nutrition?.fats) || 0,
+
+        foodBase: food.nutrition
+          ? {
+              id: food.nutrition.usdaFdcId
+                ? `usda-${food.nutrition.usdaFdcId}`
+                : `ai-${Date.now()}-${index}`,
+              name: food.name,
+              brand: '',
+              servingSize: '',
+              quantity: '',
+              calories100:
+                Number(food.nutrition.calories100) || 0,
+              protein100:
+                Number(food.nutrition.protein100) || 0,
+              carbs100:
+                Number(food.nutrition.carbs100) || 0,
+              fats100:
+                Number(food.nutrition.fats100) || 0,
+            }
+          : null,
+      })
+    );
+
+    setNutritionEntries((prev) => [
+      ...prev,
+      ...entries,
+    ]);
+
+    setNutritionPhoto(null);
+    setNutritionPhotoResult(null);
+
+    Alert.alert(
+      'Comida añadida',
+      'Los alimentos detectados se han añadido a Comidas de hoy.'
+    );
+  }}
+  style={{
+    height: 48,
+    borderRadius: 11,
+    backgroundColor: COLORS.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+  }}
+>
+  <Text
+    style={{
+      color: '#08090C',
+      fontSize: 13,
+      fontWeight: '900',
+    }}
+  >
+    AÑADIR COMIDA
+  </Text>
+</TouchableOpacity>
+  </View>
+)}
+{showNutritionManual && (
+  <View
+    style={{
+      backgroundColor: '#111318',
+      borderWidth: 1,
+      borderColor: '#24272E',
+      borderRadius: 16,
+      padding: 14,
+      marginBottom: 18,
+    }}
+  >
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '900',
+        marginBottom: 12,
+      }}
+    >
+      Añadir alimento
+    </Text>
+
+    {/* TIPO DE COMIDA */}
+    <View
+      style={{
+        flexDirection: 'row',
+        gap: 6,
+        marginBottom: 10,
+      }}
+    >
+      {['Desayuno', 'Comida', 'Cena', 'Snacks'].map((meal) => (
+        <TouchableOpacity
+          key={meal}
+          onPress={() =>
+            setNutritionDraft((prev) => ({
+              ...prev,
+              meal,
+            }))
+          }
+          style={{
+            flex: 1,
+            minHeight: 42,
+            borderRadius: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor:
+              nutritionDraft.meal === meal
+                ? COLORS.orange
+                : '#1B1D22',
+          }}
+        >
+          <Text
+            style={{
+              color:
+                nutritionDraft.meal === meal
+                  ? '#08090C'
+                  : '#FFFFFF',
+              fontSize: 10,
+              fontWeight: '800',
+            }}
+          >
+            {meal}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+
+<View style={{ marginBottom: 8 }}>
+  <TextInput
+    value={foodSearchQuery}
+    onChangeText={(value) => {
+      setFoodSearchQuery(value);
+      setSelectedFood(null);
+
+      setNutritionDraft((prev) => ({
+        ...prev,
+        name: value,
+      }));
+
+      searchFoodProducts(value);
+    }}
+    placeholder="Buscar alimento..."
+    placeholderTextColor="#666A73"
+    style={{
+      height: 46,
+      backgroundColor: '#1B1D22',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      color: '#FFFFFF',
+    }}
+  />
+
+  {foodSearchLoading && (
+    <Text
+      style={{
+        color: '#8D9098',
+        fontSize: 11,
+        marginTop: 8,
+      }}
+    >
+      Buscando alimentos...
+    </Text>
+  )}
+
+  {!selectedFood && foodSearchResults.length > 0 && (
+    <View
+      style={{
+        backgroundColor: '#16181D',
+        borderRadius: 10,
+        marginTop: 6,
+        overflow: 'hidden',
+      }}
+    >
+      {foodSearchResults.slice(0, 6).map((product) => (
+        <TouchableOpacity
+          key={product.id}
+          activeOpacity={0.7}
+          onPress={() => {
+            setSelectedFood(product);
+            setFoodSearchQuery(product.name);
+            setFoodSearchResults([]);
+            const productInfo =
+  `${product.name} ${product.quantity} ${product.servingSize}`.toLowerCase();
+
+const isLiquid =
+  /\b\d+(?:[.,]\d+)?\s*(ml|cl|l)\b/.test(productInfo) ||
+  [
+    'leche',
+    'bebida',
+    'zumo',
+    'jugo',
+    'agua',
+    'refresco',
+    'batido',
+    'aceite',
+    'caldo',
+  ].some((word) => productInfo.includes(word));
+
+setNutritionUnit(isLiquid ? 'ml' : 'g');
+
+            setNutritionDraft((prev) => ({
+              ...prev,
+              name: product.name,
+              grams: '100',
+              calories: String(
+                Math.round(product.calories100)
+              ),
+              protein: String(
+                Math.round(product.protein100 * 10) / 10
+              ),
+              carbs: String(
+                Math.round(product.carbs100 * 10) / 10
+              ),
+              fats: String(
+                Math.round(product.fats100 * 10) / 10
+              ),
+            }));
+          }}
+          style={{
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderBottomWidth: 1,
+            borderBottomColor: '#24272E',
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 12,
+              fontWeight: '800',
+            }}
+            numberOfLines={1}
+          >
+            {product.name}
+          </Text>
+
+          <Text
+            style={{
+              color: '#8D9098',
+              fontSize: 10,
+              marginTop: 3,
+            }}
+            numberOfLines={1}
+          >
+{product.brand || 'Sin marca'}
+{product.quantity ? ` · ${product.quantity}` : ''}
+{product.servingSize ? ` · Ración ${product.servingSize}` : ''}
+{'\n'}
+{Math.round(product.calories100)} kcal / 100 {
+  (
+    /\b\d+(?:[.,]\d+)?\s*(ml|cl|l)\b/.test(
+      `${product.name} ${product.quantity} ${product.servingSize}`.toLowerCase()
+    ) ||
+    [
+      'leche',
+      'bebida',
+      'zumo',
+      'jugo',
+      'agua',
+      'refresco',
+      'batido',
+      'aceite',
+      'caldo',
+    ].some((word) =>
+      `${product.name} ${product.quantity} ${product.servingSize}`
+        .toLowerCase()
+        .includes(word)
+    )
+  )
+    ? 'ml'
+    : 'g'
+}
+{' · '}P {Math.round(product.protein100 * 10) / 10}
+{' · '}C {Math.round(product.carbs100 * 10) / 10}
+{' · '}G {Math.round(product.fats100 * 10) / 10}          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  )}
+</View>
+  
+<View
+  style={{
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  }}
+>
+  <TextInput
+    value={nutritionDraft.grams}
+    onChangeText={(value) => {
+      const cleanValue = value.replace(',', '.');
+      const amount = Number(cleanValue) || 0;
+
+      setNutritionDraft((prev) => {
+        if (!selectedFood) {
+          return {
+            ...prev,
+            grams: value,
+          };
+        }
+
+        const servingAmount =
+  Number(
+    String(selectedFood?.servingSize || '')
+      .replace(',', '.')
+      .match(/[\d.]+/)?.[0]
+  ) || 0;
+
+const baseAmount =
+  nutritionUnit === 'porción' && servingAmount > 0
+    ? amount * servingAmount
+    : amount;
+
+const ratio = baseAmount / 100;
+
+        return {
+          ...prev,
+          grams: value,
+          calories: String(
+            Math.round(selectedFood.calories100 * ratio)
+          ),
+          protein: String(
+            Math.round(selectedFood.protein100 * ratio * 10) / 10
+          ),
+          carbs: String(
+            Math.round(selectedFood.carbs100 * ratio * 10) / 10
+          ),
+          fats: String(
+            Math.round(selectedFood.fats100 * ratio * 10) / 10
+          ),
+        };
+      });
+    }}
+    placeholder="Cantidad"
+    placeholderTextColor="#666A73"
+    keyboardType="decimal-pad"
+    style={{
+      flex: 1,
+      height: 46,
+      backgroundColor: '#1B1D22',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      color: '#FFFFFF',
+    }}
+  />
+
+  <View
+    style={{
+      flexDirection: 'row',
+      backgroundColor: '#1B1D22',
+      borderRadius: 10,
+      padding: 3,
+    }}
+  >
+    {[
+  'g',
+  'ml',
+  ...(selectedFood?.servingSize ? ['porción'] : []),
+].map((unit) => (
+      <TouchableOpacity
+        key={unit}
+        onPress={() => {
+  const currentAmount =
+    Number(String(nutritionDraft.grams).replace(',', '.')) || 0;
+
+  const servingAmount =
+    Number(
+      String(selectedFood?.servingSize || '')
+        .replace(',', '.')
+        .match(/[\d.]+/)?.[0]
+    ) || 0;
+
+  const currentBaseAmount =
+    nutritionUnit === 'porción' && servingAmount > 0
+      ? currentAmount * servingAmount
+      : currentAmount;
+
+  const newAmount =
+    unit === 'porción' && servingAmount > 0
+      ? currentBaseAmount / servingAmount
+      : currentBaseAmount;
+
+  const ratio = currentBaseAmount / 100;
+
+  setNutritionUnit(unit);
+
+  if (selectedFood) {
+    setNutritionDraft((prev) => ({
+      ...prev,
+      grams: String(
+        Math.round(newAmount * 100) / 100
+      ),
+      calories: String(
+        Math.round(selectedFood.calories100 * ratio)
+      ),
+      protein: String(
+        Math.round(selectedFood.protein100 * ratio * 10) / 10
+      ),
+      carbs: String(
+        Math.round(selectedFood.carbs100 * ratio * 10) / 10
+      ),
+      fats: String(
+        Math.round(selectedFood.fats100 * ratio * 10) / 10
+      ),
+    }));
+  }
+}}
+        style={{
+          minWidth: 48,
+          height: 40,
+          borderRadius: 8,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor:
+            nutritionUnit === unit
+              ? COLORS.orange
+              : 'transparent',
+        }}
+      >
+        <Text
+          style={{
+            color:
+              nutritionUnit === unit
+                ? '#08090C'
+                : '#8D9098',
+            fontSize: 12,
+            fontWeight: '900',
+          }}
+        >
+          {unit}
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+</View>
+    <View
+      style={{
+        flexDirection: 'row',
+        gap: 8,
+      }}
+    >
+      {[
+        ['protein', 'Proteína'],
+        ['carbs', 'Carbos'],
+        ['fats', 'Grasas'],
+      ].map(([field, placeholder]) => (
+        <TextInput
+          key={field}
+          value={nutritionDraft[field]}
+          onChangeText={(value) =>
+            setNutritionDraft((prev) => ({
+              ...prev,
+              [field]: value,
+            }))
+          }
+          placeholder={placeholder}
+          placeholderTextColor="#666A73"
+          keyboardType="decimal-pad"
+          style={{
+            flex: 1,
+            height: 46,
+            backgroundColor: '#1B1D22',
+            borderRadius: 10,
+            paddingHorizontal: 10,
+            color: '#FFFFFF',
+            marginBottom: 12,
+          }}
+        />
+      ))}
+    </View>
+
+    <TouchableOpacity
+      disabled={
+        !nutritionDraft.name.trim() ||
+        !nutritionDraft.calories
+      }
+onPress={() => {
+const entryData = {
+  id: editingNutritionEntryId ?? Date.now(),
+  ...nutritionDraft,
+
+  grams: Number(nutritionDraft.grams) || 0,
+  unit: nutritionUnit,
+
+  calories: Number(nutritionDraft.calories) || 0,
+  protein: Number(nutritionDraft.protein) || 0,
+  carbs: Number(nutritionDraft.carbs) || 0,
+  fats: Number(nutritionDraft.fats) || 0,
+
+  foodBase: selectedFood
+    ? {
+        id: selectedFood.id,
+        name: selectedFood.name,
+        brand: selectedFood.brand || '',
+        servingSize: selectedFood.servingSize || '',
+quantity: selectedFood.quantity || '',
+        calories100: selectedFood.calories100,
+        protein100: selectedFood.protein100,
+        carbs100: selectedFood.carbs100,
+        fats100: selectedFood.fats100,
+      }
+    : null,
+};
+  setNutritionEntries((prev) =>
+    editingNutritionEntryId !== null
+      ? prev.map((entry) =>
+          entry.id === editingNutritionEntryId
+            ? entryData
+            : entry
+        )
+      : [...prev, entryData]
+  );
+
+  setEditingNutritionEntryId(null);
+
+  setNutritionDraft({
+    meal: 'Comida',
+    name: '',
+    grams: '',
+    calories: '',
+    protein: '',
+    carbs: '',
+    fats: '',
+  });
+setSelectedFood(null);
+setFoodSearchQuery('');
+setFoodSearchResults([]);
+setNutritionUnit('g');
+  setShowNutritionManual(false);
+}}      style={{
+        height: 48,
+        borderRadius: 11,
+        backgroundColor: COLORS.orange,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity:
+          !nutritionDraft.name.trim() ||
+          !nutritionDraft.calories
+            ? 0.4
+            : 1,
+      }}
+    >
+      <Text
+        style={{
+          color: '#08090C',
+          fontSize: 13,
+          fontWeight: '900',
+        }}
+      >
+      {editingNutritionEntryId !== null ? 'GUARDAR CAMBIOS' : 'GUARDAR ALIMENTO'}
+      </Text>
+    </TouchableOpacity>
+    {editingNutritionEntryId !== null && (
+  <TouchableOpacity
+    onPress={() => {
+      setEditingNutritionEntryId(null);
+
+      setNutritionDraft({
+        meal: 'Comida',
+        name: '',
+        grams: '',
+        calories: '',
+        protein: '',
+        carbs: '',
+        fats: '',
+      });
+setSelectedFood(null);
+setFoodSearchQuery('');
+setFoodSearchResults([]);
+setNutritionUnit('g');
+      setShowNutritionManual(false);
+    }}
+    style={{
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 6,
+    }}
+  >
+    <Text
+      style={{
+        color: '#8D9098',
+        fontSize: 12,
+        fontWeight: '800',
+      }}
+    >
+      CANCELAR
+    </Text>
+  </TouchableOpacity>
+)}
+  </View>
+)}
+          {/* COMIDAS */}
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 17,
+              fontWeight: '900',
+              marginBottom: 10,
+            }}
+          >
+            Comidas de hoy
+          </Text>
+
+{mealSummary.map(({ name, calories, icon, items }) => (
+  <View
+    key={name}
+    style={{
+      backgroundColor: '#111318',
+      borderWidth: 1,
+      borderColor: '#24272E',
+      borderRadius: 14,
+      marginBottom: 8,
+      overflow: 'hidden',
+    }}
+  >
+    <TouchableOpacity
+      activeOpacity={0.75}
+      onPress={() =>
+        setExpandedNutritionMeal(
+          expandedNutritionMeal === name ? null : name
+        )
+      }
+      style={{
+        padding: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          backgroundColor: '#1B1D22',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: 12,
+        }}
+      >
+        <MaterialCommunityIcons
+          name={icon}
+          size={21}
+          color={COLORS.orange}
+        />
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 14,
+            fontWeight: '800',
+          }}
+        >
+          {name}
+        </Text>
+
+        <Text
+          style={{
+            color: '#8D9098',
+            fontSize: 11,
+            marginTop: 3,
+          }}
+        >
+          {calories > 0
+            ? `${calories} kcal · ${items.length} ${
+                items.length === 1 ? 'alimento' : 'alimentos'
+              }`
+            : 'Sin alimentos'}
+        </Text>
+      </View>
+
+      <MaterialCommunityIcons
+        name={
+          expandedNutritionMeal === name
+            ? 'chevron-up'
+            : 'chevron-down'
+        }
+        size={22}
+        color="#5C5D61"
+      />
+    </TouchableOpacity>
+
+    {expandedNutritionMeal === name && items.length > 0 && (
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: '#24272E',
+          paddingHorizontal: 14,
+          paddingBottom: 10,
+        }}
+      >
+{items.map((item) => (
+  <View
+    key={item.id}
+    style={{
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+    }}
+  >
+    <View style={{ flex: 1 }}>
+      <Text
+        style={{
+          color: '#FFFFFF',
+          fontSize: 12,
+          fontWeight: '800',
+        }}
+      >
+        {item.name}
+      </Text>
+
+      <Text
+        style={{
+          color: '#8D9098',
+          fontSize: 10,
+          marginTop: 3,
+        }}
+      >
+        {item.grams > 0
+  ? `${item.grams} ${item.unit || 'g'} · `
+  : ''}
+        P {item.protein} · C {item.carbs} · G {item.fats}
+      </Text>
+
+      <Text
+        style={{
+          color: COLORS.orange,
+          fontSize: 11,
+          fontWeight: '800',
+          marginTop: 3,
+        }}
+      >
+        {item.calories} kcal
+      </Text>
+    </View>
+
+    <TouchableOpacity
+      onPress={() => {
+setEditingNutritionEntryId(item.id);
+
+setNutritionDraft({
+  meal: item.meal,
+  name: item.name,
+  grams: String(item.grams || ''),
+  calories: String(item.calories || ''),
+  protein: String(item.protein || ''),
+  carbs: String(item.carbs || ''),
+  fats: String(item.fats || ''),
+});
+
+setNutritionUnit(item.unit || 'g');
+setSelectedFood(item.foodBase || null);
+setFoodSearchQuery(item.name || '');
+setFoodSearchResults([]);
+
+setShowNutritionManual(true);      }}
+      style={{
+        width: 36,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <MaterialCommunityIcons
+        name="pencil-outline"
+        size={18}
+        color="#A7AAB2"
+      />
+    </TouchableOpacity>
+
+    <TouchableOpacity
+      onPress={() =>
+        setNutritionEntries((prev) =>
+          prev.filter((entry) => entry.id !== item.id)
+        )
+      }
+      style={{
+        width: 36,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <MaterialCommunityIcons
+        name="delete-outline"
+        size={18}
+        color="#A7AAB2"
+      />
+    </TouchableOpacity>
+  </View>
+))}      </View>
+    )}
+  </View>
+))}
+          {/* OBJETIVO */}
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 17,
+              fontWeight: '900',
+              marginTop: 12,
+              marginBottom: 10,
+            }}
+          >
+            Tu objetivo
+          </Text>
+
+          <View
+            style={{
+              backgroundColor: '#111318',
+              borderWidth: 1,
+              borderColor: '#24272E',
+              borderRadius: 18,
+              padding: 16,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginBottom: 14,
+              }}
+            >
+              <View>
+                <Text
+                  style={{
+                    color: '#8D9098',
+                    fontSize: 11,
+                  }}
+                >
+                  Peso actual
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 19,
+                    fontWeight: '900',
+                    marginTop: 3,
+                  }}
+                >
+                  {currentWeight ? `${currentWeight} kg` : '-- kg'}
+                </Text>
+              </View>
+
+              <View
+                style={{
+                  alignItems: 'flex-end',
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#8D9098',
+                    fontSize: 11,
+                  }}
+                >
+                  Objetivo
+                </Text>
+
+                <Text
+                  style={{
+                    color: COLORS.orange,
+                    fontSize: 19,
+                    fontWeight: '900',
+                    marginTop: 3,
+                  }}
+                >
+                  {targetWeight ? `${targetWeight} kg` : '-- kg'}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={{
+                height: 6,
+                backgroundColor: '#292C32',
+                borderRadius: 99,
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                style={{
+                  width: '35%',
+                  height: '100%',
+                  backgroundColor: COLORS.orange,
+                  borderRadius: 99,
+                }}
+              />
+            </View>
+
+            <Text
+              style={{
+                color: '#8D9098',
+                fontSize: 11,
+                marginTop: 10,
+              }}
+            >
+              Ritmo objetivo: -0,5 kg por semana
+            </Text>
+          </View>
+          <TouchableOpacity
+  activeOpacity={0.75}
+  onPress={() => setShowNutritionGoals((prev) => !prev)}
+  style={{
+    height: 44,
+    borderRadius: 11,
+    backgroundColor: '#1B1D22',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+  }}
+>
+  <Text
+    style={{
+      color: COLORS.orange,
+      fontSize: 12,
+      fontWeight: '900',
+    }}
+  >
+    EDITAR OBJETIVOS
+  </Text>
+</TouchableOpacity>
+{showNutritionGoals && (
+  <View
+    style={{
+      marginTop: 10,
+      padding: 12,
+      borderRadius: 14,
+      backgroundColor: '#1B1D22',
+    }}
+  >
+    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+      <TextInput
+        value={String(nutritionGoals.calories)}
+        onChangeText={(value) =>
+          setNutritionGoals((prev) => ({
+            ...prev,
+            calories: Number(value) || 0,
+          }))
+        }
+        placeholder="Calorías"
+        placeholderTextColor="#666A73"
+        keyboardType="number-pad"
+        style={{
+          flex: 1,
+          height: 44,
+          borderRadius: 10,
+          backgroundColor: '#111318',
+          color: '#FFFFFF',
+          paddingHorizontal: 10,
+        }}
+      />
+
+      <TextInput
+        value={String(nutritionGoals.protein)}
+        onChangeText={(value) =>
+          setNutritionGoals((prev) => ({
+            ...prev,
+            protein: Number(value) || 0,
+          }))
+        }
+        placeholder="Proteína"
+        placeholderTextColor="#666A73"
+        keyboardType="number-pad"
+        style={{
+          flex: 1,
+          height: 44,
+          borderRadius: 10,
+          backgroundColor: '#111318',
+          color: '#FFFFFF',
+          paddingHorizontal: 10,
+        }}
+      />
+    </View>
+
+    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+      <TextInput
+        value={String(nutritionGoals.carbs)}
+        onChangeText={(value) =>
+          setNutritionGoals((prev) => ({
+            ...prev,
+            carbs: Number(value) || 0,
+          }))
+        }
+        placeholder="Carbohidratos"
+        placeholderTextColor="#666A73"
+        keyboardType="number-pad"
+        style={{
+          flex: 1,
+          height: 44,
+          borderRadius: 10,
+          backgroundColor: '#111318',
+          color: '#FFFFFF',
+          paddingHorizontal: 10,
+        }}
+      />
+
+      <TextInput
+        value={String(nutritionGoals.fats)}
+        onChangeText={(value) =>
+          setNutritionGoals((prev) => ({
+            ...prev,
+            fats: Number(value) || 0,
+          }))
+        }
+        placeholder="Grasas"
+        placeholderTextColor="#666A73"
+        keyboardType="number-pad"
+        style={{
+          flex: 1,
+          height: 44,
+          borderRadius: 10,
+          backgroundColor: '#111318',
+          color: '#FFFFFF',
+          paddingHorizontal: 10,
+        }}
+      />
+    </View>
+
+    <TouchableOpacity
+      onPress={() => setShowNutritionGoals(false)}
+      style={{
+        height: 44,
+        borderRadius: 10,
+        backgroundColor: COLORS.orange,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text
+        style={{
+          color: '#08090C',
+          fontSize: 12,
+          fontWeight: '900',
+        }}
+      >
+        GUARDAR OBJETIVOS
+      </Text>
+    </TouchableOpacity>
+  </View>
+)}
+        </ScrollView>
+      </View>
+
+      {BottomNavigation()}
+    </>
+  );
+};
   const Routines = () => (
     <>
       <View style={styles.page}>
@@ -4933,6 +7036,42 @@ const ProfileLogin = () => (
           contentContainerStyle={styles.pageContent}
           showsVerticalScrollIndicator={false}
         >
+          <View
+  style={{
+    alignItems: 'center',
+    marginBottom: 12,
+  }}
+>
+  <BannerAd
+    unitId={TestIds.BANNER}
+    size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+    requestOptions={{
+      requestNonPersonalizedAdsOnly: true,
+    }}
+  />
+</View>
+
+<TouchableOpacity
+style={[styles.buttonShadow, { marginBottom: 18 }]}
+  activeOpacity={1}
+  onPress={beginCreate}
+>
+  <View style={styles.mainButton}>
+    <View style={styles.buttonShine} />
+
+    <Text style={styles.mainButtonIcon}>+</Text>
+
+    <View>
+      <Text style={styles.mainButtonText}>
+        CREAR RUTINA
+      </Text>
+
+      <Text style={styles.mainButtonSubtext}>
+        Añade ejercicios a tu planificación
+      </Text>
+    </View>
+  </View>
+</TouchableOpacity>
           {routines.length === 0 ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIcon}>
@@ -5038,30 +7177,6 @@ const ProfileLogin = () => (
               </View>
             ))
           )}
-
-          <TouchableOpacity
-            style={styles.buttonShadow}
-            activeOpacity={1}
-            onPress={beginCreate}
-          >
-            <View style={styles.mainButton}>
-              <View style={styles.buttonShine} />
-
-              <Text style={styles.mainButtonIcon}>
-                ＋
-              </Text>
-
-              <View>
-                <Text style={styles.mainButtonText}>
-                  CREAR RUTINA
-                </Text>
-
-                <Text style={styles.mainButtonSubtext}>
-                  Añade ejercicios a tu planificación
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
           <View style={styles.comingSoonRoutineCard}>
   <View style={styles.comingSoonRoutineIcon}>
     <MaterialCommunityIcons
@@ -5163,6 +7278,8 @@ const ProfileLogin = () => (
                     style={styles.exerciseNameInput}
                     placeholder="Nombre del ejercicio"
                     placeholderTextColor="#626873"
+                    returnKeyType="done"
+blurOnSubmit={true}
                     value={exercise.name}
                     onChangeText={(value) =>
                       updateExercise(
@@ -6013,7 +8130,7 @@ const selectedMuscleStats =
   />
 </TouchableOpacity>
 <Text style={styles.historySectionTitle}>
-  Mapa muscular
+  MÚSCULOS TRABAJADOS
 </Text>
 
 <Text style={styles.historySectionSubtitle}>
@@ -6108,7 +8225,7 @@ const selectedMuscleStats =
         <Text
           style={{
             color: '#FFFFFF',
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: '900',
           }}
         >
@@ -6129,7 +8246,7 @@ const selectedMuscleStats =
       <View
         style={{
           flexDirection: 'row',
-          gap: 10,
+          gap: 6,
         }}
       >
         <View
@@ -6137,13 +8254,13 @@ const selectedMuscleStats =
             flex: 1,
             backgroundColor: '#111318',
             borderRadius: 12,
-            padding: 12,
+            padding: 6,
           }}
         >
           <Text
             style={{
               color: '#FFFFFF',
-              fontSize: 22,
+              fontSize: 16,
               fontWeight: '900',
             }}
           >
@@ -6168,13 +8285,13 @@ const selectedMuscleStats =
             flex: 1,
             backgroundColor: '#111318',
             borderRadius: 12,
-            padding: 12,
+            padding: 8,
           }}
         >
           <Text
             style={{
               color: '#FFFFFF',
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: '900',
             }}
           >
@@ -7460,7 +9577,7 @@ return (
         barStyle="light-content"
         backgroundColor="#08090C"
       />
-
+<GlobalInputAccessory />
       {screen === 'home'
         ? Home()
     : screen === 'league'
@@ -7471,6 +9588,8 @@ return (
         ? (session ? Profile() : ProfileLogin())
         : screen === 'routines'
         ? Routines()
+        : screen === 'nutrition'
+? Nutrition()
         : screen === 'editor'
         ? Editor()
         : screen === 'achievements'

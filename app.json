@@ -38,7 +38,21 @@
         "imageWidth": 150
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+  "expo-image-picker",
+  {
+    "photosPermission": "RivalSet necesita acceso a tus fotos para analizar comidas.",
+    "cameraPermission": "RivalSet necesita acceso a la cámara para fotografiar y analizar comidas.",
+    "microphonePermission": false
+  }
+],
+[
+  "react-native-google-mobile-ads",
+  {
+    "iosAppId": "ca-app-pub-8331221306002333~4274844356"
+  }
+]
     ],
     "experiments": {
       "reactCompiler": true

@@ -17,6 +17,7 @@
     "expo-glass-effect": "~57.0.1",
     "expo-haptics": "~57.0.1",
     "expo-image": "~57.0.3",
+    "expo-image-picker": "~57.0.19",
     "expo-linear-gradient": "~57.0.1",
     "expo-linking": "~57.0.7",
     "expo-notifications": "~57.0.13",
@@ -29,7 +30,9 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
+    "react-native-body-highlighter": "^3.2.0",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-google-mobile-ads": "^16.5.0",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
@@ -40,7 +43,8 @@
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",
     "@types/react": "~19.2.2",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "expo start",
