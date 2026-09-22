@@ -335,9 +335,20 @@ const parseNumber = (value) => {
 const normalizeExerciseName = (value = '') =>
   value.trim().toLowerCase();
 
-const getExerciseMuscles = (exercise = {}) => {
+const uniqueMuscles = (muscles = []) =>
+  [...new Set(muscles.filter(Boolean))];
+
+const getPrimaryMuscles = (exercise = {}) => {
+  if (
+    Array.isArray(exercise.primaryMuscles) &&
+    exercise.primaryMuscles.length > 0
+  ) {
+    return uniqueMuscles(exercise.primaryMuscles);
+  }
+
+  // Compatibilidad con rutinas y entrenamientos antiguos.
   if (Array.isArray(exercise.muscles)) {
-    return exercise.muscles.filter(Boolean);
+    return uniqueMuscles(exercise.muscles);
   }
 
   if (exercise.muscle) {
@@ -346,6 +357,26 @@ const getExerciseMuscles = (exercise = {}) => {
 
   return [];
 };
+
+const getSecondaryMuscles = (exercise = {}) => {
+  if (!Array.isArray(exercise.secondaryMuscles)) {
+    return [];
+  }
+
+  const primary = new Set(
+    getPrimaryMuscles(exercise)
+  );
+
+  return uniqueMuscles(
+    exercise.secondaryMuscles
+  ).filter((muscle) => !primary.has(muscle));
+};
+
+const getExerciseMuscles = (exercise = {}) =>
+  uniqueMuscles([
+    ...getPrimaryMuscles(exercise),
+    ...getSecondaryMuscles(exercise),
+  ]);
 
 const muscleText = (exercise = {}) => {
   const muscles = getExerciseMuscles(exercise);
@@ -366,6 +397,8 @@ const emptyExercise = () => ({
   distance: '',
   heartRate: '',
   muscles: [],
+  primaryMuscles: [],
+  secondaryMuscles: [],
 });
 
 const exercisePlan = (exercise) => {
@@ -2929,10 +2962,16 @@ const toggleExerciseMuscle = async (
         const selectingCardio =
           !current.includes('Cardio');
 
+        const nextMuscles = selectingCardio
+          ? ['Cardio']
+          : [];
+
         return {
           ...exercise,
           setsTemplate: undefined,
-          muscles: selectingCardio ? ['Cardio'] : [],
+          muscles: nextMuscles,
+          primaryMuscles: nextMuscles,
+          secondaryMuscles: [],
           muscle: undefined,
           series: selectingCardio ? '' : exercise.series,
           reps: selectingCardio ? '' : exercise.reps,
@@ -2954,6 +2993,8 @@ const toggleExerciseMuscle = async (
         ...exercise,
         setsTemplate: undefined,
         muscles: next,
+        primaryMuscles: next,
+        secondaryMuscles: [],
         muscle: undefined,
         duration: '',
         distance: '',
@@ -8011,11 +8052,27 @@ musclePeriodWorkouts.forEach((workout) => {
 
   (workout.exercises || []).forEach(
     (exercise) => {
-      const muscles = getExerciseMuscles(exercise);
+      const primaryMuscles = getPrimaryMuscles(
+        exercise
+      ).filter(
+        (muscle) =>
+          muscle !== 'Cardio' &&
+          muscle !== 'Otro'
+      );
+
+      const primarySet = new Set(primaryMuscles);
+
+      const secondaryMuscles =
+        getSecondaryMuscles(exercise).filter(
+          (muscle) =>
+            muscle !== 'Cardio' &&
+            muscle !== 'Otro' &&
+            !primarySet.has(muscle)
+        );
 
       if (
-        muscles.includes('Cardio') ||
-        muscles.includes('Otro')
+        primaryMuscles.length === 0 &&
+        secondaryMuscles.length === 0
       ) {
         return;
       }
@@ -8031,7 +8088,14 @@ musclePeriodWorkouts.forEach((workout) => {
             parseInt(exercise.series, 10) || 1
           );
 
-      muscles.forEach((muscle) => {
+      const workoutDate = new Date(
+        workout.finishedAt
+      );
+
+      const registerMuscle = (
+        muscle,
+        multiplier
+      ) => {
         if (!muscleActivity[muscle]) return;
 
         muscleActivity[muscle].sessions.add(
@@ -8039,11 +8103,7 @@ musclePeriodWorkouts.forEach((workout) => {
         );
 
         muscleActivity[muscle].series +=
-          completedSets;
-
-        const workoutDate = new Date(
-          workout.finishedAt
-        );
+          completedSets * multiplier;
 
         if (
           !muscleActivity[muscle].lastWorkout ||
@@ -8053,7 +8113,15 @@ musclePeriodWorkouts.forEach((workout) => {
           muscleActivity[muscle].lastWorkout =
             workoutDate;
         }
-      });
+      };
+
+      primaryMuscles.forEach((muscle) =>
+        registerMuscle(muscle, 1)
+      );
+
+      secondaryMuscles.forEach((muscle) =>
+        registerMuscle(muscle, 0.5)
+      );
     }
   );
 });
@@ -8075,7 +8143,10 @@ const muscleStats = MUSCLE_GROUPS
     muscle,
     sessions:
       muscleActivity[muscle].sessions.size,
-    series: muscleActivity[muscle].series,
+    series:
+      Math.round(
+        muscleActivity[muscle].series * 2
+      ) / 2,
     lastWorkout:
       muscleActivity[muscle].lastWorkout,
     intensity: Math.min(
@@ -8425,7 +8496,12 @@ const selectedMuscleStats =
               fontWeight: '900',
             }}
           >
-            {selectedMuscleStats.series}
+            {selectedMuscleStats.series.toLocaleString(
+              'es-ES',
+              {
+                maximumFractionDigits: 1,
+              }
+            )}
           </Text>
 
           <Text
