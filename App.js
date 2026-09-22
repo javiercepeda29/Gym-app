@@ -190,6 +190,262 @@ const MUSCLE_GROUPS = [
   'Otro',
 ];
 
+
+const templateExercise = (
+  name,
+  series,
+  repRange,
+  primaryMuscles,
+  secondaryMuscles = []
+) => ({
+  name,
+  series: String(series),
+  reps: String(repRange).split('-')[0],
+  repRange: String(repRange),
+  weight: '',
+  duration: '',
+  distance: '',
+  heartRate: '',
+  primaryMuscles,
+  secondaryMuscles,
+  muscles: [
+    ...new Set([
+      ...primaryMuscles,
+      ...secondaryMuscles,
+    ]),
+  ],
+});
+
+const ROUTINE_TEMPLATES = [
+  {
+    id: 'full-body-2',
+    daysPerWeek: 2,
+    title: 'Full Body',
+    level: 'Principiante · Intermedio inicial',
+    objective: 'Fuerza + hipertrofia',
+    schedule: '2 días no consecutivos',
+    description:
+      'Dos sesiones de cuerpo completo con básicos y accesorios bien repartidos.',
+    days: [
+      {
+        name: 'Full Body A',
+        exercises: [
+          templateExercise(
+            'Sentadilla',
+            3,
+            '6-8',
+            ['Cuádriceps'],
+            ['Glúteo', 'Femoral']
+          ),
+          templateExercise(
+            'Press banca',
+            3,
+            '6-10',
+            ['Pecho'],
+            ['Tríceps', 'Hombro']
+          ),
+          templateExercise(
+            'Jalón al pecho',
+            3,
+            '8-12',
+            ['Dorsal'],
+            ['Bíceps']
+          ),
+          templateExercise(
+            'Peso muerto rumano',
+            3,
+            '8-10',
+            ['Femoral', 'Glúteo'],
+            ['Lumbar']
+          ),
+          templateExercise(
+            'Elevaciones laterales',
+            2,
+            '12-20',
+            ['Hombro']
+          ),
+          templateExercise(
+            'Curl de bíceps con mancuernas',
+            2,
+            '10-15',
+            ['Bíceps']
+          ),
+          templateExercise(
+            'Extensión de tríceps en polea',
+            2,
+            '10-15',
+            ['Tríceps']
+          ),
+        ],
+      },
+      {
+        name: 'Full Body B',
+        exercises: [
+          templateExercise(
+            'Prensa',
+            3,
+            '8-12',
+            ['Cuádriceps'],
+            ['Glúteo']
+          ),
+          templateExercise(
+            'Remo sentado con apoyo de pecho',
+            3,
+            '8-12',
+            ['Dorsal'],
+            ['Bíceps', 'Trapecio']
+          ),
+          templateExercise(
+            'Press inclinado con mancuernas',
+            2,
+            '10-15',
+            ['Pecho'],
+            ['Hombro', 'Tríceps']
+          ),
+          templateExercise(
+            'Curl femoral',
+            3,
+            '10-15',
+            ['Femoral']
+          ),
+          templateExercise(
+            'Press de hombro con mancuernas',
+            2,
+            '8-12',
+            ['Hombro'],
+            ['Tríceps']
+          ),
+          templateExercise(
+            'Curl martillo',
+            2,
+            '10-15',
+            ['Bíceps']
+          ),
+          templateExercise(
+            'Extensión de tríceps sobre cabeza en polea',
+            2,
+            '10-15',
+            ['Tríceps']
+          ),
+        ],
+      },
+    ],
+  },
+  {
+    id: 'full-body-machines-2',
+    daysPerWeek: 2,
+    title: 'Full Body Máquinas',
+    level: 'Principiante',
+    objective: 'Hipertrofia',
+    schedule: '2 días no consecutivos',
+    description:
+      'Una opción estable y sencilla técnicamente, basada en máquinas y poleas.',
+    days: [
+      {
+        name: 'Full Body Máquinas A',
+        exercises: [
+          templateExercise(
+            'Prensa',
+            3,
+            '8-12',
+            ['Cuádriceps'],
+            ['Glúteo']
+          ),
+          templateExercise(
+            'Press de pecho en máquina',
+            3,
+            '8-12',
+            ['Pecho'],
+            ['Hombro', 'Tríceps']
+          ),
+          templateExercise(
+            'Remo sentado',
+            3,
+            '8-12',
+            ['Dorsal'],
+            ['Bíceps', 'Trapecio']
+          ),
+          templateExercise(
+            'Curl femoral',
+            3,
+            '10-15',
+            ['Femoral']
+          ),
+          templateExercise(
+            'Elevaciones laterales en máquina o polea',
+            2,
+            '12-20',
+            ['Hombro']
+          ),
+          templateExercise(
+            'Curl de bíceps en polea',
+            2,
+            '10-15',
+            ['Bíceps']
+          ),
+          templateExercise(
+            'Extensión de tríceps en polea',
+            2,
+            '10-15',
+            ['Tríceps']
+          ),
+        ],
+      },
+      {
+        name: 'Full Body Máquinas B',
+        exercises: [
+          templateExercise(
+            'Hack squat',
+            3,
+            '8-12',
+            ['Cuádriceps'],
+            ['Glúteo']
+          ),
+          templateExercise(
+            'Jalón al pecho agarre neutro',
+            3,
+            '8-12',
+            ['Dorsal'],
+            ['Bíceps']
+          ),
+          templateExercise(
+            'Press inclinado en máquina',
+            2,
+            '10-15',
+            ['Pecho'],
+            ['Hombro', 'Tríceps']
+          ),
+          templateExercise(
+            'Hip thrust en máquina',
+            3,
+            '8-12',
+            ['Glúteo']
+          ),
+          templateExercise(
+            'Pájaros en máquina',
+            2,
+            '12-20',
+            ['Hombro'],
+            ['Trapecio']
+          ),
+          templateExercise(
+            'Curl martillo en polea',
+            2,
+            '10-15',
+            ['Bíceps']
+          ),
+          templateExercise(
+            'Extensión de tríceps sobre cabeza en polea',
+            2,
+            '10-15',
+            ['Tríceps']
+          ),
+        ],
+      },
+    ],
+  },
+];
+
 const ACHIEVEMENTS = [
   {
     id: 'first',
@@ -449,7 +705,10 @@ const exercisePlan = (exercise) => {
   }
 
   if (exercise.series && exercise.reps) {
-    return `${exercise.series} series · ${exercise.reps} rep${
+    const repsText =
+      exercise.repRange || exercise.reps;
+
+    return `${exercise.series} series · ${repsText} rep${
       exercise.weight ? ` · ${exercise.weight} kg` : ''
     }`;
   }
@@ -832,6 +1091,8 @@ const [realLeagueId, setRealLeagueId] = useState(null);
   const [routines, setRoutines] = useState([]);
   const [routineName, setRoutineName] = useState('');
   const [editingRoutineId, setEditingRoutineId] = useState(null);
+  const [templateDays, setTemplateDays] = useState(2);
+  const [expandedTemplateId, setExpandedTemplateId] = useState(null);
 const [showNutritionManual, setShowNutritionManual] = useState(false);
 
 const [nutritionDraft, setNutritionDraft] = useState({
@@ -2861,6 +3122,9 @@ if (tab === 'Liga') {
     if (screen === 'editor') {
       setEditingRoutineId(null);
       setScreen('routines');
+      } else if (screen === 'templates') {
+        setExpandedTemplateId(null);
+        setScreen('routines');
       } else if (screen === 'personalRecords') {
   setScreen('history');
     } else if (screen === 'workout') {
@@ -2892,6 +3156,92 @@ if (tab === 'Liga') {
     setRoutineName('');
     setDraftExercises([emptyExercise()]);
     setScreen('editor');
+  };
+
+
+  const openTemplates = async () => {
+    await impact(
+      Haptics.ImpactFeedbackStyle.Medium
+    );
+
+    setTemplateDays(2);
+    setExpandedTemplateId(null);
+    setScreen('templates');
+  };
+
+  const installRoutineTemplate = async (
+    template
+  ) => {
+    const alreadyInstalled = routines.some(
+      (routine) =>
+        routine.templateId === template.id
+    );
+
+    if (alreadyInstalled) {
+      Alert.alert(
+        'Plantilla ya añadida',
+        'Ya tienes esta plantilla entre tus rutinas.'
+      );
+      return;
+    }
+
+    const baseId = Date.now();
+
+    const createdRoutines = template.days.map(
+      (day, dayIndex) => ({
+        id: baseId + dayIndex,
+        name: day.name,
+        templateId: template.id,
+        exercises: day.exercises.map(
+          (exercise, exerciseIndex) => {
+            const seriesCount = Math.max(
+              1,
+              parseInt(exercise.series, 10) || 1
+            );
+
+            return {
+              ...exercise,
+              id:
+                baseId +
+                (dayIndex + 1) * 1000 +
+                exerciseIndex +
+                Math.random(),
+              muscles: [...exercise.muscles],
+              primaryMuscles: [
+                ...exercise.primaryMuscles,
+              ],
+              secondaryMuscles: [
+                ...exercise.secondaryMuscles,
+              ],
+              setsTemplate: Array.from(
+                { length: seriesCount },
+                () => ({
+                  weight: '',
+                  reps: '',
+                })
+              ),
+            };
+          }
+        ),
+      })
+    );
+
+    await persistRoutines([
+      ...routines,
+      ...createdRoutines,
+    ]);
+
+    await notificationHaptic(
+      Haptics.NotificationFeedbackType.Success
+    );
+
+    setExpandedTemplateId(null);
+    setScreen('routines');
+
+    Alert.alert(
+      'Plantilla añadida',
+      `${template.title} se ha añadido a tus rutinas.`
+    );
   };
 
   const beginEditRoutine = async (routine) => {
@@ -2935,6 +3285,10 @@ if (tab === 'Liga') {
           ? {
               ...item,
               [field]: value,
+              repRange:
+                field === 'reps'
+                  ? undefined
+                  : item.repRange,
               setsTemplate: templateFields.includes(field)
                 ? undefined
                 : item.setsTemplate,
@@ -7243,6 +7597,69 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
     </View>
   </View>
 </TouchableOpacity>
+
+<TouchableOpacity
+  activeOpacity={0.8}
+  onPress={openTemplates}
+  style={{
+    minHeight: 68,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.35)',
+    backgroundColor: 'rgba(255,176,0,0.055)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 18,
+  }}
+>
+  <View
+    style={{
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: '#211B0C',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    }}
+  >
+    <MaterialCommunityIcons
+      name="format-list-bulleted"
+      size={22}
+      color={COLORS.orange}
+    />
+  </View>
+
+  <View style={{ flex: 1 }}>
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '900',
+      }}
+    >
+      PLANTILLAS
+    </Text>
+
+    <Text
+      style={{
+        color: '#858A95',
+        fontSize: 10,
+        marginTop: 3,
+      }}
+    >
+      Elige una rutina según los días que entrenas
+    </Text>
+  </View>
+
+  <MaterialCommunityIcons
+    name="chevron-right"
+    size={24}
+    color={COLORS.orange}
+  />
+</TouchableOpacity>
+
           {routines.length === 0 ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIcon}>
@@ -7348,37 +7765,449 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
               </View>
             ))
           )}
-          <View style={styles.comingSoonRoutineCard}>
-  <View style={styles.comingSoonRoutineIcon}>
-    <MaterialCommunityIcons
-      name="lightning-bolt"
-      size={24}
-      color={COLORS.orange}
-    />
-  </View>
-
-  <View style={styles.comingSoonRoutineContent}>
-    <Text style={styles.comingSoonRoutineTitle}>
-      NUEVAS RUTINAS
-    </Text>
-
-    <Text style={styles.comingSoonRoutineSubtitle}>
-      Próximamente encontrarás nuevas rutinas aquí
-    </Text>
-  </View>
-
-  <View style={styles.comingSoonRoutineBadge}>
-    <Text style={styles.comingSoonRoutineBadgeText}>
-      PRÓXIMAMENTE
-    </Text>
-  </View>
-</View>
         </ScrollView>
       </View>
 
       {BottomNavigation()}
     </>
   );
+
+
+  const Templates = () => {
+    const availableTemplates =
+      ROUTINE_TEMPLATES.filter(
+        (template) =>
+          template.daysPerWeek === templateDays
+      );
+
+    return (
+      <View style={styles.page}>
+        <AppGradient />
+
+        <PageHeader
+          title="Plantillas"
+          subtitle="Elige según tus días de entrenamiento"
+        />
+
+        <ScrollView
+          contentContainerStyle={styles.pageContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 17,
+              fontWeight: '900',
+              marginBottom: 5,
+            }}
+          >
+            ¿Cuántos días quieres entrenar?
+          </Text>
+
+          <Text
+            style={{
+              color: '#777D88',
+              fontSize: 11,
+              marginBottom: 14,
+            }}
+          >
+            Te mostraremos solo las plantillas que encajen con tu frecuencia.
+          </Text>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 6,
+              marginBottom: 24,
+            }}
+          >
+            {[2, 3, 4, 5, 6].map((days) => {
+              const active =
+                templateDays === days;
+
+              return (
+                <TouchableOpacity
+                  key={days}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setTemplateDays(days);
+                    setExpandedTemplateId(null);
+                  }}
+                  style={{
+                    flex: 1,
+                    minHeight: 56,
+                    borderRadius: 13,
+                    borderWidth: 1,
+                    borderColor: active
+                      ? COLORS.orange
+                      : '#292C34',
+                    backgroundColor: active
+                      ? 'rgba(255,176,0,0.14)'
+                      : '#111318',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: active
+                        ? COLORS.orange
+                        : '#FFFFFF',
+                      fontSize: 18,
+                      fontWeight: '900',
+                    }}
+                  >
+                    {days}
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: active
+                        ? '#D7A93A'
+                        : '#727781',
+                      fontSize: 8,
+                      fontWeight: '800',
+                      marginTop: 1,
+                    }}
+                  >
+                    DÍAS
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 11,
+            }}
+          >
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 15,
+                fontWeight: '900',
+              }}
+            >
+              {templateDays} DÍAS / SEMANA
+            </Text>
+
+            <Text
+              style={{
+                color: COLORS.orange,
+                fontSize: 10,
+                fontWeight: '900',
+              }}
+            >
+              {availableTemplates.length}{' '}
+              {availableTemplates.length === 1
+                ? 'PLANTILLA'
+                : 'PLANTILLAS'}
+            </Text>
+          </View>
+
+          {availableTemplates.length === 0 ? (
+            <View
+              style={{
+                backgroundColor: '#111318',
+                borderWidth: 1,
+                borderColor: '#292C34',
+                borderRadius: 20,
+                padding: 22,
+                alignItems: 'center',
+              }}
+            >
+              <MaterialCommunityIcons
+                name="clipboard-check-outline"
+                size={34}
+                color={COLORS.orange}
+              />
+
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 16,
+                  fontWeight: '900',
+                  marginTop: 12,
+                }}
+              >
+                Plantillas en revisión
+              </Text>
+
+              <Text
+                style={{
+                  color: '#777D88',
+                  fontSize: 11,
+                  lineHeight: 17,
+                  textAlign: 'center',
+                  marginTop: 6,
+                }}
+              >
+                Revisaremos las rutinas de {templateDays} días antes de añadirlas a RivalSet.
+              </Text>
+            </View>
+          ) : (
+            availableTemplates.map(
+              (template) => {
+                const expanded =
+                  expandedTemplateId ===
+                  template.id;
+
+                return (
+                  <View
+                    key={template.id}
+                    style={{
+                      backgroundColor: '#111318',
+                      borderWidth: 1,
+                      borderColor: expanded
+                        ? 'rgba(255,176,0,0.45)'
+                        : '#292C34',
+                      borderRadius: 20,
+                      marginBottom: 13,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() =>
+                        setExpandedTemplateId(
+                          expanded
+                            ? null
+                            : template.id
+                        )
+                      }
+                      style={{
+                        padding: 16,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 14,
+                            backgroundColor: '#211B0C',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: 12,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name="dumbbell"
+                            size={23}
+                            color={COLORS.orange}
+                          />
+                        </View>
+
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              color: '#FFFFFF',
+                              fontSize: 17,
+                              fontWeight: '900',
+                            }}
+                          >
+                            {template.title}
+                          </Text>
+
+                          <Text
+                            style={{
+                              color: '#858A95',
+                              fontSize: 10,
+                              marginTop: 3,
+                            }}
+                          >
+                            {template.level}
+                          </Text>
+                        </View>
+
+                        <MaterialCommunityIcons
+                          name={
+                            expanded
+                              ? 'chevron-up'
+                              : 'chevron-down'
+                          }
+                          size={24}
+                          color={COLORS.orange}
+                        />
+                      </View>
+
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          flexWrap: 'wrap',
+                          gap: 6,
+                          marginTop: 13,
+                        }}
+                      >
+                        {[template.objective, template.schedule].map(
+                          (item) => (
+                            <View
+                              key={item}
+                              style={{
+                                borderRadius: 8,
+                                backgroundColor: '#1A1D23',
+                                paddingHorizontal: 9,
+                                paddingVertical: 5,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: '#B9BDC5',
+                                  fontSize: 8,
+                                  fontWeight: '800',
+                                }}
+                              >
+                                {item}
+                              </Text>
+                            </View>
+                          )
+                        )}
+                      </View>
+
+                      <Text
+                        style={{
+                          color: '#777D88',
+                          fontSize: 10,
+                          lineHeight: 15,
+                          marginTop: 11,
+                        }}
+                      >
+                        {template.description}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {expanded && (
+                      <View
+                        style={{
+                          borderTopWidth: 1,
+                          borderTopColor: '#24272E',
+                          padding: 14,
+                          paddingTop: 4,
+                        }}
+                      >
+                        {template.days.map(
+                          (day, dayIndex) => (
+                            <View
+                              key={day.name}
+                              style={{
+                                marginTop: 14,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: COLORS.orange,
+                                  fontSize: 12,
+                                  fontWeight: '900',
+                                  marginBottom: 7,
+                                }}
+                              >
+                                DÍA {dayIndex + 1} · {day.name.toUpperCase()}
+                              </Text>
+
+                              {day.exercises.map(
+                                (exercise) => (
+                                  <View
+                                    key={exercise.name}
+                                    style={{
+                                      paddingVertical: 8,
+                                      borderBottomWidth: 1,
+                                      borderBottomColor: '#202329',
+                                    }}
+                                  >
+                                    <View
+                                      style={{
+                                        flexDirection: 'row',
+                                        justifyContent: 'space-between',
+                                        gap: 8,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          color: '#FFFFFF',
+                                          fontSize: 11,
+                                          fontWeight: '800',
+                                          flex: 1,
+                                        }}
+                                      >
+                                        {exercise.name}
+                                      </Text>
+
+                                      <Text
+                                        style={{
+                                          color: COLORS.orange,
+                                          fontSize: 10,
+                                          fontWeight: '900',
+                                        }}
+                                      >
+                                        {exercise.series} × {exercise.repRange}
+                                      </Text>
+                                    </View>
+
+                                    <Text
+                                      style={{
+                                        color: '#676C75',
+                                        fontSize: 8,
+                                        marginTop: 3,
+                                      }}
+                                    >
+                                      {exercise.primaryMuscles.join(' · ')}
+                                      {exercise.secondaryMuscles.length > 0
+                                        ? `  ·  Sec: ${exercise.secondaryMuscles.join(' · ')}`
+                                        : ''}
+                                    </Text>
+                                  </View>
+                                )
+                              )}
+                            </View>
+                          )
+                        )}
+
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() =>
+                            installRoutineTemplate(
+                              template
+                            )
+                          }
+                          style={{
+                            height: 50,
+                            borderRadius: 14,
+                            backgroundColor: COLORS.orange,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginTop: 18,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: COLORS.darkText,
+                              fontSize: 12,
+                              fontWeight: '900',
+                            }}
+                          >
+                            USAR ESTA PLANTILLA
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              }
+            )
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
 
   /* =====================================================
      EDITOR
@@ -9794,6 +10623,8 @@ return (
         ? (session ? Profile() : ProfileLogin())
         : screen === 'routines'
         ? Routines()
+        : screen === 'templates'
+        ? Templates()
         : screen === 'nutrition'
 ? Nutrition()
         : screen === 'editor'
