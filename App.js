@@ -444,6 +444,524 @@ const ROUTINE_TEMPLATES = [
       },
     ],
   },
+
+  {
+    id: 'full-body-3',
+    daysPerWeek: 3,
+    title: 'Full Body A/B/C',
+    level: 'Principiante · Intermedio',
+    objective: 'Fuerza + hipertrofia',
+    schedule: '3 días no consecutivos',
+    description:
+      'Tres sesiones de cuerpo completo con ejercicios y énfasis diferentes.',
+    days: [
+      {
+        name: 'Full Body A',
+        exercises: [
+          templateExercise('Sentadilla', 3, '6-8', ['Cuádriceps'], ['Glúteo', 'Femoral']),
+          templateExercise('Press banca', 3, '6-10', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Jalón al pecho', 3, '8-12', ['Dorsal'], ['Bíceps']),
+          templateExercise('Peso muerto rumano', 3, '8-10', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Elevaciones laterales', 2, '12-20', ['Hombro']),
+          templateExercise('Curl bíceps', 2, '10-15', ['Bíceps']),
+          templateExercise('Tríceps polea', 2, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Full Body B',
+        exercises: [
+          templateExercise('Prensa', 3, '8-12', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Remo con apoyo de pecho', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Press inclinado con mancuernas', 2, '10-15', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Press hombro con mancuernas', 2, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+          templateExercise('Gemelo en prensa', 3, '10-15', ['Gemelo']),
+        ],
+      },
+      {
+        name: 'Full Body C',
+        exercises: [
+          templateExercise('Hack squat', 3, '8-12', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Dominadas o jalón neutro', 3, '6-10', ['Dorsal'], ['Bíceps']),
+          templateExercise('Press pecho en máquina', 2, '8-12', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Hip thrust', 3, '8-12', ['Glúteo'], ['Femoral']),
+          templateExercise('Remo sentado', 2, '10-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Elevaciones laterales', 2, '12-20', ['Hombro']),
+          templateExercise('Extensión tríceps sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'ppl-3',
+    daysPerWeek: 3,
+    title: 'Push / Pull / Legs',
+    level: 'Intermedio',
+    objective: 'Hipertrofia',
+    schedule: '3 días semanales',
+    description:
+      'Una sesión de empuje, una de tirón y una de pierna.',
+    days: [
+      {
+        name: 'Push',
+        exercises: [
+          templateExercise('Press banca', 3, '6-10', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Press inclinado con mancuernas', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Press hombro en máquina o mancuernas', 2, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Aperturas en máquina o polea', 2, '12-15', ['Pecho']),
+          templateExercise('Extensión tríceps en polea', 3, '10-15', ['Tríceps']),
+          templateExercise('Extensión tríceps sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Pull',
+        exercises: [
+          templateExercise('Dominadas o jalón al pecho', 3, '6-10', ['Dorsal'], ['Bíceps']),
+          templateExercise('Remo con apoyo de pecho', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Jalón unilateral', 2, '10-15', ['Dorsal'], ['Bíceps']),
+          templateExercise('Remo sentado', 2, '10-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Pájaros / deltoide posterior', 3, '12-20', ['Hombro'], ['Trapecio']),
+          templateExercise('Curl bíceps', 3, '8-12', ['Bíceps']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+        ],
+      },
+      {
+        name: 'Legs',
+        exercises: [
+          templateExercise('Sentadilla o hack squat', 3, '6-10', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Prensa', 3, '10-15', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Peso muerto rumano', 3, '8-12', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Extensión de cuádriceps', 2, '12-15', ['Cuádriceps']),
+          templateExercise('Gemelo en prensa', 3, '10-15', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'upper-lower-4',
+    daysPerWeek: 4,
+    title: 'Upper / Lower x2',
+    level: 'Intermedio',
+    objective: 'Hipertrofia + fuerza',
+    schedule: '4 días · Upper / Lower / descanso / Upper / Lower',
+    description:
+      'Dos sesiones de tren superior y dos de tren inferior.',
+    days: [
+      {
+        name: 'Upper A',
+        exercises: [
+          templateExercise('Press banca', 3, '6-10', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Remo con apoyo de pecho', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Press inclinado con mancuernas', 2, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Jalón al pecho', 3, '8-12', ['Dorsal'], ['Bíceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Curl bíceps', 2, '10-15', ['Bíceps']),
+          templateExercise('Extensión tríceps en polea', 2, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Lower A',
+        exercises: [
+          templateExercise('Sentadilla', 3, '6-8', ['Cuádriceps'], ['Glúteo', 'Femoral']),
+          templateExercise('Prensa', 3, '10-15', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Peso muerto rumano', 3, '8-10', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Curl femoral', 2, '10-15', ['Femoral']),
+          templateExercise('Gemelo', 3, '10-15', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+      {
+        name: 'Upper B',
+        exercises: [
+          templateExercise('Dominadas o jalón neutro', 3, '6-10', ['Dorsal'], ['Bíceps']),
+          templateExercise('Press inclinado en máquina', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Remo sentado', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Press hombro', 2, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Aperturas en máquina o polea', 2, '12-15', ['Pecho']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+          templateExercise('Extensión tríceps sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Lower B',
+        exercises: [
+          templateExercise('Hack squat', 3, '8-12', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Hip thrust', 3, '8-12', ['Glúteo'], ['Femoral']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Extensión de cuádriceps', 2, '12-15', ['Cuádriceps']),
+          templateExercise('Hiperextensiones', 2, '10-15', ['Lumbar'], ['Glúteo', 'Femoral']),
+          templateExercise('Gemelo sentado', 3, '12-20', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'ppl-upper-4',
+    daysPerWeek: 4,
+    title: 'PPL + Upper',
+    level: 'Intermedio',
+    objective: 'Hipertrofia',
+    schedule: '4 días · Push / Pull / Legs / Upper',
+    description:
+      'Tres días especializados y un segundo estímulo general de tren superior.',
+    days: [
+      {
+        name: 'Push',
+        exercises: [
+          templateExercise('Press banca', 3, '6-10', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Press inclinado mancuernas', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Press hombro', 2, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Aperturas', 2, '12-15', ['Pecho']),
+          templateExercise('Tríceps polea', 3, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Pull',
+        exercises: [
+          templateExercise('Dominadas o jalón', 3, '6-10', ['Dorsal'], ['Bíceps']),
+          templateExercise('Remo con apoyo de pecho', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Jalón unilateral', 2, '10-15', ['Dorsal'], ['Bíceps']),
+          templateExercise('Pájaros', 3, '12-20', ['Hombro'], ['Trapecio']),
+          templateExercise('Curl bíceps', 3, '8-12', ['Bíceps']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+        ],
+      },
+      {
+        name: 'Legs',
+        exercises: [
+          templateExercise('Sentadilla o hack squat', 3, '6-10', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Prensa', 3, '10-15', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Peso muerto rumano', 3, '8-12', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Extensión cuádriceps', 2, '12-15', ['Cuádriceps']),
+          templateExercise('Gemelo', 3, '10-15', ['Gemelo']),
+        ],
+      },
+      {
+        name: 'Upper',
+        exercises: [
+          templateExercise('Press inclinado máquina', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Remo sentado', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Jalón al pecho', 2, '10-12', ['Dorsal'], ['Bíceps']),
+          templateExercise('Press hombro ligero', 2, '10-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 2, '12-20', ['Hombro']),
+          templateExercise('Curl bíceps', 2, '10-15', ['Bíceps']),
+          templateExercise('Tríceps sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'ppl-upper-lower-5',
+    daysPerWeek: 5,
+    title: 'PPL + Upper / Lower',
+    level: 'Intermedio',
+    objective: 'Hipertrofia + fuerza',
+    schedule: '5 días · Push / Pull / Legs / descanso / Upper / Lower',
+    description:
+      'PPL para el primer estímulo y Upper/Lower para completar la segunda frecuencia.',
+    days: [
+      {
+        name: 'Push',
+        exercises: [
+          templateExercise('Press banca', 3, '6-10', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Press inclinado con mancuernas', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Press hombro', 2, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Aperturas en polea o máquina', 2, '12-15', ['Pecho']),
+          templateExercise('Extensión tríceps en polea', 3, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Pull',
+        exercises: [
+          templateExercise('Dominadas o jalón al pecho', 3, '6-10', ['Dorsal'], ['Bíceps']),
+          templateExercise('Remo con apoyo de pecho', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Jalón unilateral', 2, '10-15', ['Dorsal'], ['Bíceps']),
+          templateExercise('Remo sentado', 2, '10-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Pájaros / deltoide posterior', 3, '12-20', ['Hombro'], ['Trapecio']),
+          templateExercise('Curl bíceps', 3, '8-12', ['Bíceps']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+        ],
+      },
+      {
+        name: 'Legs',
+        exercises: [
+          templateExercise('Sentadilla o hack squat', 3, '6-10', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Prensa', 3, '10-15', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Peso muerto rumano', 3, '8-12', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Extensión cuádriceps', 2, '12-15', ['Cuádriceps']),
+          templateExercise('Gemelo', 3, '10-15', ['Gemelo']),
+        ],
+      },
+      {
+        name: 'Upper',
+        exercises: [
+          templateExercise('Press inclinado en máquina', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Remo sentado', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Jalón al pecho', 2, '10-12', ['Dorsal'], ['Bíceps']),
+          templateExercise('Press hombro ligero', 2, '10-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 2, '12-20', ['Hombro']),
+          templateExercise('Curl bíceps', 2, '10-15', ['Bíceps']),
+          templateExercise('Tríceps sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Lower',
+        exercises: [
+          templateExercise('Hack squat', 3, '8-12', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Hip thrust', 3, '8-12', ['Glúteo'], ['Femoral']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Extensión cuádriceps', 2, '12-15', ['Cuádriceps']),
+          templateExercise('Peso muerto rumano ligero', 2, '10-12', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Gemelo sentado', 3, '12-20', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'torso-legs-specialization-5',
+    daysPerWeek: 5,
+    title: 'Torso / Pierna + Especialización',
+    level: 'Intermedio',
+    objective: 'Hipertrofia',
+    schedule:
+      '5 días · Torso / Pierna / descanso / Pecho+Espalda / Pierna / Hombros+Brazos',
+    description:
+      'Dos estímulos de pierna y torso con un día específico de hombros y brazos.',
+    days: [
+      {
+        name: 'Torso',
+        exercises: [
+          templateExercise('Press banca', 3, '6-10', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Jalón al pecho', 3, '8-12', ['Dorsal'], ['Bíceps']),
+          templateExercise('Press inclinado mancuernas', 2, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Remo con apoyo de pecho', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Curl bíceps', 2, '10-15', ['Bíceps']),
+          templateExercise('Tríceps polea', 2, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Pierna A',
+        exercises: [
+          templateExercise('Sentadilla', 3, '6-8', ['Cuádriceps'], ['Glúteo', 'Femoral']),
+          templateExercise('Prensa', 3, '10-15', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Peso muerto rumano', 3, '8-12', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Gemelo', 3, '10-15', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+      {
+        name: 'Pecho + Espalda',
+        exercises: [
+          templateExercise('Press inclinado en máquina', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Dominadas o jalón neutro', 3, '6-10', ['Dorsal'], ['Bíceps']),
+          templateExercise('Press pecho en máquina', 2, '10-15', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Remo sentado', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Aperturas en polea', 2, '12-15', ['Pecho']),
+          templateExercise('Jalón unilateral', 2, '10-15', ['Dorsal'], ['Bíceps']),
+        ],
+      },
+      {
+        name: 'Pierna B',
+        exercises: [
+          templateExercise('Hack squat', 3, '8-12', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Hip thrust', 3, '8-12', ['Glúteo'], ['Femoral']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Extensión cuádriceps', 3, '12-15', ['Cuádriceps']),
+          templateExercise('Gemelo sentado', 3, '12-20', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+      {
+        name: 'Hombros + Brazos',
+        exercises: [
+          templateExercise('Press hombro', 3, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Pájaros / deltoide posterior', 3, '12-20', ['Hombro'], ['Trapecio']),
+          templateExercise('Curl bíceps', 3, '8-12', ['Bíceps']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+          templateExercise('Tríceps polea', 3, '10-15', ['Tríceps']),
+          templateExercise('Tríceps sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'ppl-6',
+    daysPerWeek: 6,
+    title: 'Push / Pull / Legs x2',
+    level: 'Intermedio · Avanzado',
+    objective: 'Hipertrofia',
+    schedule: '6 sesiones · PPL / descanso / PPL',
+    description:
+      'Dos vueltas de Push, Pull y Legs con variantes A y B.',
+    days: [
+      {
+        name: 'Push A',
+        exercises: [
+          templateExercise('Press banca', 3, '6-10', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Press inclinado mancuernas', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Press hombro', 2, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Tríceps polea', 3, '10-15', ['Tríceps']),
+          templateExercise('Tríceps sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Pull A',
+        exercises: [
+          templateExercise('Dominadas o jalón', 3, '6-10', ['Dorsal'], ['Bíceps']),
+          templateExercise('Remo con apoyo de pecho', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Jalón unilateral', 2, '10-15', ['Dorsal'], ['Bíceps']),
+          templateExercise('Pájaros', 3, '12-20', ['Hombro'], ['Trapecio']),
+          templateExercise('Curl bíceps', 3, '8-12', ['Bíceps']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+        ],
+      },
+      {
+        name: 'Legs A',
+        exercises: [
+          templateExercise('Sentadilla', 3, '6-8', ['Cuádriceps'], ['Glúteo', 'Femoral']),
+          templateExercise('Prensa', 3, '10-15', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Peso muerto rumano', 3, '8-12', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Gemelo', 3, '10-15', ['Gemelo']),
+        ],
+      },
+      {
+        name: 'Push B',
+        exercises: [
+          templateExercise('Press inclinado máquina', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Press pecho máquina', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Press hombro ligero', 2, '10-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Aperturas', 2, '12-15', ['Pecho']),
+          templateExercise('Tríceps polea', 3, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Pull B',
+        exercises: [
+          templateExercise('Jalón neutro', 3, '8-12', ['Dorsal'], ['Bíceps']),
+          templateExercise('Remo sentado', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Remo unilateral', 2, '10-15', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Pájaros', 2, '12-20', ['Hombro'], ['Trapecio']),
+          templateExercise('Curl inclinado', 3, '10-15', ['Bíceps']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+        ],
+      },
+      {
+        name: 'Legs B',
+        exercises: [
+          templateExercise('Hack squat', 3, '8-12', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Hip thrust', 3, '8-12', ['Glúteo'], ['Femoral']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Extensión cuádriceps', 2, '12-15', ['Cuádriceps']),
+          templateExercise('Gemelo sentado', 3, '12-20', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'arnold-6',
+    daysPerWeek: 6,
+    title: 'Arnold Split adaptado',
+    level: 'Intermedio · Avanzado',
+    objective: 'Hipertrofia',
+    schedule: '6 sesiones · 3 días / descanso / 3 días',
+    description:
+      'Pecho y espalda, pierna, hombros y brazos; después se repite con variantes.',
+    days: [
+      {
+        name: 'Pecho + Espalda A',
+        exercises: [
+          templateExercise('Press banca', 3, '6-10', ['Pecho'], ['Tríceps', 'Hombro']),
+          templateExercise('Jalón al pecho', 3, '8-12', ['Dorsal'], ['Bíceps']),
+          templateExercise('Press inclinado mancuernas', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Remo con apoyo de pecho', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Aperturas en polea', 2, '12-15', ['Pecho']),
+          templateExercise('Remo sentado', 2, '10-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+        ],
+      },
+      {
+        name: 'Pierna A',
+        exercises: [
+          templateExercise('Sentadilla', 3, '6-8', ['Cuádriceps'], ['Glúteo', 'Femoral']),
+          templateExercise('Prensa', 3, '10-15', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Peso muerto rumano', 3, '8-12', ['Femoral', 'Glúteo'], ['Lumbar']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Gemelo', 3, '10-15', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+      {
+        name: 'Hombros + Brazos A',
+        exercises: [
+          templateExercise('Press hombro', 3, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Pájaros', 3, '12-20', ['Hombro'], ['Trapecio']),
+          templateExercise('Curl bíceps', 3, '8-12', ['Bíceps']),
+          templateExercise('Curl martillo', 2, '10-15', ['Bíceps']),
+          templateExercise('Tríceps polea', 3, '10-15', ['Tríceps']),
+          templateExercise('Extensión tríceps sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+      {
+        name: 'Pecho + Espalda B',
+        exercises: [
+          templateExercise('Press inclinado máquina', 3, '8-12', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Dominadas o jalón neutro', 3, '6-10', ['Dorsal'], ['Bíceps']),
+          templateExercise('Press pecho máquina', 2, '10-15', ['Pecho'], ['Hombro', 'Tríceps']),
+          templateExercise('Remo unilateral', 3, '8-12', ['Dorsal'], ['Bíceps', 'Trapecio']),
+          templateExercise('Aperturas máquina', 2, '12-15', ['Pecho']),
+          templateExercise('Jalón unilateral', 2, '10-15', ['Dorsal'], ['Bíceps']),
+        ],
+      },
+      {
+        name: 'Pierna B',
+        exercises: [
+          templateExercise('Hack squat', 3, '8-12', ['Cuádriceps'], ['Glúteo']),
+          templateExercise('Hip thrust', 3, '8-12', ['Glúteo'], ['Femoral']),
+          templateExercise('Curl femoral', 3, '10-15', ['Femoral']),
+          templateExercise('Extensión cuádriceps', 2, '12-15', ['Cuádriceps']),
+          templateExercise('Gemelo sentado', 3, '12-20', ['Gemelo']),
+          templateExercise('Abdominales', 3, '10-20', ['Abdomen']),
+        ],
+      },
+      {
+        name: 'Hombros + Brazos B',
+        exercises: [
+          templateExercise('Press hombro en máquina', 2, '8-12', ['Hombro'], ['Tríceps']),
+          templateExercise('Elevaciones laterales', 3, '12-20', ['Hombro']),
+          templateExercise('Pájaros', 2, '12-20', ['Hombro'], ['Trapecio']),
+          templateExercise('Curl inclinado', 3, '10-15', ['Bíceps']),
+          templateExercise('Curl en polea', 2, '10-15', ['Bíceps']),
+          templateExercise('Tríceps polea', 3, '10-15', ['Tríceps']),
+          templateExercise('Extensión sobre cabeza', 2, '10-15', ['Tríceps']),
+        ],
+      },
+    ],
+  },
+
 ];
 
 const ACHIEVEMENTS = [
@@ -738,7 +1256,7 @@ const buildWorkoutSets = (exercise) => {
       return {
         id: `${exercise.id}-set-${Date.now()}-${index}-${Math.random()}`,
         weight: set.weight ?? exercise.weight ?? '',
-        reps: set.reps ?? exercise.reps ?? '',
+        reps: set.reps || exercise.reps || '',
         completed: false,
         prType: null,
         prText: '',
@@ -3217,7 +3735,7 @@ if (tab === 'Liga') {
                 { length: seriesCount },
                 () => ({
                   weight: '',
-                  reps: '',
+                  reps: exercise.reps,
                 })
               ),
             };
@@ -9921,6 +10439,10 @@ const PersonalRecords = () => {
 
                     <Text style={styles.liveExerciseMeta}>
                       {muscleText(exercise)}
+                      {!isCardioExercise(exercise) &&
+                      exercise.repRange
+                        ? ` · ${exercise.series}×${exercise.repRange} reps`
+                        : ''}
                     </Text>
                   </View>
 
