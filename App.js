@@ -4382,26 +4382,48 @@ const pr = isCardio
     }
   };
 
-  const updateRoutineFromWorkout = async () => {
-    if (!activeRoutine?.id) return;
+  const updateRoutineFromWorkout = async (
+    exerciseSnapshot = workoutExercises
+  ) => {
+    if (activeRoutine?.id == null) return;
 
-    const routineExists = routines.some(
-      (routine) => routine.id === activeRoutine.id
+    let baseRoutines = routines;
+
+    try {
+      const storedRoutines =
+        await AsyncStorage.getItem(ROUTINES_KEY);
+
+      const parsedRoutines = storedRoutines
+        ? JSON.parse(storedRoutines)
+        : null;
+
+      if (Array.isArray(parsedRoutines)) {
+        baseRoutines = parsedRoutines;
+      }
+    } catch {}
+
+    const routineExists = baseRoutines.some(
+      (routine) =>
+        String(routine.id) ===
+        String(activeRoutine.id)
     );
 
     if (!routineExists) return;
 
-    const updatedExercises = workoutExercises.map(
-      routineExerciseFromWorkout
-    );
+    const updatedExercises =
+      exerciseSnapshot.map(
+        routineExerciseFromWorkout
+      );
 
-    const nextRoutines = routines.map((routine) =>
-      routine.id === activeRoutine.id
-        ? {
-            ...routine,
-            exercises: updatedExercises,
-          }
-        : routine
+    const nextRoutines = baseRoutines.map(
+      (routine) =>
+        String(routine.id) ===
+        String(activeRoutine.id)
+          ? {
+              ...routine,
+              exercises: updatedExercises,
+            }
+          : routine
     );
 
     await persistRoutines(nextRoutines);
@@ -4491,8 +4513,10 @@ const pr = isCardio
     ).length;
 
     const finish = async () => {
+      await updateRoutineFromWorkout(
+        workoutExercises
+      );
       await recordWorkout();
-      await updateRoutineFromWorkout();
       await AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
       setActiveRoutine(null);
 setWorkoutExercises([]);
