@@ -1629,6 +1629,7 @@ const [nutritionDraft, setNutritionDraft] = useState({
 });
 const [nutritionEntries, setNutritionEntries] = useState([]);
 const [foodSearchQuery, setFoodSearchQuery] = useState('');
+  const foodSearchInputRef = useRef(null);
   const [foodBrandQuery, setFoodBrandQuery] = useState('');
 
 const [foodSearchResults, setFoodSearchResults] = useState([]);
@@ -6646,6 +6647,11 @@ const ProfileLogin = () => (
   ===================================================== */
   const Nutrition = () => {
 
+  // Estado local del buscador.
+  // IMPORTANTE: escribir aquí NO debe actualizar App en cada pulsación.
+  const [localFoodSearch, setLocalFoodSearch] = useState(foodSearchQuery || '');
+  const [localFoodBrand, setLocalFoodBrand] = useState(foodBrandQuery || '');
+
   // RIVALSET_NUTRITION_ONBOARDING_V1
   const [nutritionProfile, setNutritionProfile] = useState(undefined);
   const [nutritionSetupLoading, setNutritionSetupLoading] = useState(true);
@@ -9011,20 +9017,30 @@ goal={fatsGoal}
 
 <View style={{ marginBottom: 8 }}>
   <TextInput
-    value={foodSearchQuery}
-    onChangeText={(value) => {
-      setFoodSearchQuery(value);
+    value={localFoodSearch}
+    onChangeText={setLocalFoodSearch}
+    placeholder="Buscar alimento..."
+    placeholderTextColor="#666A73"
+    returnKeyType="search"
+    autoCapitalize="sentences"
+    onSubmitEditing={() => {
+      const query = localFoodSearch.trim();
+
+      if (query.length < 2) {
+        return;
+      }
+
+      setFoodSearchQuery(query);
+      setFoodBrandQuery(localFoodBrand);
       setSelectedFood(null);
 
       setNutritionDraft((prev) => ({
         ...prev,
-        name: value,
+        name: query,
       }));
 
-      searchFoodProducts(value, foodBrandQuery);
+      searchFoodProducts(query, localFoodBrand);
     }}
-    placeholder="Buscar alimento..."
-    placeholderTextColor="#666A73"
     style={{
       height: 46,
       backgroundColor: '#1B1D22',
@@ -9034,40 +9050,52 @@ goal={fatsGoal}
     }}
   />
 
-              <TextInput
-                value={foodBrandQuery}
-                onChangeText={(value) => {
-                  setFoodBrandQuery(value);
-                  setSelectedFood(null);
+  <TextInput
+    value={localFoodBrand}
+    onChangeText={setLocalFoodBrand}
+    placeholder="Marca (opcional, recomendado)"
+    placeholderTextColor="#666A73"
+    autoCapitalize="words"
+    returnKeyType="search"
+    onSubmitEditing={() => {
+      const query = localFoodSearch.trim();
 
-                  if (foodSearchQuery.trim().length >= 2) {
-                    searchFoodProducts(foodSearchQuery, value);
-                  }
-                }}
-                placeholder="Marca (opcional, recomendado)"
-                placeholderTextColor="#666A73"
-                autoCapitalize="words"
-                style={{
-                  height: 46,
-                  backgroundColor: '#1B1D22',
-                  borderRadius: 10,
-                  paddingHorizontal: 12,
-                  color: '#FFFFFF',
-                  marginTop: 8,
-                }}
-              />
+      if (query.length < 2) {
+        return;
+      }
 
-              <Text
-                style={{
-                  color: '#8D9098',
-                  fontSize: 11,
-                  fontWeight: '600',
-                  marginTop: 6,
-                  marginLeft: 2,
-                }}
-              >
-                Añadir la marca mejora la precisión en productos comerciales.
-              </Text>
+      setFoodSearchQuery(query);
+      setFoodBrandQuery(localFoodBrand);
+      setSelectedFood(null);
+
+      setNutritionDraft((prev) => ({
+        ...prev,
+        name: query,
+      }));
+
+      searchFoodProducts(query, localFoodBrand);
+    }}
+    style={{
+      height: 46,
+      backgroundColor: '#1B1D22',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      color: '#FFFFFF',
+      marginTop: 8,
+    }}
+  />
+
+  <Text
+    style={{
+      color: '#8D9098',
+      fontSize: 11,
+      fontWeight: '600',
+      marginTop: 6,
+      marginLeft: 2,
+    }}
+  >
+    Añadir la marca mejora la precisión en productos comerciales.
+  </Text>
 
 
   {foodSearchLoading && (
