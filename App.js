@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Image,
   InputAccessoryView,
+  KeyboardAvoidingView,
 Keyboard,
   Platform,
   SafeAreaView,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Text,
@@ -40,6 +43,8 @@ import * as Notifications from 'expo-notifications';
 import { supabase } from './supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Modal as BarcodeModal } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 const GLOBAL_INPUT_ACCESSORY_ID = 'rivalset_input_done';
 
@@ -1624,10 +1629,232 @@ const [nutritionDraft, setNutritionDraft] = useState({
 });
 const [nutritionEntries, setNutritionEntries] = useState([]);
 const [foodSearchQuery, setFoodSearchQuery] = useState('');
+  const [foodBrandQuery, setFoodBrandQuery] = useState('');
+
 const [foodSearchResults, setFoodSearchResults] = useState([]);
 const [foodSearchLoading, setFoodSearchLoading] = useState(false);
 const [selectedFood, setSelectedFood] = useState(null);
 const [nutritionUnit, setNutritionUnit] = useState('g');
+
+  const [barcodeScannerVisible, setBarcodeScannerVisible] = useState(false);
+  const [barcodeScannerLocked, setBarcodeScannerLocked] = useState(false);
+  const [lastScannedBarcode, setLastScannedBarcode] = useState('');
+  const [barcodePermission, requestBarcodePermission] = useCameraPermissions();
+
+  const openBarcodeScanner = async () => {
+    try {
+      let permission = barcodePermission;
+
+      if (!permission?.granted) {
+        permission = await requestBarcodePermission();
+      }
+
+      if (!permission?.granted) {
+        Alert.alert(
+          'Permiso necesario',
+          'Necesitas permitir el acceso a la cámara para escanear códigos de barras.'
+        );
+        return;
+      }
+
+      setBarcodeScannerLocked(false);
+      setBarcodeScannerVisible(true);
+    } catch (error) {
+      console.log('Error abriendo escáner:', error);
+      Alert.alert('Error', 'No se pudo abrir el escáner.');
+    }
+  };
+
+  const closeBarcodeScanner = () => {
+    setBarcodeScannerVisible(false);
+    setBarcodeScannerLocked(false);
+  };
+
+  const fillNutritionFromExactProduct = (product) => {
+    const unit = product?.basisUnit === 'ml' ? 'ml' : 'g';
+
+    const displayName = [product?.brand, product?.name]
+      .filter(Boolean)
+      .join(' · ');
+
+    setNutritionUnit(unit);
+
+    setNutritionDraft((previous) => ({
+      ...previous,
+      name: displayName || product?.name || 'Producto',
+      grams: '100',
+      calories: String(Number(product?.calories100 ?? 0)),
+      protein: String(Number(product?.protein100 ?? 0)),
+      carbs: String(Number(product?.carbs100 ?? 0)),
+      fats: String(Number(product?.fats100 ?? 0)),
+    }));
+
+    setFoodSearchQuery(displayName || product?.name || '');
+
+    setSelectedFood({
+      id: product?.id || product?.barcode || 'barcode-product',
+      name: displayName || product?.name || 'Producto',
+      brand: product?.brand || '',
+      servingSize: `100 ${unit}`,
+      quantity: `100 ${unit}`,
+      calories100: Number(product?.calories100 ?? 0),
+      protein100: Number(product?.protein100 ?? 0),
+      carbs100: Number(product?.carbs100 ?? 0),
+      fats100: Number(product?.fats100 ?? 0),
+      source: product?.source || 'verified_product',
+      barcode: product?.barcode || '',
+    });
+
+    setShowNutritionManual(true);
+  };
+
+  const scanNutritionLabel = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          'Permiso necesario',
+          'Necesitas permitir el acceso a la cámara para leer la etiqueta.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 1,
+        base64: true,
+      });
+
+      if (result.canceled) return;
+
+      const asset = result.assets?.[0];
+
+      if (!asset?.base64) {
+        Alert.alert('Error', 'No se pudo leer la fotografía.');
+        return;
+      }
+
+      const mimeType = asset.mimeType || 'image/jpeg';
+
+      const { data, error } = await supabase.functions.invoke(
+        'read-nutrition-label',
+        {
+          body: {
+            image: `data:${mimeType};base64,${asset.base64}`,
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      if (data?.status !== 'read' || !data?.normalized) {
+        Alert.alert(
+          'No se pudo leer con seguridad',
+          'Haz otra foto donde se vea completa y nítida la tabla nutricional.'
+        );
+        return;
+      }
+
+      const nutrition = data.normalized;
+      const extracted = data.extracted || {};
+      const unit = nutrition.basisUnit === 'ml' ? 'ml' : 'g';
+
+      setNutritionUnit(unit);
+
+      setNutritionDraft((previous) => ({
+        ...previous,
+        name:
+          [extracted.brand, extracted.product_name]
+            .filter(Boolean)
+            .join(' · ') ||
+          previous.name ||
+          'Producto escaneado',
+        grams: '100',
+        calories: String(nutrition.calories100),
+        protein: String(nutrition.protein100),
+        carbs: String(nutrition.carbs100),
+        fats: String(nutrition.fats100),
+      }));
+
+      setShowNutritionManual(true);
+
+      Alert.alert(
+        'Etiqueta leída',
+        'He copiado únicamente los valores visibles de la etiqueta. Revísalos antes de guardar.'
+      );
+    } catch (error) {
+      console.log('Error leyendo etiqueta:', error);
+      Alert.alert(
+        'Error',
+        'No se pudo analizar la etiqueta nutricional.'
+      );
+    }
+  };
+
+  const handleBarcodeScanned = async ({ data }) => {
+    if (barcodeScannerLocked) return;
+
+    const barcode = String(data || '').replace(/\D/g, '');
+
+    if (!barcode) return;
+
+    setBarcodeScannerLocked(true);
+    setLastScannedBarcode(barcode);
+
+    try {
+      const { data: result, error } = await supabase.functions.invoke(
+        'resolve-product-barcode',
+        {
+          body: { barcode },
+        }
+      );
+
+      if (error) throw error;
+
+      if (result?.status === 'found' && result?.product) {
+        closeBarcodeScanner();
+        fillNutritionFromExactProduct(result.product);
+        return;
+      }
+
+      closeBarcodeScanner();
+
+      Alert.alert(
+        'Producto no encontrado',
+        'No hay una ficha nutricional suficientemente fiable para este código. No voy a inventar los macros.',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Escanear etiqueta',
+            onPress: scanNutritionLabel,
+          },
+        ]
+      );
+    } catch (error) {
+      console.log('Error resolviendo código de barras:', error);
+      closeBarcodeScanner();
+
+      Alert.alert(
+        'No se pudo consultar el producto',
+        'Puedes leer directamente su etiqueta nutricional.',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Escanear etiqueta',
+            onPress: scanNutritionLabel,
+          },
+        ]
+      );
+    }
+  };
+
 const [nutritionPhoto, setNutritionPhoto] = useState(null);
 const [nutritionPhotoLoading, setNutritionPhotoLoading] = useState(false);
 const [nutritionPhotoResult, setNutritionPhotoResult] = useState(null);
@@ -1654,7 +1881,7 @@ const pickNutritionPhoto = () => {
             await ImagePicker.launchCameraAsync({
               mediaTypes: ['images'],
               allowsEditing: false,
-              quality: 0.6,
+              quality: 0.85,
 base64: true,
             });
 
@@ -1682,7 +1909,7 @@ base64: true,
             await ImagePicker.launchImageLibraryAsync({
               mediaTypes: ['images'],
               allowsEditing: false,
-              quality: 0.6,
+              quality: 0.85,
 base64: true,
             });
 
@@ -1712,17 +1939,12 @@ const analyzeNutritionPhoto = async () => {
   setNutritionPhotoResult(null);
 
   try {
-    const { data, error } = await supabase.functions.invoke(
-      'analyze-food-photo',
-      {
-        body: {
-          imageBase64: nutritionPhoto.base64,
-          mimeType:
-            nutritionPhoto.mimeType || 'image/jpeg',
-        },
-      }
-    );
-
+const { data, error } = await supabase.functions.invoke('smooth-api', {
+  body: {
+    imageBase64: nutritionPhoto.base64,
+    mimeType: nutritionPhoto.mimeType || 'image/jpeg',
+  },
+});
     if (error) {
       console.log('Error analizando foto:', error);
       Alert.alert(
@@ -1843,7 +2065,7 @@ const updateNutritionPhotoFoodGrams = (index, value) => {
     };
   });
 };
-const searchFoodProducts = async (query) => {
+const searchFoodProducts = async (query, brandValue = foodBrandQuery) => {
   const cleanQuery = query.trim();
 
   if (cleanQuery.length < 2) {
@@ -1860,78 +2082,8 @@ const searchFoodProducts = async (query) => {
       .replace(/[\u0300-\u036f]/g, '');
 
     // OPEN FOOD FACTS
-    const openFoodPromise = (async () => {
-      try {
-const url =
-  `https://es.openfoodfacts.org/cgi/search.pl` +
-  `?search_terms=${encodeURIComponent(cleanQuery)}` +
-  `&search_simple=1` +
-  `&action=process` +
-  `&json=1` +
-  `&page_size=12` +
-  `&fields=code,product_name,product_name_es,brands,nutriments,serving_size,quantity`;
-        const response = await fetch(url);
-        const data = await response.json();
+    const openFoodPromise = Promise.resolve([]);
 
-        return (data.products || [])
-          .filter(
-            (product) =>
-              product.product_name &&
-              product.nutriments
-          )
-          .map((product) => {
-            const name = product.product_name || '';
-            const brand = product.brands || '';
-
-            const normalizedName = name
-              .toLowerCase()
-              .normalize('NFD')
-              .replace(/[\u0300-\u036f]/g, '');
-
-            let score = 0;
-
-            if (normalizedName === normalizedQuery) {
-              score += 100;
-            } else if (normalizedName.startsWith(normalizedQuery)) {
-              score += 70;
-            } else if (normalizedName.includes(normalizedQuery)) {
-              score += 40;
-            }
-
-            if (brand) score += 5;
-            if (product.serving_size) score += 5;
-            if (product.quantity) score += 3;
-
-            return {
-              id: product.code,
-              source: 'openfoodfacts',
-              name,
-              brand,
-              servingSize: product.serving_size || '',
-              quantity: product.quantity || '',
-              calories100:
-                Number(
-                  product.nutriments['energy-kcal_100g']
-                ) || 0,
-              protein100:
-                Number(product.nutriments.proteins_100g) || 0,
-              carbs100:
-                Number(
-                  product.nutriments.carbohydrates_100g
-                ) || 0,
-              fats100:
-                Number(product.nutriments.fat_100g) || 0,
-              score,
-            };
-          })
-          .filter((product) => product.calories100 > 0);
-      } catch (error) {
-        console.log('Error Open Food Facts:', error);
-        return [];
-      }
-    })();
-
-    // USDA
     const usdaPromise = (async () => {
       try {
         const { data, error } =
@@ -1940,6 +2092,7 @@ const url =
             {
               body: {
                 query: cleanQuery,
+                brand: String(brandValue || '').trim(),
               },
             }
           );
@@ -1949,7 +2102,36 @@ const url =
           return [];
         }
 
-        return data?.products || [];
+        const products = data?.products || [];
+
+        const q = cleanQuery
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+        const isGenericMeatBurger =
+          (q.includes('hamburguesa') || q.includes('burger')) &&
+          ['pollo', 'chicken', 'ternera', 'vacuno', 'beef', 'pavo', 'turkey', 'cerdo', 'pork']
+            .some((x) => q.includes(x)) &&
+          !['pan', 'bun', 'empanad', 'rebozad', 'breaded', 'battered', 'crispy']
+            .some((x) => q.includes(x));
+
+        if (isGenericMeatBurger) {
+          return products.filter((product) => {
+            const name = `${product?.name || ''} ${product?.originalName || ''}`
+              .toLowerCase();
+
+            const carbs = Number(product?.carbs100) || 0;
+
+            return (
+              carbs <= 8 &&
+              !['sandwich', 'with bun', 'breaded', 'battered']
+                .some((x) => name.includes(x))
+            );
+          });
+        }
+
+        return products;
       } catch (error) {
         console.log('Error USDA:', error);
         return [];
@@ -2091,7 +2273,7 @@ useEffect(() => {
           setActiveRoutine(parsedWorkout.activeRoutine);
           setWorkoutExercises(parsedWorkout.workoutExercises);
           setWorkoutOrigin(parsedWorkout.workoutOrigin || 'home');
-          setScreen('workout');
+          
         }
       }
     } catch (error) {
@@ -2914,17 +3096,21 @@ setInviteCode(newLeague.invite_code || '');
 };
 
   const inviteFriends = async () => {
-    await impact(
-      Haptics.ImpactFeedbackStyle.Medium
-    );
+    if (!inviteCode) {
+      Alert.alert('Sin código', 'No se ha podido obtener el código de invitación.');
+      return;
+    }
 
-  Alert.alert(
-  'Invitar rivales',
-  inviteCode
-    ? `Código de invitación: ${inviteCode}\n\nComparte este código con la persona que quieras añadir a la liga.`
-    : 'No se ha podido obtener el código de invitación.'
-);
+    try {
+      await impact(Haptics.ImpactFeedbackStyle.Medium);
+      await Share.share({
+        message: `Te invito a mi liga ${leagueName} en RivalSet. Código: ${inviteCode}`,
+      });
+    } catch (error) {
+      Alert.alert('No se pudo compartir', `Código de tu liga: ${inviteCode}`);
+    }
   };
+
 const joinLeague = async () => {
   const cleanCode = joinLeagueCode.trim().toUpperCase();
 
@@ -4019,46 +4205,62 @@ if (
      ENTRENAMIENTO
   ===================================================== */
 
-  const openWorkout = async (
-    routine,
-    origin = workoutOrigin || 'home'
-  ) => {
-    await impact(
-      Haptics.ImpactFeedbackStyle.Heavy
+const openWorkout = async (
+  routine,
+  origin = workoutOrigin || 'home',
+  replaceActive = false
+) => {
+  const hasActiveWorkout =
+    activeWorkoutLoaded &&
+    activeRoutine &&
+    Array.isArray(workoutExercises) &&
+    workoutExercises.length > 0;
+
+  if (hasActiveWorkout && !replaceActive) {
+    if (String(activeRoutine.id) === String(routine.id)) {
+      setScreen('workout');
+      return;
+    }
+
+    Alert.alert(
+      'Entrenamiento en curso',
+      `Tienes «${activeRoutine.name}» abierto. ¿Qué quieres hacer?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Seguir el anterior',
+          onPress: () => setScreen('workout'),
+        },
+        {
+          text: 'Empezar la nueva rutina',
+          style: 'destructive',
+          onPress: () => openWorkout(routine, origin, true),
+        },
+      ]
     );
-if (
-  activeWorkoutLoaded &&
-  activeRoutine &&
-  Array.isArray(workoutExercises) &&
-  workoutExercises.length > 0
-) {
+    return;
+  }
+
+  await impact(Haptics.ImpactFeedbackStyle.Heavy);
+
+  setActiveRoutine(routine);
+  setWorkoutExercises(
+    routine.exercises.map((exercise, index) => ({
+      ...exercise,
+      muscles: getExerciseMuscles(exercise),
+      expanded: index === 0,
+      sets: buildWorkoutSets(exercise),
+    }))
+  );
+
+  progressAnimation.setValue(0);
+  celebrationAnimation.setValue(0);
+  celebrated.current = false;
+  workoutSaved.current = false;
+  setPrFlashId(null);
+  setWorkoutOrigin(origin);
   setScreen('workout');
-  return;
-}
-    setActiveRoutine(routine);
-
-    setWorkoutExercises(
-      routine.exercises.map(
-        (exercise, index) => ({
-          ...exercise,
-          muscles: getExerciseMuscles(exercise),
-          expanded: index === 0,
-          sets: buildWorkoutSets(exercise),
-        })
-      )
-    );
-
-    progressAnimation.setValue(0);
-    celebrationAnimation.setValue(0);
-
-    celebrated.current = false;
-    workoutSaved.current = false;
-
-    setPrFlashId(null);
-    setWorkoutOrigin(origin);
-    setScreen('workout');
-  };
-
+};
   const toggleExerciseExpanded = async (
     exerciseId
   ) => {
@@ -5236,20 +5438,7 @@ isMonthlyMvp: monthlyAwards.some(
                         />
                       </TouchableOpacity>
                     </View>
-                {inviteCode ? (
-  <TouchableOpacity
-    activeOpacity={0.7}
-    onPress={async () => {
-      await Clipboard.setStringAsync(inviteCode);
-      await impact();
-      Alert.alert('Código copiado', inviteCode);
-    }}
-  >
-    <Text style={styles.leagueInviteCode}>
-      Código: {inviteCode} · COPIAR
-    </Text>
-  </TouchableOpacity>
-) : null}
+
                 <View
   style={{
     flexDirection: 'row',
@@ -5284,6 +5473,27 @@ isMonthlyMvp: monthlyAwards.some(
               </View>
           
             </View>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.leagueInviteWide}
+              onPress={inviteFriends}
+            >
+              <MaterialCommunityIcons
+                name="account-multiple-plus-outline"
+                size={20}
+                color={COLORS.orange}
+              />
+              <View style={styles.leagueActionTextBox}>
+                <Text style={styles.leagueInviteText}>Invita a tus amigos</Text>
+                <Text style={styles.leagueInviteSubtext}>Comparte el código de tu liga</Text>
+              </View>
+              <MaterialCommunityIcons
+                name="share-variant"
+                size={19}
+                color={COLORS.orange}
+              />
+            </TouchableOpacity>
 
             <View style={styles.leagueChaseCard}>
               <View style={styles.leagueChaseTop}>
@@ -5607,44 +5817,7 @@ isMonthlyMvp: monthlyAwards.some(
               })}
             </View>
 
-            <TouchableOpacity
-              activeOpacity={0.86}
-              style={styles.leagueInviteWide}
-              onPress={inviteFriends}
-            >
-              <LinearGradient
-                colors={[
-                  '#FFD24A',
-                  '#FFB000',
-                  '#E99100',
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFillObject}
-              />
 
-              <MaterialCommunityIcons
-                name="account-plus-outline"
-                size={21}
-                color={COLORS.darkText}
-              />
-
-              <View style={styles.leagueActionTextBox}>
-                <Text style={styles.leagueInviteText}>
-                  INVITAR RIVALES
-                </Text>
-
-                <Text style={styles.leagueInviteSubtext}>
-                  Comparte tu liga
-                </Text>
-              </View>
-
-              <MaterialCommunityIcons
-                name="arrow-right"
-                size={18}
-                color={COLORS.darkText}
-              />
-            </TouchableOpacity>
 
             <View style={styles.leagueActivityCard}>
               <View style={styles.leagueSectionHeader}>
@@ -6472,10 +6645,1478 @@ const ProfileLogin = () => (
      RUTINAS
   ===================================================== */
   const Nutrition = () => {
-const caloriesGoal = nutritionGoals.calories;
-const proteinGoal = nutritionGoals.protein;
-const carbsGoal = nutritionGoals.carbs;
-const fatsGoal = nutritionGoals.fats;
+
+  // RIVALSET_NUTRITION_ONBOARDING_V1
+  const [nutritionProfile, setNutritionProfile] = useState(undefined);
+  const [nutritionSetupLoading, setNutritionSetupLoading] = useState(true);
+  const [nutritionSetupSaving, setNutritionSetupSaving] = useState(false);
+  const [nutritionSetupStep, setNutritionSetupStep] = useState(0);
+  const [nutritionSetupError, setNutritionSetupError] = useState('');
+
+  const [nutritionSetupSex, setNutritionSetupSex] = useState('male');
+  const [nutritionSetupAge, setNutritionSetupAge] = useState('');
+  const [nutritionSetupHeight, setNutritionSetupHeight] = useState('');
+  const [nutritionSetupWeight, setNutritionSetupWeight] = useState('');
+  const [nutritionSetupActivity, setNutritionSetupActivity] = useState('moderate');
+  const [nutritionSetupSteps, setNutritionSetupSteps] = useState('');
+  const [nutritionSetupTrainingDays, setNutritionSetupTrainingDays] = useState(3);
+
+  const [nutritionSetupGoal, setNutritionSetupGoal] = useState('lose');
+  const [nutritionSetupTargetWeight, setNutritionSetupTargetWeight] = useState('');
+  const [nutritionSetupWeeks, setNutritionSetupWeeks] = useState(16);
+  const [nutritionSliderWidth, setNutritionSliderWidth] = useState(1);
+
+  const nutritionNumber = (value) => {
+    const n = Number(String(value ?? '').replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const getNutritionBaseEstimate = () => {
+    const age = nutritionNumber(nutritionSetupAge);
+    const height = nutritionNumber(nutritionSetupHeight);
+    const weight = nutritionNumber(nutritionSetupWeight);
+
+    if (!age || !height || !weight) {
+      return { bmr: 0, tdee: 0 };
+    }
+
+    const bmr =
+      nutritionSetupSex === 'female'
+        ? 10 * weight + 6.25 * height - 5 * age - 161
+        : 10 * weight + 6.25 * height - 5 * age + 5;
+
+    const activityFactors = {
+      very_low: 1.20,
+      low: 1.30,
+      moderate: 1.40,
+      high: 1.50,
+      very_high: 1.60,
+    };
+
+    let factor = activityFactors[nutritionSetupActivity] || 1.40;
+
+    const trainingDays = Math.max(
+      0,
+      Math.min(7, Number(nutritionSetupTrainingDays) || 0)
+    );
+
+    factor += Math.min(trainingDays * 0.025, 0.15);
+
+    const steps = nutritionNumber(nutritionSetupSteps);
+
+    if (steps > 0) {
+      if (steps >= 13000) factor += 0.10;
+      else if (steps >= 10000) factor += 0.07;
+      else if (steps >= 7500) factor += 0.04;
+      else if (steps < 4000) factor -= 0.04;
+    }
+
+    factor = Math.max(1.18, Math.min(factor, 1.85));
+
+    return {
+      bmr: Math.round(bmr),
+      tdee: Math.round(bmr * factor),
+    };
+  };
+
+  const getNutritionWeekBounds = () => {
+    const currentWeight = nutritionNumber(nutritionSetupWeight);
+    const targetWeight = nutritionNumber(nutritionSetupTargetWeight);
+    const { tdee } = getNutritionBaseEstimate();
+
+    if (
+      nutritionSetupGoal === 'maintain' ||
+      !currentWeight ||
+      !targetWeight ||
+      !tdee
+    ) {
+      return { min: 1, max: 1 };
+    }
+
+    const delta = Math.abs(targetWeight - currentWeight);
+
+    if (!delta) {
+      return { min: 1, max: 1 };
+    }
+
+    const losing = nutritionSetupGoal === 'lose';
+
+    const fastestKgWeek = currentWeight * (losing ? 0.01 : 0.005);
+    const slowestKgWeek = currentWeight * (losing ? 0.0025 : 0.001);
+
+    const minByBodyRate = Math.ceil(delta / Math.max(fastestKgWeek, 0.01));
+
+    const maxDailyAdjustment = tdee * (losing ? 0.25 : 0.15);
+
+    const minByCalories = Math.ceil(
+      (delta * 7700) / Math.max(maxDailyAdjustment * 7, 1)
+    );
+
+    let min = Math.max(4, minByBodyRate, minByCalories);
+    let max = Math.ceil(delta / Math.max(slowestKgWeek, 0.01));
+
+    max = Math.min(Math.max(max, min + 4), 104);
+
+    return { min, max };
+  };
+
+  const calculateNutritionPlan = (weeksOverride = nutritionSetupWeeks) => {
+    const currentWeight = nutritionNumber(nutritionSetupWeight);
+    const targetWeight =
+      nutritionSetupGoal === 'maintain'
+        ? currentWeight
+        : nutritionNumber(nutritionSetupTargetWeight);
+
+    const { bmr, tdee } = getNutritionBaseEstimate();
+
+    if (!currentWeight || !targetWeight || !bmr || !tdee) {
+      return {
+        bmr: 0,
+        tdee: 0,
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fats: 0,
+        rateKgWeek: 0,
+        ratePctWeek: 0,
+        weeks: 0,
+      };
+    }
+
+    let calories = tdee;
+    let rateKgWeek = 0;
+    let ratePctWeek = 0;
+    let weeks = 0;
+
+    if (nutritionSetupGoal !== 'maintain') {
+      const bounds = getNutritionWeekBounds();
+
+      weeks = Math.max(
+        bounds.min,
+        Math.min(bounds.max, Math.round(Number(weeksOverride) || bounds.min))
+      );
+
+      const delta = Math.abs(targetWeight - currentWeight);
+      const rawDailyAdjustment = (delta * 7700) / (weeks * 7);
+
+      const losing = nutritionSetupGoal === 'lose';
+      const maxAdjustment = tdee * (losing ? 0.25 : 0.15);
+
+      const dailyAdjustment = Math.min(
+        rawDailyAdjustment,
+        maxAdjustment
+      );
+
+      calories = Math.round(
+        losing
+          ? tdee - dailyAdjustment
+          : tdee + dailyAdjustment
+      );
+
+      const sign = losing ? -1 : 1;
+      rateKgWeek = sign * (delta / weeks);
+      ratePctWeek =
+        currentWeight > 0
+          ? (rateKgWeek / currentWeight) * 100
+          : 0;
+    }
+
+    calories = Math.max(1000, Math.round(calories));
+
+    const referenceWeight =
+      nutritionSetupGoal === 'lose'
+        ? Math.min(currentWeight, targetWeight)
+        : currentWeight;
+
+    let protein = Math.round(
+      referenceWeight *
+        (nutritionSetupGoal === 'maintain' ? 1.6 : 1.8)
+    );
+
+    let fats = Math.round(referenceWeight * 0.8);
+
+    if (protein * 4 + fats * 9 > calories * 0.8) {
+      fats = Math.max(30, Math.round(referenceWeight * 0.6));
+    }
+
+    const carbs = Math.max(
+      0,
+      Math.round((calories - protein * 4 - fats * 9) / 4)
+    );
+
+    return {
+      bmr,
+      tdee,
+      calories,
+      protein,
+      carbs,
+      fats,
+      rateKgWeek,
+      ratePctWeek,
+      weeks,
+    };
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadNutritionProfile = async () => {
+      if (!session?.user?.id) {
+        if (!cancelled) {
+          setNutritionProfile(null);
+          setNutritionSetupLoading(false);
+        }
+        return;
+      }
+
+      setNutritionSetupLoading(true);
+
+      const { data, error } = await supabase
+        .from('nutrition_profiles')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.log('nutrition profile error:', error);
+        setNutritionProfile(null);
+        setNutritionSetupLoading(false);
+        return;
+      }
+
+      setNutritionProfile(data || null);
+
+      if (data) {
+        if (data.sex_for_equation) {
+          setNutritionSetupSex(data.sex_for_equation);
+        }
+
+        if (data.age) {
+          setNutritionSetupAge(String(data.age));
+        }
+
+        if (data.height_cm) {
+          setNutritionSetupHeight(String(data.height_cm));
+        }
+
+        if (data.current_weight_kg) {
+          setNutritionSetupWeight(String(data.current_weight_kg));
+        }
+
+        if (data.activity_level) {
+          setNutritionSetupActivity(data.activity_level);
+        }
+
+        if (data.steps_per_day != null) {
+          setNutritionSetupSteps(String(data.steps_per_day));
+        }
+
+        if (data.training_days_per_week != null) {
+          setNutritionSetupTrainingDays(
+            Number(data.training_days_per_week)
+          );
+        }
+
+        if (data.goal) {
+          setNutritionSetupGoal(data.goal);
+        }
+
+        if (data.target_weight_kg) {
+          setNutritionSetupTargetWeight(
+            String(data.target_weight_kg)
+          );
+        }
+
+        if (data.target_weeks) {
+          setNutritionSetupWeeks(Number(data.target_weeks));
+        }
+      }
+
+      setNutritionSetupLoading(false);
+    };
+
+    loadNutritionProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  const validateNutritionSetupStep = () => {
+    setNutritionSetupError('');
+
+    const age = nutritionNumber(nutritionSetupAge);
+    const height = nutritionNumber(nutritionSetupHeight);
+    const weight = nutritionNumber(nutritionSetupWeight);
+
+    if (nutritionSetupStep === 0) {
+      if (age < 18 || age > 100) {
+        setNutritionSetupError(
+          'Introduce una edad válida. Esta estimación está preparada para adultos.'
+        );
+        return false;
+      }
+
+      if (height < 120 || height > 230) {
+        setNutritionSetupError('Introduce una altura válida.');
+        return false;
+      }
+
+      if (weight < 35 || weight > 350) {
+        setNutritionSetupError('Introduce un peso válido.');
+        return false;
+      }
+    }
+
+    if (nutritionSetupStep === 2) {
+      const targetWeight = nutritionNumber(
+        nutritionSetupTargetWeight
+      );
+
+      if (nutritionSetupGoal === 'lose') {
+        if (!targetWeight || targetWeight >= weight) {
+          setNutritionSetupError(
+            'Para perder peso, el peso objetivo debe ser inferior al actual.'
+          );
+          return false;
+        }
+      }
+
+      if (nutritionSetupGoal === 'gain') {
+        if (!targetWeight || targetWeight <= weight) {
+          setNutritionSetupError(
+            'Para ganar peso, el peso objetivo debe ser superior al actual.'
+          );
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+
+  const goNextNutritionSetup = () => {
+    if (!validateNutritionSetupStep()) return;
+
+    if (nutritionSetupStep === 2) {
+      if (nutritionSetupGoal !== 'maintain') {
+        const bounds = getNutritionWeekBounds();
+        const middle = Math.round((bounds.min + bounds.max) / 2);
+        setNutritionSetupWeeks(middle);
+      }
+    }
+
+    setNutritionSetupStep((prev) => Math.min(prev + 1, 3));
+  };
+
+  const saveNutritionSetup = async () => {
+    if (!session?.user?.id) {
+      Alert.alert('Error', 'No hay una sesión de usuario activa.');
+      return;
+    }
+
+    setNutritionSetupSaving(true);
+    setNutritionSetupError('');
+
+    const plan = calculateNutritionPlan();
+    const currentWeight = nutritionNumber(nutritionSetupWeight);
+    const targetWeight =
+      nutritionSetupGoal === 'maintain'
+        ? currentWeight
+        : nutritionNumber(nutritionSetupTargetWeight);
+
+    if (!plan.calories) {
+      Alert.alert(
+        'No se pudo calcular',
+        'Revisa los datos de tu configuración.'
+      );
+      return;
+    }
+
+    setNutritionSetupSaving(true);
+
+    const payload = {
+      user_id: session.user.id,
+      sex_for_equation: nutritionSetupSex,
+      age: Math.round(nutritionNumber(nutritionSetupAge)),
+      height_cm: nutritionNumber(nutritionSetupHeight),
+      current_weight_kg: currentWeight,
+      target_weight_kg: targetWeight,
+      activity_level: nutritionSetupActivity,
+      steps_per_day:
+        nutritionNumber(nutritionSetupSteps) > 0
+          ? Math.round(nutritionNumber(nutritionSetupSteps))
+          : null,
+      training_days_per_week: Number(
+        nutritionSetupTrainingDays
+      ),
+      goal: nutritionSetupGoal,
+      target_weeks:
+        nutritionSetupGoal === 'maintain'
+          ? null
+          : plan.weeks,
+      target_rate_kg_week: Number(
+        plan.rateKgWeek.toFixed(3)
+      ),
+      target_rate_pct_week: Number(
+        plan.ratePctWeek.toFixed(3)
+      ),
+      estimated_bmr: plan.bmr,
+      estimated_tdee: plan.tdee,
+      target_calories: plan.calories,
+      protein_g: plan.protein,
+      carbs_g: plan.carbs,
+      fat_g: plan.fats,
+      setup_completed: true,
+      algorithm_version: 'v1',
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const saveRequest = supabase
+        .from('nutrition_profiles')
+        .upsert(payload, { onConflict: 'user_id' })
+        .select()
+        .single();
+
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT_NUTRITION_SAVE')), 10000)
+      );
+
+      const { data, error } = await Promise.race([saveRequest, timeout]);
+
+      if (error) throw error;
+      if (!data) throw new Error('NUTRITION_PROFILE_WITHOUT_DATA');
+
+      setNutritionProfile(data);
+      setNutritionSetupError('');
+      console.log('nutrition profile saved:', data);
+    } catch (error) {
+      console.log('save nutrition profile error:', error);
+      setNutritionSetupError(
+        error?.message === 'TIMEOUT_NUTRITION_SAVE'
+          ? 'El servidor ha tardado demasiado. Inténtalo de nuevo.'
+          : 'No se pudo guardar tu objetivo nutricional.'
+      );
+      Alert.alert(
+        'Error',
+        error?.message === 'TIMEOUT_NUTRITION_SAVE'
+          ? 'El servidor ha tardado demasiado. Inténtalo de nuevo.'
+          : 'No se pudo guardar tu objetivo nutricional.'
+      );
+    } finally {
+      setNutritionSetupSaving(false);
+    }
+  };
+
+  const nutritionChoice = (
+    selected,
+    title,
+    subtitle,
+    onPress
+  ) => (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={{
+        borderWidth: 1,
+        borderColor: selected
+          ? COLORS.orange
+          : 'rgba(255,255,255,0.10)',
+        backgroundColor: selected
+          ? 'rgba(255,140,0,0.10)'
+          : '#15171C',
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 13,
+        marginBottom: 9,
+      }}
+    >
+      <Text
+        style={{
+          color: '#FFFFFF',
+          fontSize: 14,
+          fontWeight: '900',
+        }}
+      >
+        {title}
+      </Text>
+
+      {!!subtitle && (
+        <Text
+          style={{
+            color: '#8D9098',
+            fontSize: 11,
+            fontWeight: '600',
+            marginTop: 3,
+            lineHeight: 16,
+          }}
+        >
+          {subtitle}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+
+  if (sessionLoading || nutritionSetupLoading) {
+    return (
+      <View style={styles.page}>
+        <AppGradient />
+
+        <PageHeader
+          title="Nutrición"
+          subtitle="Preparando tus objetivos"
+          showBack={selectedTab !== 'Nutrición'}
+        />
+
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <ActivityIndicator
+            size="large"
+            color={COLORS.orange}
+          />
+
+          <Text
+            style={{
+              color: '#9A9DA5',
+              marginTop: 14,
+              fontWeight: '700',
+            }}
+          >
+            Cargando...
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!session?.user?.id) {
+    return (
+      <View style={styles.page}>
+        <AppGradient />
+
+        <PageHeader
+          title="Nutrición"
+          subtitle="Tu alimentación y objetivos"
+          showBack={selectedTab !== 'Nutrición'}
+        />
+
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: 20,
+            justifyContent: 'center',
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: '#111318',
+              borderWidth: 1,
+              borderColor: '#24272E',
+              borderRadius: 20,
+              padding: 22,
+            }}
+          >
+            <MaterialCommunityIcons
+              name="account-lock-outline"
+              size={34}
+              color={COLORS.orange}
+            />
+
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 22,
+                fontWeight: '900',
+                marginTop: 14,
+              }}
+            >
+              Inicia sesión
+            </Text>
+
+            <Text
+              style={{
+                color: '#9A9DA5',
+                fontSize: 13,
+                lineHeight: 19,
+                marginTop: 7,
+              }}
+            >
+              Necesitamos guardar tus objetivos y tu progreso en tu cuenta.
+            </Text>
+
+            <TouchableOpacity
+              onPress={openProfile}
+              activeOpacity={0.85}
+              style={{
+                backgroundColor: COLORS.orange,
+                borderRadius: 14,
+                paddingVertical: 15,
+                alignItems: 'center',
+                marginTop: 20,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#111111',
+                  fontSize: 13,
+                  fontWeight: '900',
+                }}
+              >
+                IR A PERFIL
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (!nutritionProfile?.setup_completed) {
+    const plan = calculateNutritionPlan();
+    const weekBounds = getNutritionWeekBounds();
+
+    const safeWeeks =
+      nutritionSetupGoal === 'maintain'
+        ? 0
+        : Math.max(
+            weekBounds.min,
+            Math.min(
+              weekBounds.max,
+              Number(nutritionSetupWeeks) || weekBounds.min
+            )
+          );
+
+    const sliderProgress =
+      nutritionSetupGoal === 'maintain' ||
+      weekBounds.max === weekBounds.min
+        ? 0
+        : (safeWeeks - weekBounds.min) /
+          (weekBounds.max - weekBounds.min);
+
+    const updateWeeksFromPosition = (x) => {
+      if (
+        nutritionSetupGoal === 'maintain' ||
+        nutritionSliderWidth <= 1
+      ) {
+        return;
+      }
+
+      const clampedX = Math.max(
+        0,
+        Math.min(x, nutritionSliderWidth)
+      );
+
+      const progress = clampedX / nutritionSliderWidth;
+
+      const weeks = Math.round(
+        weekBounds.min +
+          progress * (weekBounds.max - weekBounds.min)
+      );
+
+      setNutritionSetupWeeks(weeks);
+    };
+
+    return (
+      <View style={styles.page}>
+        <AppGradient />
+
+        <PageHeader
+          title="Configura tu nutrición"
+          subtitle={`Paso ${nutritionSetupStep + 1} de 4`}
+          showBack={false}
+        />
+
+        <View
+          style={{
+            height: 4,
+            backgroundColor: '#22252B',
+            marginHorizontal: 20,
+            borderRadius: 99,
+            overflow: 'hidden',
+          }}
+        >
+          <View
+            style={{
+              height: 4,
+              width: `${((nutritionSetupStep + 1) / 4) * 100}%`,
+              backgroundColor: COLORS.orange,
+              borderRadius: 99,
+            }}
+          />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{
+            padding: 20,
+            paddingBottom: 130,
+          }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {nutritionSetupStep === 0 && (
+            <>
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 25,
+                  fontWeight: '900',
+                  marginBottom: 6,
+                }}
+              >
+                Sobre ti
+              </Text>
+
+              <Text
+                style={{
+                  color: '#8F9299',
+                  fontSize: 13,
+                  lineHeight: 19,
+                  marginBottom: 22,
+                }}
+              >
+                Estos datos sirven para obtener una primera estimación de tu gasto energético.
+              </Text>
+
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontWeight: '800',
+                  marginBottom: 8,
+                }}
+              >
+                Sexo para el cálculo metabólico
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  gap: 9,
+                  marginBottom: 18,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() =>
+                    setNutritionSetupSex('male')
+                  }
+                  style={{
+                    flex: 1,
+                    paddingVertical: 14,
+                    borderRadius: 13,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor:
+                      nutritionSetupSex === 'male'
+                        ? COLORS.orange
+                        : '#2B2E35',
+                    backgroundColor:
+                      nutritionSetupSex === 'male'
+                        ? 'rgba(255,140,0,0.10)'
+                        : '#15171C',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontWeight: '900',
+                    }}
+                  >
+                    Hombre
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    setNutritionSetupSex('female')
+                  }
+                  style={{
+                    flex: 1,
+                    paddingVertical: 14,
+                    borderRadius: 13,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor:
+                      nutritionSetupSex === 'female'
+                        ? COLORS.orange
+                        : '#2B2E35',
+                    backgroundColor:
+                      nutritionSetupSex === 'female'
+                        ? 'rgba(255,140,0,0.10)'
+                        : '#15171C',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontWeight: '900',
+                    }}
+                  >
+                    Mujer
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {[
+                ['Edad', nutritionSetupAge, setNutritionSetupAge, 'años'],
+                ['Altura', nutritionSetupHeight, setNutritionSetupHeight, 'cm'],
+                ['Peso actual', nutritionSetupWeight, setNutritionSetupWeight, 'kg'],
+              ].map(([label, value, setter, unit]) => (
+                <View
+                  key={label}
+                  style={{ marginBottom: 14 }}
+                >
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 13,
+                      fontWeight: '800',
+                      marginBottom: 7,
+                    }}
+                  >
+                    {label}
+                  </Text>
+
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#15171C',
+                      borderRadius: 13,
+                      borderWidth: 1,
+                      borderColor: '#292C33',
+                      paddingHorizontal: 13,
+                    }}
+                  >
+                    <TextInput
+                      value={value}
+                      onChangeText={setter}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor="#60636B"
+                      style={{
+                        flex: 1,
+                        height: 50,
+                        color: '#FFFFFF',
+                        fontWeight: '800',
+                        fontSize: 16,
+                      }}
+                    />
+
+                    <Text
+                      style={{
+                        color: '#777B84',
+                        fontWeight: '800',
+                      }}
+                    >
+                      {unit}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+
+          {nutritionSetupStep === 1 && (
+            <>
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 25,
+                  fontWeight: '900',
+                  marginBottom: 6,
+                }}
+              >
+                Tu actividad
+              </Text>
+
+              <Text
+                style={{
+                  color: '#8F9299',
+                  fontSize: 13,
+                  lineHeight: 19,
+                  marginBottom: 20,
+                }}
+              >
+                Piensa en tu actividad diaria fuera del gimnasio.
+              </Text>
+
+              {nutritionChoice(
+                nutritionSetupActivity === 'very_low',
+                'Muy baja',
+                'Trabajo principalmente sentado y poco movimiento.',
+                () => setNutritionSetupActivity('very_low')
+              )}
+
+              {nutritionChoice(
+                nutritionSetupActivity === 'low',
+                'Baja',
+                'Te mueves algo durante el día.',
+                () => setNutritionSetupActivity('low')
+              )}
+
+              {nutritionChoice(
+                nutritionSetupActivity === 'moderate',
+                'Moderada',
+                'Caminas y te mantienes activo con frecuencia.',
+                () => setNutritionSetupActivity('moderate')
+              )}
+
+              {nutritionChoice(
+                nutritionSetupActivity === 'high',
+                'Alta',
+                'Trabajo activo o muchas horas en movimiento.',
+                () => setNutritionSetupActivity('high')
+              )}
+
+              {nutritionChoice(
+                nutritionSetupActivity === 'very_high',
+                'Muy alta',
+                'Actividad física elevada durante gran parte del día.',
+                () => setNutritionSetupActivity('very_high')
+              )}
+
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontWeight: '900',
+                  marginTop: 15,
+                  marginBottom: 10,
+                }}
+              >
+                Entrenamientos por semana
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                {[0,1,2,3,4,5,6,7].map((day) => (
+                  <TouchableOpacity
+                    key={day}
+                    onPress={() =>
+                      setNutritionSetupTrainingDays(day)
+                    }
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 1,
+                      borderColor:
+                        nutritionSetupTrainingDays === day
+                          ? COLORS.orange
+                          : '#292C33',
+                      backgroundColor:
+                        nutritionSetupTrainingDays === day
+                          ? 'rgba(255,140,0,0.10)'
+                          : '#15171C',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: '#FFFFFF',
+                        fontWeight: '900',
+                      }}
+                    >
+                      {day}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontWeight: '900',
+                  marginTop: 22,
+                  marginBottom: 8,
+                }}
+              >
+                Pasos diarios aproximados
+              </Text>
+
+              <View
+                style={{
+                  backgroundColor: '#15171C',
+                  borderRadius: 13,
+                  borderWidth: 1,
+                  borderColor: '#292C33',
+                  paddingHorizontal: 13,
+                }}
+              >
+                <TextInput
+                  value={nutritionSetupSteps}
+                  onChangeText={setNutritionSetupSteps}
+                  keyboardType="number-pad"
+                  placeholder="Opcional"
+                  placeholderTextColor="#60636B"
+                  style={{
+                    height: 50,
+                    color: '#FFFFFF',
+                    fontWeight: '800',
+                    fontSize: 16,
+                  }}
+                />
+              </View>
+            </>
+          )}
+
+          {nutritionSetupStep === 2 && (
+            <>
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 25,
+                  fontWeight: '900',
+                  marginBottom: 6,
+                }}
+              >
+                ¿Cuál es tu objetivo?
+              </Text>
+
+              <Text
+                style={{
+                  color: '#8F9299',
+                  fontSize: 13,
+                  lineHeight: 19,
+                  marginBottom: 20,
+                }}
+              >
+                RivalSet adaptará las calorías al objetivo que elijas.
+              </Text>
+
+              {nutritionChoice(
+                nutritionSetupGoal === 'lose',
+                'Perder grasa',
+                'Crear un déficit calórico progresivo.',
+                () => setNutritionSetupGoal('lose')
+              )}
+
+              {nutritionChoice(
+                nutritionSetupGoal === 'maintain',
+                'Mantener peso',
+                'Mantenerte aproximadamente en tu gasto energético.',
+                () => setNutritionSetupGoal('maintain')
+              )}
+
+              {nutritionChoice(
+                nutritionSetupGoal === 'gain',
+                'Ganar peso / músculo',
+                'Crear un superávit calórico controlado.',
+                () => setNutritionSetupGoal('gain')
+              )}
+
+              {nutritionSetupGoal !== 'maintain' && (
+                <View style={{ marginTop: 17 }}>
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontWeight: '900',
+                      marginBottom: 8,
+                    }}
+                  >
+                    Peso objetivo
+                  </Text>
+
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#15171C',
+                      borderRadius: 13,
+                      borderWidth: 1,
+                      borderColor: '#292C33',
+                      paddingHorizontal: 13,
+                    }}
+                  >
+                    <TextInput
+                      value={nutritionSetupTargetWeight}
+                      onChangeText={setNutritionSetupTargetWeight}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor="#60636B"
+                      style={{
+                        flex: 1,
+                        height: 50,
+                        color: '#FFFFFF',
+                        fontWeight: '800',
+                        fontSize: 16,
+                      }}
+                    />
+
+                    <Text
+                      style={{
+                        color: '#777B84',
+                        fontWeight: '800',
+                      }}
+                    >
+                      kg
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </>
+          )}
+
+          {nutritionSetupStep === 3 && (
+            <>
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 25,
+                  fontWeight: '900',
+                  marginBottom: 6,
+                }}
+              >
+                Tu plan inicial
+              </Text>
+
+              <Text
+                style={{
+                  color: '#8F9299',
+                  fontSize: 13,
+                  lineHeight: 19,
+                  marginBottom: 22,
+                }}
+              >
+                Es una estimación inicial. RivalSet podrá ajustarla más adelante con tu evolución real.
+              </Text>
+
+              {nutritionSetupGoal !== 'maintain' && (
+                <View
+                  style={{
+                    backgroundColor: '#111318',
+                    borderWidth: 1,
+                    borderColor: '#24272E',
+                    borderRadius: 18,
+                    padding: 18,
+                    marginBottom: 14,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#8F9299',
+                      fontSize: 12,
+                      fontWeight: '800',
+                    }}
+                  >
+                    DURACIÓN DEL OBJETIVO
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 30,
+                      fontWeight: '900',
+                      marginTop: 5,
+                    }}
+                  >
+                    {safeWeeks} semanas
+                  </Text>
+
+                  <View
+                    onLayout={(e) =>
+                      setNutritionSliderWidth(
+                        e.nativeEvent.layout.width
+                      )
+                    }
+                    onStartShouldSetResponder={() => true}
+                    onMoveShouldSetResponder={() => true}
+                    onResponderGrant={(e) =>
+                      updateWeeksFromPosition(
+                        e.nativeEvent.locationX
+                      )
+                    }
+                    onResponderMove={(e) =>
+                      updateWeeksFromPosition(
+                        e.nativeEvent.locationX
+                      )
+                    }
+                    style={{
+                      height: 34,
+                      justifyContent: 'center',
+                      marginTop: 14,
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: 6,
+                        borderRadius: 99,
+                        backgroundColor: '#2B2E35',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: `${sliderProgress * 100}%`,
+                          height: 6,
+                          backgroundColor: COLORS.orange,
+                        }}
+                      />
+                    </View>
+
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        left: `${sliderProgress * 100}%`,
+                        marginLeft: -10,
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        backgroundColor: COLORS.orange,
+                        borderWidth: 3,
+                        borderColor: '#FFFFFF',
+                      }}
+                    />
+                  </View>
+
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: '#747780',
+                        fontSize: 10,
+                        fontWeight: '800',
+                      }}
+                    >
+                      MÁS RÁPIDO
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: '#747780',
+                        fontSize: 10,
+                        fontWeight: '800',
+                      }}
+                    >
+                      MÁS GRADUAL
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={{
+                      color: '#A1A4AB',
+                      fontSize: 12,
+                      fontWeight: '700',
+                      marginTop: 14,
+                    }}
+                  >
+                    {Math.abs(plan.rateKgWeek).toFixed(2)} kg/semana · {Math.abs(plan.ratePctWeek).toFixed(2)}% de tu peso/semana
+                  </Text>
+                </View>
+              )}
+
+              <View
+                style={{
+                  backgroundColor: '#111318',
+                  borderWidth: 1,
+                  borderColor: COLORS.orange,
+                  borderRadius: 20,
+                  padding: 20,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#8F9299',
+                    fontSize: 11,
+                    fontWeight: '900',
+                  }}
+                >
+                  OBJETIVO DIARIO
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 38,
+                    fontWeight: '900',
+                    marginTop: 4,
+                  }}
+                >
+                  {plan.calories} kcal
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#777B84',
+                    fontSize: 11,
+                    fontWeight: '700',
+                    marginTop: 3,
+                  }}
+                >
+                  Mantenimiento estimado: {plan.tdee} kcal
+                </Text>
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    marginTop: 20,
+                    gap: 8,
+                  }}
+                >
+                  {[
+                    ['Proteína', `${plan.protein} g`],
+                    ['Carbos', `${plan.carbs} g`],
+                    ['Grasas', `${plan.fats} g`],
+                  ].map(([name, value]) => (
+                    <View
+                      key={name}
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#181A20',
+                        borderRadius: 12,
+                        paddingVertical: 12,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#FFFFFF',
+                          fontSize: 15,
+                          fontWeight: '900',
+                        }}
+                      >
+                        {value}
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: '#757983',
+                          fontSize: 9,
+                          fontWeight: '800',
+                          marginTop: 3,
+                        }}
+                      >
+                        {name.toUpperCase()}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
+
+          {!!nutritionSetupError && (
+            <Text
+              style={{
+                color: '#FF6B6B',
+                fontSize: 12,
+                fontWeight: '700',
+                lineHeight: 17,
+                marginTop: 16,
+              }}
+            >
+              {nutritionSetupError}
+            </Text>
+          )}
+
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 10,
+              marginTop: 24,
+            }}
+          >
+            {nutritionSetupStep >= 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setNutritionSetupError('');
+                    if (nutritionSetupStep === 0) {
+                      setScreen('home');
+                    } else {
+                      setNutritionSetupStep((prev) =>
+                        Math.max(0, prev - 1)
+                      );
+                    }
+                  }}
+                style={{
+                  width: 100,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: '#30333A',
+                  paddingVertical: 15,
+                  alignItems: 'center',
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#FFFFFF',
+                    fontWeight: '900',
+                  }}
+                >
+                  {nutritionSetupStep === 0 ? 'SALIR' : 'ATRÁS'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              disabled={nutritionSetupSaving}
+              onPress={
+                nutritionSetupStep === 3
+                  ? saveNutritionSetup
+                  : goNextNutritionSetup
+              }
+              activeOpacity={0.85}
+              style={{
+                flex: 1,
+                borderRadius: 14,
+                paddingVertical: 15,
+                alignItems: 'center',
+                backgroundColor: COLORS.orange,
+                opacity: nutritionSetupSaving ? 0.6 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#111111',
+                  fontWeight: '900',
+                }}
+              >
+                {nutritionSetupSaving
+                  ? 'GUARDANDO...'
+                  : nutritionSetupStep === 3
+                    ? 'USAR ESTOS OBJETIVOS'
+                    : 'CONTINUAR'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+
+const caloriesGoal =
+  Number(nutritionProfile?.target_calories) ||
+  nutritionGoals.calories;
+
+const proteinGoal =
+  Number(nutritionProfile?.protein_g) ||
+  nutritionGoals.protein;
+
+const carbsGoal =
+  Number(nutritionProfile?.carbs_g) ||
+  nutritionGoals.carbs;
+
+const fatsGoal =
+  Number(nutritionProfile?.fat_g) ||
+  nutritionGoals.fats;
 const nutritionTotals = nutritionEntries.reduce(
   (total, item) => ({
     calories: total.calories + (Number(item.calories) || 0),
@@ -6774,8 +8415,210 @@ goal={fatsGoal}
           </View>
 
           {/* ESCANEAR */}
-          <TouchableOpacity
+          
+        <BarcodeModal
+          visible={barcodeScannerVisible}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={closeBarcodeScanner}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: '#000000',
+            }}
+          >
+            <CameraView
+              style={{ flex: 1 }}
+              facing="back"
+              barcodeScannerSettings={{
+                barcodeTypes: [
+                  'ean13',
+                  'ean8',
+                  'upc_a',
+                  'upc_e',
+                  'code128',
+                ],
+              }}
+              onBarcodeScanned={
+                barcodeScannerLocked ? undefined : handleBarcodeScanned
+              }
+            />
+
+            <View
+              pointerEvents="box-none"
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <TouchableOpacity
+                onPress={closeBarcodeScanner}
+                style={{
+                  position: 'absolute',
+                  top: 56,
+                  right: 24,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: 'rgba(0,0,0,0.65)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={26}
+                  color="#FFFFFF"
+                />
+              </TouchableOpacity>
+
+              <View
+                style={{
+                  width: 290,
+                  height: 180,
+                  position: 'relative',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: 38,
+                    height: 38,
+                    borderTopWidth: 4,
+                    borderLeftWidth: 4,
+                    borderColor: '#F5A623',
+                    borderTopLeftRadius: 10,
+                  }}
+                />
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    width: 38,
+                    height: 38,
+                    borderTopWidth: 4,
+                    borderRightWidth: 4,
+                    borderColor: '#F5A623',
+                    borderTopRightRadius: 10,
+                  }}
+                />
+                <View
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    width: 38,
+                    height: 38,
+                    borderBottomWidth: 4,
+                    borderLeftWidth: 4,
+                    borderColor: '#F5A623',
+                    borderBottomLeftRadius: 10,
+                  }}
+                />
+                <View
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    width: 38,
+                    height: 38,
+                    borderBottomWidth: 4,
+                    borderRightWidth: 4,
+                    borderColor: '#F5A623',
+                    borderBottomRightRadius: 10,
+                  }}
+                />
+
+                <MaterialCommunityIcons
+                  name="barcode-scan"
+                  size={92}
+                  color="rgba(255,255,255,0.88)"
+                />
+              </View>
+
+              <View
+                style={{
+                  marginTop: 28,
+                  backgroundColor: 'rgba(0,0,0,0.72)',
+                  borderRadius: 14,
+                  paddingHorizontal: 18,
+                  paddingVertical: 11,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 15,
+                    fontWeight: '800',
+                    textAlign: 'center',
+                  }}
+                >
+                  Coloca el código dentro del recuadro
+                </Text>
+              </View>
+            </View>
+          </View>
+        </BarcodeModal>
+
+        <TouchableOpacity
+          activeOpacity={0.82}
+          onPress={openBarcodeScanner}
+          style={{
+            backgroundColor: '#111318',
+            borderWidth: 1.5,
+            borderColor: '#F5A623',
+            borderRadius: 16,
+            minHeight: 66,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 10,
+          }}
+        >
+          <MaterialCommunityIcons
+            name="barcode-scan"
+            size={27}
+            color="#F5A623"
+          />
+
+          <View style={{ marginLeft: 11 }}>
+            <Text
+              style={{
+                color: '#F5A623',
+                fontSize: 14,
+                fontWeight: '900',
+              }}
+            >
+              ESCANEAR CÓDIGO DE BARRAS
+            </Text>
+
+            <Text
+              style={{
+                color: '#A8ADB7',
+                fontSize: 11,
+                fontWeight: '600',
+                marginTop: 2,
+              }}
+            >
+              Producto envasado · máxima precisión
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+<TouchableOpacity
             activeOpacity={0.8}
+            onPress={pickNutritionPhoto}
             style={{
               backgroundColor: COLORS.orange,
               borderRadius: 16,
@@ -6800,7 +8643,7 @@ goal={fatsGoal}
                 marginLeft: 9,
               }}
             >
-              ESCANEAR COMIDA
+              ANALIZAR COMIDA
             </Text>
           </TouchableOpacity>
 
@@ -6825,58 +8668,60 @@ goal={fatsGoal}
                 fontWeight: '800',
               }}
             >
-            {nutritionPhoto && (
-  <View
-    style={{
-      marginBottom: 12,
-      backgroundColor: '#111318',
-      borderWidth: 1,
-      borderColor: '#24272E',
-      borderRadius: 14,
-      padding: 10,
-    }}
-  >
-    <Image
-      source={{ uri: nutritionPhoto.uri }}
-      style={{
-        width: '100%',
-        height: 220,
-        borderRadius: 10,
-        marginBottom: 10,
-      }}
-      resizeMode="cover"
-    />
-
-    <TouchableOpacity
-      onPress={analyzeNutritionPhoto}
-      disabled={nutritionPhotoLoading}
-      activeOpacity={0.8}
-      style={{
-        height: 46,
-        borderRadius: 11,
-        backgroundColor: COLORS.orange,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: nutritionPhotoLoading ? 0.6 : 1,
-      }}
-    >
-      <Text
-        style={{
-          color: '#08090C',
-          fontSize: 13,
-          fontWeight: '900',
-        }}
-      >
-        {nutritionPhotoLoading
-          ? 'ANALIZANDO COMIDA...'
-          : 'ANALIZAR FOTO'}
-      </Text>
-    </TouchableOpacity>
-  </View>
-)}
               + Añadir manualmente
             </Text>
           </TouchableOpacity>
+
+          {nutritionPhoto && (
+            <View
+              style={{
+                marginBottom: 12,
+                backgroundColor: '#111318',
+                borderWidth: 1,
+                borderColor: '#24272E',
+                borderRadius: 14,
+                padding: 10,
+              }}
+            >
+              <Image
+                source={{ uri: nutritionPhoto.uri }}
+                style={{
+                  width: '100%',
+                  height: 220,
+                  borderRadius: 10,
+                  marginBottom: 10,
+                }}
+                resizeMode="cover"
+              />
+
+              <TouchableOpacity
+                onPress={analyzeNutritionPhoto}
+                disabled={nutritionPhotoLoading}
+                activeOpacity={0.8}
+                style={{
+                  height: 46,
+                  borderRadius: 11,
+                  backgroundColor: COLORS.orange,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: nutritionPhotoLoading ? 0.6 : 1,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#08090C',
+                    fontSize: 13,
+                    fontWeight: '900',
+                  }}
+                >
+                  {nutritionPhotoLoading
+                    ? 'ANALIZANDO COMIDA...'
+                    : 'ANALIZAR FOTO'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {nutritionPhotoResult && (
   <View
     style={{
@@ -7176,7 +9021,7 @@ goal={fatsGoal}
         name: value,
       }));
 
-      searchFoodProducts(value);
+      searchFoodProducts(value, foodBrandQuery);
     }}
     placeholder="Buscar alimento..."
     placeholderTextColor="#666A73"
@@ -7188,6 +9033,42 @@ goal={fatsGoal}
       color: '#FFFFFF',
     }}
   />
+
+              <TextInput
+                value={foodBrandQuery}
+                onChangeText={(value) => {
+                  setFoodBrandQuery(value);
+                  setSelectedFood(null);
+
+                  if (foodSearchQuery.trim().length >= 2) {
+                    searchFoodProducts(foodSearchQuery, value);
+                  }
+                }}
+                placeholder="Marca (opcional, recomendado)"
+                placeholderTextColor="#666A73"
+                autoCapitalize="words"
+                style={{
+                  height: 46,
+                  backgroundColor: '#1B1D22',
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  color: '#FFFFFF',
+                  marginTop: 8,
+                }}
+              />
+
+              <Text
+                style={{
+                  color: '#8D9098',
+                  fontSize: 11,
+                  fontWeight: '600',
+                  marginTop: 6,
+                  marginLeft: 2,
+                }}
+              >
+                Añadir la marca mejora la precisión en productos comerciales.
+              </Text>
+
 
   {foodSearchLoading && (
     <Text
@@ -7201,7 +9082,46 @@ goal={fatsGoal}
     </Text>
   )}
 
-  {!selectedFood && foodSearchResults.length > 0 && (
+  
+              {!foodSearchLoading &&
+                !selectedFood &&
+                foodBrandQuery.trim().length > 0 &&
+                foodSearchQuery.trim().length >= 2 &&
+                foodSearchResults.length === 0 && (
+                  <View
+                    style={{
+                      backgroundColor: '#16181D',
+                      borderWidth: 1,
+                      borderColor: '#42472E',
+                      borderRadius: 10,
+                      padding: 12,
+                      marginTop: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: '#FFFFFF',
+                        fontSize: 12,
+                        fontWeight: '800',
+                      }}
+                    >
+                      No encontramos una ficha exacta de esa marca.
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: '#9A9DA5',
+                        fontSize: 11,
+                        marginTop: 4,
+                        lineHeight: 16,
+                      }}
+                    >
+                      Escanea el código de barras o usa Foto de macros para obtener los valores exactos.
+                    </Text>
+                  </View>
+                )}
+
+{!selectedFood && foodSearchResults.length > 0 && (
     <View
       style={{
         backgroundColor: '#16181D',
@@ -10457,9 +12377,25 @@ const PersonalRecords = () => {
                   </View>
 
                   <View style={styles.flex}>
-                    <Text style={styles.liveExerciseName}>
-                      {exercise.name}
-                    </Text>
+                  {exercise.isExtraWorkoutExercise ? (
+  <TextInput
+    style={styles.liveExerciseName}
+    value={exercise.name}
+    placeholder="Nombre del ejercicio"
+    placeholderTextColor="#888"
+    onChangeText={(name) =>
+      setWorkoutExercises((items) =>
+        items.map((item) =>
+          item.id === exercise.id ? { ...item, name } : item
+        )
+      )
+    }
+  />
+) : (
+  <Text style={styles.liveExerciseName}>
+    {exercise.name}
+  </Text>
+)}
 
                     <Text style={styles.liveExerciseMeta}>
                       {muscleText(exercise)}
@@ -10499,7 +12435,7 @@ const PersonalRecords = () => {
                   />
                 </TouchableOpacity>
 
-                {exercise.expanded && (
+                {Boolean(exercise.expanded) && (
                   <View style={styles.liveSetsContainer}>
                     <View style={styles.liveSetsLabels}>
                       <Text
@@ -10783,12 +12719,35 @@ const PersonalRecords = () => {
       Añadir serie
     </Text>
   </TouchableOpacity>
-)}                  </View>
+)}                 
+ </View>
                 )}
               </View>
             );
           })}
-
+<TouchableOpacity
+  style={styles.addLiveSetButton}
+  activeOpacity={0.75}
+  onPress={() => {
+    const extra = emptyExercise();
+    setWorkoutExercises((items) => [
+      ...items,
+      {
+        ...extra,
+        isExtraWorkoutExercise: true,
+        expanded: true,
+        sets: buildWorkoutSets(extra),
+      },
+    ]);
+  }}
+>
+  <MaterialCommunityIcons
+    name="plus"
+    size={17}
+    color={COLORS.orange}
+  />
+  <Text style={styles.addLiveSetText}>Añadir ejercicio</Text>
+</TouchableOpacity>
           {totalCurrentPRs > 0 && (
             <View style={styles.prSummaryCard}>
               <View style={styles.prSummaryTop}>
@@ -11159,6 +13118,10 @@ return (
         backgroundColor="#08090C"
       />
 <GlobalInputAccessory />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       {screen === 'home'
         ? Home()
     : screen === 'league'
@@ -11172,7 +13135,7 @@ return (
         : screen === 'templates'
         ? Templates()
         : screen === 'nutrition'
-? Nutrition()
+? <Nutrition />
         : screen === 'editor'
         ? Editor()
         : screen === 'achievements'
@@ -11184,6 +13147,7 @@ return (
 : screen === 'quickStart'
 ? QuickStart()
 : Workout()}
+      </KeyboardAvoidingView>
     </SafeAreaView>
 </LinearGradient>
 );
@@ -12263,9 +14227,11 @@ leaguePlayerAward: {
   },
 
   leagueInviteWide: {
-    height: 58,
-    borderRadius: 15,
-    overflow: 'hidden',
+    minHeight: 52,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#47402D',
+    backgroundColor: '#191A1B',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
@@ -12274,19 +14240,18 @@ leaguePlayerAward: {
 
   leagueActionTextBox: {
     flex: 1,
-    marginLeft: 9,
+    marginLeft: 10,
   },
 
   leagueInviteText: {
-    color: COLORS.darkText,
-    fontSize: 10,
-    fontWeight: '900',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 
   leagueInviteSubtext: {
-    color: '#614000',
-    fontSize: 7,
-    fontWeight: '700',
+    color: '#A6AAB2',
+    fontSize: 10,
     marginTop: 2,
   },
 
