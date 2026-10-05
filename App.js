@@ -4836,11 +4836,11 @@ setWorkoutExercises([]);
   const BottomNavigation = () => (
     <LinearGradient
       colors={[
-        'rgba(255,176,0,0.25)',
-        'rgba(119,71,0,0.19)',
-        'rgba(15,12,7,0.98)',
+        'rgba(28,28,28,0.76)',
+        'rgba(20,20,20,0.76)',
+        'rgba(14,14,14,0.80)',
       ]}
-      locations={[0, 0.42, 1]}
+      locations={[0, 0.5, 1]}
       style={styles.navigation}
     >
       {[
@@ -7223,9 +7223,9 @@ const ProfileLogin = () => (
         >
           <View
             style={{
-              backgroundColor: '#111318',
+              backgroundColor: 'rgba(72,62,42,0.42)',
               borderWidth: 1,
-              borderColor: '#24272E',
+              borderColor: 'rgba(255,255,255,0.18)',
               borderRadius: 20,
               padding: 22,
             }}
@@ -7802,9 +7802,9 @@ const ProfileLogin = () => (
               {nutritionSetupGoal !== 'maintain' && (
                 <View
                   style={{
-                    backgroundColor: '#111318',
+                    backgroundColor: 'rgba(72,62,42,0.42)',
                     borderWidth: 1,
-                    borderColor: '#24272E',
+                    borderColor: 'rgba(255,255,255,0.18)',
                     borderRadius: 18,
                     padding: 18,
                     marginBottom: 14,
@@ -7930,7 +7930,7 @@ const ProfileLogin = () => (
 
               <View
                 style={{
-                  backgroundColor: '#111318',
+                  backgroundColor: 'rgba(72,62,42,0.42)',
                   borderWidth: 1,
                   borderColor: COLORS.orange,
                   borderRadius: 20,
@@ -8292,9 +8292,9 @@ const MacroRing = ({
           {/* CALORÍAS */}
           <View
             style={{
-              backgroundColor: '#111318',
+              backgroundColor: 'rgba(72,62,42,0.42)',
               borderWidth: 1,
-              borderColor: '#24272E',
+              borderColor: 'rgba(255,255,255,0.18)',
               borderRadius: 20,
               padding: 18,
               marginBottom: 14,
@@ -8386,9 +8386,9 @@ const MacroRing = ({
           {/* MACROS */}
           <View
             style={{
-              backgroundColor: '#111318',
+              backgroundColor: 'rgba(72,62,42,0.42)',
               borderWidth: 1,
-              borderColor: '#24272E',
+              borderColor: 'rgba(255,255,255,0.18)',
               borderRadius: 20,
               paddingVertical: 18,
               paddingHorizontal: 8,
@@ -8581,7 +8581,7 @@ goal={fatsGoal}
           activeOpacity={0.82}
           onPress={openBarcodeScanner}
           style={{
-            backgroundColor: '#111318',
+            backgroundColor: 'rgba(72,62,42,0.42)',
             borderWidth: 1.5,
             borderColor: '#F5A623',
             borderRadius: 16,
@@ -8657,9 +8657,9 @@ goal={fatsGoal}
             activeOpacity={0.75}
             onPress={() => setShowNutritionManual(true)}
             style={{
-              backgroundColor: '#111318',
+              backgroundColor: 'rgba(72,62,42,0.42)',
               borderWidth: 1,
-              borderColor: '#24272E',
+              borderColor: 'rgba(255,255,255,0.18)',
               borderRadius: 14,
               minHeight: 52,
               alignItems: 'center',
@@ -8682,9 +8682,9 @@ goal={fatsGoal}
             <View
               style={{
                 marginBottom: 12,
-                backgroundColor: '#111318',
+                backgroundColor: 'rgba(72,62,42,0.42)',
                 borderWidth: 1,
-                borderColor: '#24272E',
+                borderColor: 'rgba(255,255,255,0.18)',
                 borderRadius: 14,
                 padding: 10,
               }}
@@ -8731,9 +8731,9 @@ goal={fatsGoal}
           {nutritionPhotoResult && (
   <View
     style={{
-      backgroundColor: '#111318',
+      backgroundColor: 'rgba(72,62,42,0.42)',
       borderWidth: 1,
-      borderColor: '#24272E',
+      borderColor: 'rgba(255,255,255,0.18)',
       borderRadius: 14,
       padding: 14,
       marginBottom: 14,
@@ -8951,9 +8951,9 @@ goal={fatsGoal}
 {showNutritionManual && (
   <View
     style={{
-      backgroundColor: '#111318',
+      backgroundColor: 'rgba(72,62,42,0.42)',
       borderWidth: 1,
-      borderColor: '#24272E',
+      borderColor: 'rgba(255,255,255,0.18)',
       borderRadius: 16,
       padding: 14,
       marginBottom: 18,
@@ -9594,9 +9594,9 @@ setNutritionUnit('g');
   <View
     key={name}
     style={{
-      backgroundColor: '#111318',
+      backgroundColor: 'rgba(72,62,42,0.42)',
       borderWidth: 1,
-      borderColor: '#24272E',
+      borderColor: 'rgba(255,255,255,0.18)',
       borderRadius: 14,
       marginBottom: 8,
       overflow: 'hidden',
@@ -9797,9 +9797,9 @@ setShowNutritionManual(true);      }}
 
           <View
             style={{
-              backgroundColor: '#111318',
+              backgroundColor: 'rgba(72,62,42,0.42)',
               borderWidth: 1,
-              borderColor: '#24272E',
+              borderColor: 'rgba(255,255,255,0.18)',
               borderRadius: 18,
               padding: 16,
             }}
@@ -9935,7 +9935,7 @@ setShowNutritionManual(true);      }}
           flex: 1,
           height: 44,
           borderRadius: 10,
-          backgroundColor: '#111318',
+          backgroundColor: 'rgba(72,62,42,0.42)',
           color: '#FFFFFF',
           paddingHorizontal: 10,
         }}
@@ -9956,7 +9956,7 @@ setShowNutritionManual(true);      }}
           flex: 1,
           height: 44,
           borderRadius: 10,
-          backgroundColor: '#111318',
+          backgroundColor: 'rgba(72,62,42,0.42)',
           color: '#FFFFFF',
           paddingHorizontal: 10,
         }}
@@ -9979,7 +9979,7 @@ setShowNutritionManual(true);      }}
           flex: 1,
           height: 44,
           borderRadius: 10,
-          backgroundColor: '#111318',
+          backgroundColor: 'rgba(72,62,42,0.42)',
           color: '#FFFFFF',
           paddingHorizontal: 10,
         }}
@@ -10000,7 +10000,7 @@ setShowNutritionManual(true);      }}
           flex: 1,
           height: 44,
           borderRadius: 10,
-          backgroundColor: '#111318',
+          backgroundColor: 'rgba(72,62,42,0.42)',
           color: '#FFFFFF',
           paddingHorizontal: 10,
         }}
@@ -10402,7 +10402,7 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
           {availableTemplates.length === 0 ? (
             <View
               style={{
-                backgroundColor: '#111318',
+                backgroundColor: 'rgba(72,62,42,0.42)',
                 borderWidth: 1,
                 borderColor: '#292C34',
                 borderRadius: 20,
@@ -10450,7 +10450,7 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                   <View
                     key={template.id}
                     style={{
-                      backgroundColor: '#111318',
+                      backgroundColor: 'rgba(72,62,42,0.42)',
                       borderWidth: 1,
                       borderColor: expanded
                         ? 'rgba(255,176,0,0.45)'
@@ -11616,7 +11616,9 @@ const selectedMuscleStats =
       );
     })}
   </View>
-</View>           <TouchableOpacity
+</View>
+
+<TouchableOpacity
   activeOpacity={0.8}
   onPress={() => setScreen('personalRecords')}
   style={{
@@ -11972,8 +11974,7 @@ const selectedMuscleStats =
                   return (
                     <View
                       key={exercise.id}
-                      style={styles.historyExerciseBlock}
-                    >
+                      style={styles.historyExerciseBlock}>
                       <View style={styles.historyExerciseHeader}>
                         <View style={styles.flex}>
                           <Text style={styles.historyExerciseName}>
@@ -12035,7 +12036,8 @@ const selectedMuscleStats =
   <Text style={styles.legacyWorkoutText}>
     {exercisePlan(exercise)}
   </Text>
-)}                    </View>
+)}
+                    </View>
                   );
                 })}
               </View>
@@ -13273,10 +13275,10 @@ homeScreen: {
 
   pointsCard: {
     overflow: 'hidden',
-    backgroundColor: '#11120F',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: '#2E291B',
+    borderColor: 'rgba(255,255,255,0.18)',
     padding: 22,
     marginBottom: 24,
   },
@@ -13382,9 +13384,9 @@ homeScreen: {
   },
 
   weekCard: {
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#23262D',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 24,
     padding: 18,
     flexDirection: 'row',
@@ -13442,8 +13444,9 @@ homeScreen: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#2C2F37',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(24,24,24,0.48)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -13460,14 +13463,6 @@ homeScreen: {
 
   buttonShadow: {
     borderRadius: 22,
-    shadowColor: COLORS.orange,
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 17,
-    elevation: 10,
   },
 
   mainButton: {
@@ -13481,13 +13476,7 @@ homeScreen: {
   },
 
   buttonShine: {
-    position: 'absolute',
-    top: 0,
-    left: 2,
-    right: 2,
-    height: 31,
-    backgroundColor: COLORS.yellow,
-    opacity: 0.22,
+    display: 'none',
   },
 
   mainButtonIcon: {
@@ -13571,8 +13560,8 @@ comingSoonRoutineBadgeText: {
     minHeight: 68,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#24272E',
-    backgroundColor: '#111318',
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -13596,10 +13585,17 @@ comingSoonRoutineBadgeText: {
   },
 
   navigation: {
+    overflow: 'hidden',
+    marginBottom: 10,
+    marginHorizontal: 14,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
     height: 80,
     flexDirection: 'row',
+    backgroundColor: 'rgba(72,62,42,0.32)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,176,0,0.28)',
+    borderTopColor: 'rgba(255,255,255,0.18)',
     paddingBottom: 5,
   },
 
@@ -13766,8 +13762,8 @@ comingSoonRoutineBadgeText: {
     minHeight: 88,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: 'rgba(255,176,0,0.25)',
-    backgroundColor: 'rgba(11,13,16,0.96)',
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 11,
@@ -13870,9 +13866,9 @@ comingSoonRoutineBadgeText: {
   },
 
   leagueChaseCard: {
-    backgroundColor: 'rgba(11,13,16,0.95)',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#292C33',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 17,
     padding: 14,
     marginBottom: 10,
@@ -13933,8 +13929,8 @@ comingSoonRoutineBadgeText: {
   leagueTrainingCard: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#292C33',
-    backgroundColor: 'rgba(11,13,16,0.96)',
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     padding: 14,
     marginBottom: 10,
   },
@@ -14063,8 +14059,8 @@ comingSoonRoutineBadgeText: {
   leagueRankingCard: {
     borderRadius: 19,
     borderWidth: 1,
-    borderColor: '#292C33',
-    backgroundColor: 'rgba(11,13,16,0.96)',
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     padding: 13,
     marginBottom: 10,
   },
@@ -14720,10 +14716,10 @@ leaguePlayerAward: {
   },
 
   routineCard: {
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#28271F',
+    borderColor: 'rgba(255,255,255,0.18)',
     padding: 17,
     marginBottom: 16,
   },
@@ -15310,9 +15306,9 @@ leaguePlayerAward: {
   /* HISTORIAL */
 
   historySummary: {
-    backgroundColor: '#11120F',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#2E291B',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 24,
     padding: 20,
     flexDirection: 'row',
@@ -15361,9 +15357,9 @@ leaguePlayerAward: {
   },
 
   muscleStatsCard: {
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#24272E',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 20,
     paddingHorizontal: 15,
     paddingTop: 15,
@@ -15423,9 +15419,9 @@ leaguePlayerAward: {
   },
 
   historyWorkoutCard: {
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#28271F',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 22,
     padding: 15,
     marginBottom: 13,
@@ -15465,9 +15461,9 @@ leaguePlayerAward: {
   },
 
   historyExerciseBlock: {
-    backgroundColor: '#0D0F13',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#24272E',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 13,
     padding: 11,
     marginBottom: 8,
