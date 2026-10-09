@@ -25,11 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, {
-  Path,
-  Circle,
-  Ellipse,
-} from 'react-native-svg';
+import Svg, { Path, Circle, Ellipse, Rect } from 'react-native-svg';
 import Body from 'react-native-body-highlighter';
 import mobileAds, {
   BannerAd,
@@ -195,6 +191,1030 @@ const MUSCLE_GROUPS = [
   'Otro',
 ];
 
+
+
+const EXERCISE_LIBRARY = [
+  // PECHO
+  { id: 'bench_press_barbell', name: 'Press banca', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Pecho'] },
+  { id: 'bench_press_dumbbell', name: 'Press banca', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Pecho'] },
+  { id: 'bench_press_smith', name: 'Press banca', variant: 'Smith', equipment: 'smith', primaryMuscles: ['Pecho'] },
+  { id: 'incline_press_barbell', name: 'Press inclinado', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Pecho'] },
+  { id: 'incline_press_dumbbell', name: 'Press inclinado', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Pecho'] },
+  { id: 'incline_press_smith', name: 'Press inclinado', variant: 'Smith', equipment: 'smith', primaryMuscles: ['Pecho'] },
+  { id: 'chest_press_machine', name: 'Press de pecho', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Pecho'] },
+  { id: 'chest_fly_cable', name: 'Aperturas', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Pecho'] },
+  { id: 'chest_fly_dumbbell', name: 'Aperturas', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Pecho'] },
+  { id: 'pec_deck', name: 'Contractora', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Pecho'] },
+  { id: 'dips_chest', name: 'Fondos', variant: 'Peso corporal', equipment: 'bodyweight', primaryMuscles: ['Pecho'] },
+
+  // DORSAL / ESPALDA
+  { id: 'pullup', name: 'Dominadas', variant: 'Peso corporal', equipment: 'bodyweight', primaryMuscles: ['Dorsal'] },
+  { id: 'lat_pulldown', name: 'Jalón al pecho', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Dorsal'] },
+  { id: 'lat_pulldown_unilateral', name: 'Jalón unilateral', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Dorsal'] },
+  { id: 'barbell_row', name: 'Remo', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Dorsal'] },
+  { id: 'dumbbell_row', name: 'Remo', variant: 'Mancuerna', equipment: 'dumbbell', primaryMuscles: ['Dorsal'] },
+  { id: 'cable_row', name: 'Remo sentado', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Dorsal'] },
+  { id: 'machine_row', name: 'Remo', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Dorsal'] },
+  { id: 'tbar_row', name: 'Remo T', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Dorsal'] },
+  { id: 'pullover_cable', name: 'Pullover', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Dorsal'] },
+
+  // HOMBRO
+  { id: 'shoulder_press_barbell', name: 'Press militar', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Hombro'] },
+  { id: 'shoulder_press_dumbbell', name: 'Press militar', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Hombro'] },
+  { id: 'shoulder_press_smith', name: 'Press militar', variant: 'Smith', equipment: 'smith', primaryMuscles: ['Hombro'] },
+  { id: 'shoulder_press_machine', name: 'Press de hombro', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Hombro'] },
+  { id: 'lateral_raise_dumbbell', name: 'Elevaciones laterales', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Hombro'] },
+  { id: 'lateral_raise_cable', name: 'Elevaciones laterales', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Hombro'] },
+  { id: 'lateral_raise_machine', name: 'Elevaciones laterales', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Hombro'] },
+  { id: 'reverse_fly', name: 'Pájaros', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Hombro'] },
+  { id: 'face_pull', name: 'Face pull', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Hombro'] },
+
+  // BÍCEPS
+  { id: 'curl_barbell', name: 'Curl de bíceps', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Bíceps'] },
+  { id: 'curl_dumbbell', name: 'Curl de bíceps', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Bíceps'] },
+  { id: 'curl_cable', name: 'Curl de bíceps', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Bíceps'] },
+  { id: 'hammer_curl', name: 'Curl martillo', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Bíceps'] },
+  { id: 'preacher_curl', name: 'Curl predicador', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Bíceps'] },
+  { id: 'preacher_machine', name: 'Curl predicador', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Bíceps'] },
+
+  // TRÍCEPS
+  { id: 'triceps_pushdown', name: 'Extensión de tríceps', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Tríceps'] },
+  { id: 'overhead_triceps_cable', name: 'Extensión sobre cabeza', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Tríceps'] },
+  { id: 'skullcrusher', name: 'Press francés', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Tríceps'] },
+  { id: 'close_grip_bench', name: 'Press cerrado', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Tríceps'] },
+  { id: 'dips_triceps', name: 'Fondos de tríceps', variant: 'Peso corporal', equipment: 'bodyweight', primaryMuscles: ['Tríceps'] },
+
+  // CUÁDRICEPS
+  { id: 'squat_barbell', name: 'Sentadilla', variant: 'Barra libre', equipment: 'barbell', primaryMuscles: ['Cuádriceps'] },
+  { id: 'squat_smith', name: 'Sentadilla', variant: 'Smith', equipment: 'smith', primaryMuscles: ['Cuádriceps'] },
+  { id: 'hack_squat', name: 'Hack squat', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Cuádriceps'] },
+  { id: 'leg_press', name: 'Prensa', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Cuádriceps'] },
+  { id: 'leg_extension', name: 'Extensión de cuádriceps', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Cuádriceps'] },
+  { id: 'bulgarian_dumbbell', name: 'Sentadilla búlgara', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Cuádriceps'] },
+
+  // FEMORAL
+  { id: 'romanian_deadlift_barbell', name: 'Peso muerto rumano', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Femoral'] },
+  { id: 'romanian_deadlift_dumbbell', name: 'Peso muerto rumano', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Femoral'] },
+  { id: 'leg_curl_lying', name: 'Curl femoral tumbado', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Femoral'] },
+  { id: 'leg_curl_seated', name: 'Curl femoral sentado', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Femoral'] },
+
+  // GLÚTEO
+  { id: 'hip_thrust_barbell', name: 'Hip thrust', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Glúteo'] },
+  { id: 'hip_thrust_smith', name: 'Hip thrust', variant: 'Smith', equipment: 'smith', primaryMuscles: ['Glúteo'] },
+  { id: 'hip_thrust_machine', name: 'Hip thrust', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Glúteo'] },
+  { id: 'glute_kickback', name: 'Patada de glúteo', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Glúteo'] },
+  { id: 'abductor_machine', name: 'Abductores', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Glúteo'] },
+
+  // GEMELO
+  { id: 'calf_raise_standing', name: 'Elevación de gemelos', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Gemelo'] },
+  { id: 'calf_raise_smith', name: 'Elevación de gemelos', variant: 'Smith', equipment: 'smith', primaryMuscles: ['Gemelo'] },
+  { id: 'calf_raise_seated', name: 'Gemelo sentado', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Gemelo'] },
+
+  // TRAPECIO
+  { id: 'shrug_barbell', name: 'Encogimientos', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Trapecio'] },
+  { id: 'shrug_dumbbell', name: 'Encogimientos', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Trapecio'] },
+
+  // ABDOMEN
+  { id: 'crunch', name: 'Crunch', variant: 'Peso corporal', equipment: 'bodyweight', primaryMuscles: ['Abdomen'] },
+  { id: 'cable_crunch', name: 'Crunch', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Abdomen'] },
+  { id: 'leg_raise', name: 'Elevación de piernas', variant: 'Peso corporal', equipment: 'bodyweight', primaryMuscles: ['Abdomen'] },
+
+  // LUMBAR
+  { id: 'deadlift_barbell', name: 'Peso muerto convencional', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Lumbar'] },
+  { id: 'back_extension', name: 'Hiperextensiones', variant: 'Peso corporal', equipment: 'bodyweight', primaryMuscles: ['Lumbar'] },
+];
+
+
+/* =========================================================
+   GUÍAS TÉCNICAS DE EJERCICIOS
+   La animación se gestiona por separado.
+========================================================= */
+
+const EXERCISE_GUIDES = {
+  'Press banca': {
+    muscles: ['Pectoral', 'Tríceps', 'Hombro anterior'],
+    technique: [
+      'Apoya pies, glúteos y espalda alta de forma estable y coloca los ojos aproximadamente bajo la barra.',
+      'Retrae y desciende las escápulas antes de sacar la barra.',
+      'Mantén las muñecas alineadas y baja la barra de forma controlada hacia la zona media-baja del pecho.',
+      'Mantén los antebrazos aproximadamente verticales en la parte baja.',
+      'Empuja la barra hacia arriba manteniendo estable el torso hasta completar la repetición.'
+    ],
+    keyPoints: [
+      'Mantén las escápulas estables durante toda la serie.',
+      'Controla la bajada y mantén los pies firmes.',
+      'Utiliza un agarre que permita mantener muñeca y antebrazo bien alineados.'
+    ],
+    avoid: [
+      'Rebotar la barra contra el pecho.',
+      'Levantar los glúteos del banco.',
+      'Abrir excesivamente los codos o perder la posición de los hombros.'
+    ]
+  },
+
+  'Press inclinado': {
+    muscles: ['Pectoral superior', 'Tríceps', 'Hombro anterior'],
+    technique: [
+      'Ajusta el banco con una inclinación moderada y apoya completamente la espalda.',
+      'Retrae las escápulas y mantén los pies firmes.',
+      'Baja la carga de forma controlada hacia la parte superior del pecho.',
+      'Mantén los antebrazos alineados con la carga.',
+      'Empuja sin perder la posición del hombro ni despegar el torso.'
+    ],
+    keyPoints: [
+      'Una inclinación moderada mantiene mayor participación del pectoral.',
+      'Mantén pecho elevado y escápulas estables.',
+      'Controla especialmente la parte baja del recorrido.'
+    ],
+    avoid: [
+      'Usar una inclinación tan alta que convierta el ejercicio en un press de hombro.',
+      'Encoger los hombros hacia las orejas.',
+      'Rebotar o perder el control de la carga.'
+    ]
+  },
+
+  'Press de pecho': {
+    muscles: ['Pectoral', 'Tríceps', 'Hombro anterior'],
+    technique: [
+      'Ajusta el asiento para que las empuñaduras queden aproximadamente a la altura media del pecho.',
+      'Apoya espalda y pies y estabiliza las escápulas.',
+      'Empuja las empuñaduras hacia delante siguiendo la trayectoria de la máquina.',
+      'Extiende los brazos sin bloquear agresivamente los codos.',
+      'Regresa de forma controlada hasta un estiramiento cómodo.'
+    ],
+    keyPoints: [
+      'Ajusta correctamente el asiento antes de cargar peso.',
+      'Mantén la espalda apoyada.',
+      'Controla tanto el empuje como el regreso.'
+    ],
+    avoid: [
+      'Despegar los hombros del respaldo.',
+      'Dejar que el peso vuelva bruscamente.',
+      'Forzar una profundidad que moleste al hombro.'
+    ]
+  },
+
+  'Aperturas': {
+    muscles: ['Pectoral', 'Hombro anterior'],
+    technique: [
+      'Coloca los brazos abiertos con una ligera flexión de codos.',
+      'Mantén el pecho estable y los hombros controlados.',
+      'Acerca los brazos mediante un movimiento de abrazo.',
+      'Contrae el pectoral al acercar las manos.',
+      'Regresa lentamente hasta notar un estiramiento cómodo.'
+    ],
+    keyPoints: [
+      'Mantén prácticamente constante la flexión del codo.',
+      'Piensa en juntar los brazos, no en empujar.',
+      'Prioriza recorrido controlado sobre peso.'
+    ],
+    avoid: [
+      'Convertir el movimiento en un press flexionando demasiado los codos.',
+      'Buscar un estiramiento excesivo del hombro.',
+      'Usar impulso.'
+    ]
+  },
+
+  'Contractora': {
+    muscles: ['Pectoral', 'Hombro anterior'],
+    technique: [
+      'Ajusta el asiento para que los brazos queden alineados con el pecho.',
+      'Mantén espalda y cabeza apoyadas.',
+      'Cierra los brazos contrayendo el pectoral.',
+      'Haz una breve contracción al frente sin adelantar los hombros.',
+      'Vuelve lentamente a la posición inicial.'
+    ],
+    keyPoints: [
+      'Mantén el torso inmóvil.',
+      'Busca tensión continua en el pectoral.',
+      'Controla la apertura.'
+    ],
+    avoid: [
+      'Despegar la espalda del respaldo.',
+      'Golpear los topes de la máquina.',
+      'Llevar los brazos excesivamente atrás.'
+    ]
+  },
+
+  'Fondos': {
+    muscles: ['Pectoral', 'Tríceps', 'Hombro anterior'],
+    technique: [
+      'Sujeta las paralelas y estabiliza los hombros antes de descender.',
+      'Inclina ligeramente el torso hacia delante si buscas mayor participación del pecho.',
+      'Desciende flexionando los codos hasta una profundidad cómoda.',
+      'Mantén el movimiento controlado y el tronco estable.',
+      'Empuja las barras hasta volver a la posición inicial.'
+    ],
+    keyPoints: [
+      'Mantén los hombros alejados de las orejas.',
+      'Usa únicamente una profundidad que puedas controlar.',
+      'Mantén estable el balanceo del cuerpo.'
+    ],
+    avoid: [
+      'Caer rápidamente en la parte baja.',
+      'Forzar profundidad con molestias en hombros.',
+      'Balancearse para completar repeticiones.'
+    ]
+  },
+
+  'Dominadas': {
+    muscles: ['Dorsal', 'Bíceps', 'Espalda alta'],
+    technique: [
+      'Cuélgate con un agarre firme y estabiliza el tronco.',
+      'Inicia el movimiento descendiendo las escápulas.',
+      'Lleva los codos hacia abajo mientras elevas el cuerpo.',
+      'Acerca el pecho a la barra dentro de tu rango controlado.',
+      'Desciende lentamente hasta extender de nuevo los brazos.'
+    ],
+    keyPoints: [
+      'Inicia el tirón desde la espalda, no solo desde los brazos.',
+      'Mantén el abdomen activo.',
+      'Controla completamente la bajada.'
+    ],
+    avoid: [
+      'Balancearte para generar impulso.',
+      'Encoger los hombros.',
+      'Dejarte caer en la fase descendente.'
+    ]
+  },
+
+  'Jalón al pecho': {
+    muscles: ['Dorsal', 'Bíceps', 'Espalda alta'],
+    technique: [
+      'Sujeta la barra y fija correctamente las piernas bajo los apoyos.',
+      'Eleva ligeramente el pecho y estabiliza el torso.',
+      'Inicia el movimiento bajando las escápulas.',
+      'Lleva los codos hacia abajo hasta acercar la barra a la parte superior del pecho.',
+      'Regresa lentamente hasta extender los brazos.'
+    ],
+    keyPoints: [
+      'Mantén una inclinación ligera y estable del torso.',
+      'Dirige el movimiento con los codos.',
+      'Permite un estiramiento controlado del dorsal arriba.'
+    ],
+    avoid: [
+      'Llevar la barra detrás de la nuca.',
+      'Balancear excesivamente el torso.',
+      'Tirar únicamente con los bíceps.'
+    ]
+  },
+
+  'Jalón unilateral': {
+    muscles: ['Dorsal', 'Bíceps'],
+    technique: [
+      'Colócate estable frente a la polea y sujeta el agarre con un brazo.',
+      'Mantén el torso firme y el hombro controlado.',
+      'Lleva el codo hacia abajo y hacia el costado.',
+      'Contrae el dorsal al final del recorrido.',
+      'Extiende lentamente el brazo sin girar el tronco.'
+    ],
+    keyPoints: [
+      'Mantén ambos lados del torso estables.',
+      'Piensa en mover el codo, no la mano.',
+      'Iguala recorrido y control entre ambos brazos.'
+    ],
+    avoid: [
+      'Rotar el torso para mover más peso.',
+      'Encoger el hombro.',
+      'Acortar excesivamente la fase de estiramiento.'
+    ]
+  },
+
+  'Remo': {
+    muscles: ['Dorsal', 'Espalda alta', 'Bíceps'],
+    technique: [
+      'Adopta una posición estable y mantén la columna neutra.',
+      'Inicia el tirón controlando las escápulas.',
+      'Lleva los codos hacia atrás sin elevar los hombros.',
+      'Acerca la carga al torso manteniendo la posición corporal.',
+      'Extiende los brazos lentamente sin perder estabilidad.'
+    ],
+    keyPoints: [
+      'Mantén el torso estable durante la repetición.',
+      'Dirige el movimiento con los codos.',
+      'Controla el estiramiento de la espalda.'
+    ],
+    avoid: [
+      'Usar un balanceo excesivo.',
+      'Redondear la zona lumbar.',
+      'Encoger los hombros durante el tirón.'
+    ]
+  },
+
+  'Remo sentado': {
+    muscles: ['Dorsal', 'Espalda alta', 'Bíceps'],
+    technique: [
+      'Siéntate estable con pies apoyados y columna neutra.',
+      'Extiende los brazos manteniendo control del torso.',
+      'Lleva los codos hacia atrás acercando el agarre al abdomen.',
+      'Contrae la espalda sin hiperextender la zona lumbar.',
+      'Vuelve lentamente hasta el estiramiento inicial.'
+    ],
+    keyPoints: [
+      'Mantén el pecho estable.',
+      'Lleva el agarre hacia el abdomen, no hacia el cuello.',
+      'Controla la fase de retorno.'
+    ],
+    avoid: [
+      'Balancear el torso hacia delante y atrás.',
+      'Tirar con los hombros encogidos.',
+      'Redondear excesivamente la espalda.'
+    ]
+  },
+
+  'Remo T': {
+    muscles: ['Dorsal', 'Espalda alta', 'Bíceps'],
+    technique: [
+      'Colócate estable sobre la máquina o barra y fija el tronco.',
+      'Mantén la columna neutra y el abdomen activo.',
+      'Tira llevando los codos hacia atrás.',
+      'Acerca el agarre al torso sin elevar los hombros.',
+      'Desciende la carga de forma controlada.'
+    ],
+    keyPoints: [
+      'Mantén una posición sólida del tronco.',
+      'Busca contracción de la espalda, no impulso.',
+      'Controla la carga durante todo el recorrido.'
+    ],
+    avoid: [
+      'Hiperextender la zona lumbar al tirar.',
+      'Usar rebotes.',
+      'Encoger los hombros.'
+    ]
+  },
+
+  'Pullover': {
+    muscles: ['Dorsal', 'Pectoral', 'Serrato'],
+    technique: [
+      'Mantén el torso estable y los brazos con una ligera flexión.',
+      'Comienza con los brazos elevados dentro de un rango cómodo.',
+      'Lleva los brazos hacia el torso mediante extensión del hombro.',
+      'Contrae los dorsales en la parte final.',
+      'Regresa lentamente sin perder la posición del tronco.'
+    ],
+    keyPoints: [
+      'Mantén prácticamente fijo el ángulo del codo.',
+      'Piensa en bajar los brazos utilizando el dorsal.',
+      'Usa un recorrido cómodo para el hombro.'
+    ],
+    avoid: [
+      'Convertirlo en una extensión de tríceps.',
+      'Arquear excesivamente la espalda.',
+      'Forzar el hombro en la posición superior.'
+    ]
+  },
+
+  'Press militar': {
+    muscles: ['Hombro', 'Tríceps', 'Trapecio'],
+    technique: [
+      'Coloca la carga aproximadamente a la altura de los hombros.',
+      'Activa abdomen y glúteos para estabilizar el tronco.',
+      'Empuja verticalmente permitiendo que la cabeza deje paso a la carga.',
+      'Extiende los brazos sobre la cabeza manteniendo el torso estable.',
+      'Baja de forma controlada hasta la posición inicial.'
+    ],
+    keyPoints: [
+      'Mantén las costillas controladas.',
+      'Busca una trayectoria vertical de la carga.',
+      'Mantén muñecas y codos bien alineados.'
+    ],
+    avoid: [
+      'Arquear excesivamente la zona lumbar.',
+      'Empujar la barra muy por delante del cuerpo.',
+      'Usar impulso de piernas salvo que el ejercicio lo requiera.'
+    ]
+  },
+
+  'Press de hombro': {
+    muscles: ['Hombro', 'Tríceps'],
+    technique: [
+      'Ajusta el asiento y coloca la carga a la altura de los hombros.',
+      'Mantén espalda y pies firmemente apoyados.',
+      'Empuja hacia arriba siguiendo una trayectoria cómoda.',
+      'Extiende los brazos sin perder la posición del torso.',
+      'Desciende lentamente hasta un rango cómodo.'
+    ],
+    keyPoints: [
+      'Mantén abdomen activo.',
+      'Coloca los codos en una posición natural respecto al torso.',
+      'Controla la bajada.'
+    ],
+    avoid: [
+      'Arquear excesivamente la espalda.',
+      'Bajar más allá de un rango cómodo para el hombro.',
+      'Golpear las mancuernas o topes arriba.'
+    ]
+  },
+
+  'Elevaciones laterales': {
+    muscles: ['Deltoides lateral'],
+    technique: [
+      'Colócate estable con los brazos ligeramente flexionados.',
+      'Eleva los brazos lateralmente guiando el movimiento con los codos.',
+      'Sube hasta aproximadamente la altura de los hombros o tu rango cómodo.',
+      'Mantén el torso quieto.',
+      'Desciende lentamente manteniendo tensión.'
+    ],
+    keyPoints: [
+      'Prioriza control sobre carga.',
+      'Mantén los hombros alejados de las orejas.',
+      'Guía el movimiento con los codos.'
+    ],
+    avoid: [
+      'Balancear el cuerpo.',
+      'Encoger excesivamente los trapecios.',
+      'Lanzar la carga hacia arriba.'
+    ]
+  },
+
+  'Pájaros': {
+    muscles: ['Deltoides posterior', 'Espalda alta'],
+    technique: [
+      'Inclina el torso o apóyalo según la variante manteniendo la espalda estable.',
+      'Mantén una ligera flexión de codos.',
+      'Abre los brazos hacia los lados.',
+      'Contrae la parte posterior del hombro sin encogerlos.',
+      'Regresa lentamente.'
+    ],
+    keyPoints: [
+      'Mantén el torso quieto.',
+      'Utiliza una carga que permita aislar el hombro posterior.',
+      'Controla la fase descendente.'
+    ],
+    avoid: [
+      'Convertir el movimiento en un remo.',
+      'Usar impulso.',
+      'Encoger los hombros.'
+    ]
+  },
+
+  'Face pull': {
+    muscles: ['Deltoides posterior', 'Trapecio', 'Rotadores externos'],
+    technique: [
+      'Coloca la polea aproximadamente a la altura de la cara.',
+      'Sujeta la cuerda y estabiliza el torso.',
+      'Tira hacia la cara separando las manos.',
+      'Lleva los codos hacia fuera y realiza una rotación externa controlada.',
+      'Regresa lentamente a la posición inicial.'
+    ],
+    keyPoints: [
+      'Mantén el pecho estable.',
+      'Termina con las manos a ambos lados de la cara.',
+      'Usa una carga que permita controlar la rotación.'
+    ],
+    avoid: [
+      'Tirar hacia el pecho en lugar de hacia la cara.',
+      'Arquear la espalda para mover más peso.',
+      'Encoger los hombros.'
+    ]
+  },
+
+  'Curl de bíceps': {
+    muscles: ['Bíceps', 'Braquial'],
+    technique: [
+      'Mantén el torso estable y los codos cerca del cuerpo.',
+      'Flexiona los codos elevando la carga.',
+      'Mantén las muñecas estables.',
+      'Contrae el bíceps en la parte superior sin adelantar excesivamente el hombro.',
+      'Baja lentamente hasta extender el codo.'
+    ],
+    keyPoints: [
+      'Mantén los codos estables.',
+      'Controla especialmente la bajada.',
+      'Utiliza todo el recorrido que puedas controlar.'
+    ],
+    avoid: [
+      'Balancear el torso.',
+      'Adelantar mucho los codos para terminar la repetición.',
+      'Dejar caer la carga.'
+    ]
+  },
+
+  'Curl martillo': {
+    muscles: ['Braquial', 'Braquiorradial', 'Bíceps'],
+    technique: [
+      'Sujeta las mancuernas con agarre neutro.',
+      'Mantén los codos cerca del torso.',
+      'Flexiona los codos sin girar las muñecas.',
+      'Sube hasta una contracción cómoda.',
+      'Desciende lentamente hasta la extensión.'
+    ],
+    keyPoints: [
+      'Mantén las palmas enfrentadas.',
+      'Evita mover el hombro.',
+      'Controla ambos brazos por igual.'
+    ],
+    avoid: [
+      'Balancear las mancuernas.',
+      'Flexionar las muñecas.',
+      'Acortar la bajada.'
+    ]
+  },
+
+  'Curl predicador': {
+    muscles: ['Bíceps', 'Braquial'],
+    technique: [
+      'Ajusta el asiento para apoyar completamente la parte posterior de los brazos.',
+      'Comienza con los codos extendidos de forma controlada.',
+      'Flexiona los codos manteniendo los brazos contra el banco.',
+      'Contrae el bíceps sin despegar los codos.',
+      'Baja lentamente evitando perder tensión.'
+    ],
+    keyPoints: [
+      'Mantén el brazo apoyado durante toda la repetición.',
+      'Controla especialmente la posición inferior.',
+      'Usa una carga moderada.'
+    ],
+    avoid: [
+      'Rebotar desde la extensión.',
+      'Despegar los brazos del apoyo.',
+      'Dejar caer rápidamente la carga.'
+    ]
+  },
+
+  'Extensión de tríceps': {
+    muscles: ['Tríceps'],
+    technique: [
+      'Colócate estable frente a la polea con los codos cerca del torso.',
+      'Mantén hombros y torso quietos.',
+      'Extiende los codos llevando el agarre hacia abajo.',
+      'Contrae el tríceps al final.',
+      'Regresa lentamente sin permitir que los codos se adelanten demasiado.'
+    ],
+    keyPoints: [
+      'El movimiento principal ocurre en el codo.',
+      'Mantén los brazos pegados al cuerpo.',
+      'Controla el regreso.'
+    ],
+    avoid: [
+      'Usar el peso del cuerpo para empujar.',
+      'Separar excesivamente los codos.',
+      'Mover los hombros para completar la repetición.'
+    ]
+  },
+
+  'Extensión sobre cabeza': {
+    muscles: ['Tríceps'],
+    technique: [
+      'Coloca la carga por detrás o encima de la cabeza con los codos flexionados.',
+      'Mantén el torso y abdomen estables.',
+      'Extiende los codos llevando la carga hacia arriba o delante según la variante.',
+      'Mantén los brazos relativamente estables.',
+      'Regresa lentamente hasta notar un estiramiento cómodo del tríceps.'
+    ],
+    keyPoints: [
+      'Mantén los codos orientados de forma estable.',
+      'Controla la posición estirada.',
+      'Evita compensaciones del tronco.'
+    ],
+    avoid: [
+      'Arquear excesivamente la espalda.',
+      'Abrir y cerrar los codos de forma exagerada.',
+      'Forzar una profundidad dolorosa.'
+    ]
+  },
+
+  'Press francés': {
+    muscles: ['Tríceps'],
+    technique: [
+      'Túmbate estable y coloca la carga sobre los hombros.',
+      'Mantén los brazos superiores relativamente fijos.',
+      'Flexiona los codos llevando la carga hacia la frente o ligeramente detrás.',
+      'Extiende los codos contrayendo el tríceps.',
+      'Mantén el movimiento controlado durante todo el recorrido.'
+    ],
+    keyPoints: [
+      'Controla la carga cerca de la cabeza.',
+      'Mantén estable el brazo superior.',
+      'Utiliza un agarre cómodo para muñecas y codos.'
+    ],
+    avoid: [
+      'Abrir excesivamente los codos.',
+      'Convertir el ejercicio en un press.',
+      'Dejar caer la carga rápidamente.'
+    ]
+  },
+
+  'Press cerrado': {
+    muscles: ['Tríceps', 'Pectoral', 'Hombro anterior'],
+    technique: [
+      'Túmbate estable y utiliza un agarre algo más estrecho que en el press banca convencional.',
+      'Mantén muñecas y antebrazos alineados.',
+      'Baja la barra de forma controlada manteniendo los codos relativamente próximos al torso.',
+      'Toca o aproxima la barra al pecho dentro de un rango cómodo.',
+      'Empuja hasta extender los brazos.'
+    ],
+    keyPoints: [
+      'No necesitas juntar las manos excesivamente.',
+      'Mantén las muñecas neutras.',
+      'Controla la trayectoria de la barra.'
+    ],
+    avoid: [
+      'Utilizar un agarre extremadamente estrecho.',
+      'Abrir bruscamente los codos.',
+      'Rebotar la barra.'
+    ]
+  },
+
+  'Fondos de tríceps': {
+    muscles: ['Tríceps', 'Hombro anterior', 'Pectoral'],
+    technique: [
+      'Sujeta las paralelas y mantén el torso más vertical que en los fondos orientados al pecho.',
+      'Estabiliza los hombros antes de bajar.',
+      'Flexiona los codos de forma controlada.',
+      'Desciende únicamente hasta un rango cómodo.',
+      'Empuja hasta volver a la posición inicial.'
+    ],
+    keyPoints: [
+      'Mantén el torso relativamente vertical.',
+      'Controla la profundidad.',
+      'Mantén los hombros estables.'
+    ],
+    avoid: [
+      'Forzar una profundidad excesiva.',
+      'Balancear las piernas.',
+      'Dejar caer el cuerpo en la bajada.'
+    ]
+  },
+
+  'Sentadilla': {
+    muscles: ['Cuádriceps', 'Glúteo', 'Femoral', 'Core'],
+    technique: [
+      'Coloca los pies en una posición estable y crea tensión en el tronco antes de descender.',
+      'Flexiona caderas y rodillas manteniendo el pie completamente apoyado.',
+      'Permite que las rodillas sigan la dirección de los pies.',
+      'Desciende hasta la profundidad que puedas mantener con buena posición.',
+      'Empuja el suelo y extiende caderas y rodillas para volver arriba.'
+    ],
+    keyPoints: [
+      'Mantén presión sobre todo el pie.',
+      'Mantén el abdomen activo.',
+      'Las rodillas pueden avanzar mientras permanezcan controladas y alineadas.'
+    ],
+    avoid: [
+      'Dejar que las rodillas colapsen hacia dentro.',
+      'Perder el apoyo del talón.',
+      'Forzar una profundidad que haga perder el control de la columna.'
+    ]
+  },
+
+  'Hack squat': {
+    muscles: ['Cuádriceps', 'Glúteo'],
+    technique: [
+      'Apoya completamente espalda y hombros en la máquina.',
+      'Coloca los pies en una posición estable sobre la plataforma.',
+      'Desbloquea la máquina y desciende flexionando rodillas y caderas.',
+      'Alcanza una profundidad controlada manteniendo los pies apoyados.',
+      'Empuja la plataforma hasta volver arriba sin bloquear agresivamente las rodillas.'
+    ],
+    keyPoints: [
+      'Mantén la espalda apoyada.',
+      'Alinea rodillas y pies.',
+      'Controla la parte baja del recorrido.'
+    ],
+    avoid: [
+      'Despegar la cadera del respaldo.',
+      'Rebotar abajo.',
+      'Bloquear violentamente las rodillas.'
+    ]
+  },
+
+  'Prensa': {
+    muscles: ['Cuádriceps', 'Glúteo', 'Femoral'],
+    technique: [
+      'Apoya completamente espalda y pelvis en el respaldo.',
+      'Coloca los pies firmemente en la plataforma.',
+      'Desbloquea y baja la plataforma flexionando rodillas y caderas.',
+      'Detén el descenso antes de que la pelvis pierda contacto con el respaldo.',
+      'Empuja la plataforma manteniendo las rodillas alineadas con los pies.'
+    ],
+    keyPoints: [
+      'Mantén la pelvis apoyada.',
+      'Utiliza una profundidad que puedas controlar.',
+      'Distribuye la presión por todo el pie.'
+    ],
+    avoid: [
+      'Redondear la zona lumbar al bajar demasiado.',
+      'Juntar las rodillas hacia dentro.',
+      'Bloquear agresivamente las rodillas arriba.'
+    ]
+  },
+
+  'Extensión de cuádriceps': {
+    muscles: ['Cuádriceps'],
+    technique: [
+      'Ajusta el asiento para alinear aproximadamente la rodilla con el eje de giro de la máquina.',
+      'Coloca el rodillo sobre la parte baja de la tibia.',
+      'Mantén espalda y cadera apoyadas.',
+      'Extiende las rodillas de forma controlada.',
+      'Desciende lentamente hasta la posición inicial.'
+    ],
+    keyPoints: [
+      'Ajusta correctamente la máquina antes de empezar.',
+      'Mantén la cadera estable.',
+      'Controla la fase descendente.'
+    ],
+    avoid: [
+      'Lanzar el peso con impulso.',
+      'Despegar la cadera del asiento.',
+      'Golpear los topes de la máquina.'
+    ]
+  },
+
+  'Sentadilla búlgara': {
+    muscles: ['Cuádriceps', 'Glúteo', 'Femoral'],
+    technique: [
+      'Apoya el pie trasero en un banco y coloca el delantero a una distancia estable.',
+      'Mantén la mayor parte del control sobre la pierna delantera.',
+      'Desciende flexionando cadera y rodilla de la pierna de apoyo.',
+      'Mantén la rodilla alineada con el pie.',
+      'Empuja a través del pie delantero para volver arriba.'
+    ],
+    keyPoints: [
+      'Busca primero equilibrio antes de añadir carga.',
+      'Mantén el pie delantero completamente apoyado.',
+      'Controla el descenso.'
+    ],
+    avoid: [
+      'Colocar los pies demasiado juntos y perder estabilidad.',
+      'Impulsarte excesivamente con la pierna trasera.',
+      'Dejar que la rodilla colapse hacia dentro.'
+    ]
+  },
+
+  'Peso muerto rumano': {
+    muscles: ['Femoral', 'Glúteo', 'Lumbar'],
+    technique: [
+      'Comienza erguido con la carga cerca de los muslos.',
+      'Mantén una ligera flexión de rodillas y el abdomen activo.',
+      'Lleva la cadera hacia atrás manteniendo la carga cerca de las piernas.',
+      'Desciende hasta notar tensión en los isquios sin perder la posición de la columna.',
+      'Extiende la cadera para volver arriba contrayendo glúteos.'
+    ],
+    keyPoints: [
+      'Es una bisagra de cadera, no una sentadilla.',
+      'Mantén la carga cerca del cuerpo.',
+      'La profundidad depende de tu movilidad manteniendo una columna estable.'
+    ],
+    avoid: [
+      'Redondear la espalda para bajar más.',
+      'Flexionar demasiado las rodillas.',
+      'Alejar la carga del cuerpo.'
+    ]
+  },
+
+  'Curl femoral tumbado': {
+    muscles: ['Femoral', 'Gemelo'],
+    technique: [
+      'Ajusta la máquina para alinear las rodillas con su eje.',
+      'Apoya la pelvis y el torso en el banco.',
+      'Flexiona las rodillas llevando el rodillo hacia los glúteos.',
+      'Contrae los femorales en la parte superior.',
+      'Extiende lentamente las piernas.'
+    ],
+    keyPoints: [
+      'Mantén la pelvis pegada al banco.',
+      'Controla la extensión.',
+      'Utiliza un recorrido cómodo para la rodilla.'
+    ],
+    avoid: [
+      'Levantar la cadera para mover más peso.',
+      'Rebotar al final del recorrido.',
+      'Dejar caer el peso.'
+    ]
+  },
+
+  'Curl femoral sentado': {
+    muscles: ['Femoral'],
+    technique: [
+      'Ajusta asiento, respaldo y rodillos a tu cuerpo.',
+      'Mantén la espalda y cadera apoyadas.',
+      'Flexiona las rodillas llevando el rodillo hacia abajo y atrás.',
+      'Contrae los femorales al final.',
+      'Regresa lentamente hasta extender las piernas.'
+    ],
+    keyPoints: [
+      'Mantén el muslo sujeto por el apoyo.',
+      'Controla el estiramiento arriba.',
+      'No pierdas contacto con el respaldo.'
+    ],
+    avoid: [
+      'Levantar la cadera.',
+      'Usar rebotes.',
+      'Soltar rápidamente la fase de extensión.'
+    ]
+  },
+
+  'Hip thrust': {
+    muscles: ['Glúteo', 'Femoral'],
+    technique: [
+      'Apoya la parte alta de la espalda sobre el banco y coloca los pies firmes.',
+      'Sitúa la carga de forma segura sobre la cadera.',
+      'Eleva la cadera empujando a través de los pies.',
+      'Alcanza una extensión de cadera con el torso estable y las costillas controladas.',
+      'Desciende lentamente manteniendo tensión.'
+    ],
+    keyPoints: [
+      'Busca extensión de cadera, no hiperextensión lumbar.',
+      'Mantén barbilla y costillas controladas.',
+      'Ajusta los pies para que la posición superior sea estable.'
+    ],
+    avoid: [
+      'Arquear excesivamente la espalda arriba.',
+      'Empujar principalmente con las puntas de los pies.',
+      'Rebotar la carga.'
+    ]
+  },
+
+  'Patada de glúteo': {
+    muscles: ['Glúteo'],
+    technique: [
+      'Colócate estable en la máquina o polea y fija el tronco.',
+      'Mantén una ligera flexión de la pierna de trabajo.',
+      'Extiende la cadera llevando la pierna hacia atrás.',
+      'Contrae el glúteo sin girar la pelvis.',
+      'Regresa lentamente.'
+    ],
+    keyPoints: [
+      'Mantén la pelvis orientada al frente.',
+      'El movimiento debe venir de la cadera.',
+      'Usa un recorrido que no requiera arquear la espalda.'
+    ],
+    avoid: [
+      'Hiperextender la zona lumbar.',
+      'Girar la pelvis.',
+      'Usar impulso.'
+    ]
+  },
+
+  'Abductores': {
+    muscles: ['Glúteo medio', 'Glúteo menor'],
+    technique: [
+      'Siéntate estable con espalda y pelvis apoyadas.',
+      'Coloca las piernas correctamente contra los apoyos.',
+      'Separa las rodillas de forma controlada.',
+      'Mantén una breve contracción en la apertura.',
+      'Vuelve lentamente sin dejar que las placas golpeen.'
+    ],
+    keyPoints: [
+      'Mantén la pelvis estable.',
+      'Controla tanto apertura como cierre.',
+      'Usa un rango cómodo.'
+    ],
+    avoid: [
+      'Rebotar al abrir.',
+      'Cerrar las piernas bruscamente.',
+      'Mover todo el torso para generar impulso.'
+    ]
+  },
+
+  'Elevación de gemelos': {
+    muscles: ['Gemelo', 'Sóleo'],
+    technique: [
+      'Apoya la parte delantera del pie de forma estable.',
+      'Desciende los talones lentamente hasta un estiramiento cómodo.',
+      'Empuja a través del antepié elevando los talones.',
+      'Alcanza una contracción controlada arriba.',
+      'Vuelve lentamente a la posición inferior.'
+    ],
+    keyPoints: [
+      'Utiliza todo el recorrido que puedas controlar.',
+      'Mantén tobillos y pies alineados.',
+      'Haz una pausa controlada arriba.'
+    ],
+    avoid: [
+      'Rebotar en la parte inferior.',
+      'Hacer repeticiones muy cortas por exceso de peso.',
+      'Dejar que los tobillos colapsen hacia los lados.'
+    ]
+  },
+
+  'Gemelo sentado': {
+    muscles: ['Sóleo', 'Gemelo'],
+    technique: [
+      'Ajusta el apoyo sobre los muslos y coloca el antepié en la plataforma.',
+      'Desciende los talones lentamente.',
+      'Eleva los talones mediante flexión plantar.',
+      'Contrae los gemelos arriba.',
+      'Regresa de forma controlada al estiramiento.'
+    ],
+    keyPoints: [
+      'Mantén el antepié firmemente apoyado.',
+      'Busca recorrido completo.',
+      'Controla cada repetición.'
+    ],
+    avoid: [
+      'Rebotar abajo.',
+      'Utilizar únicamente recorridos parciales.',
+      'Mover las rodillas para generar impulso.'
+    ]
+  },
+
+  'Encogimientos': {
+    muscles: ['Trapecio superior'],
+    technique: [
+      'Mantén el torso erguido y la carga a los lados o delante.',
+      'Mantén los brazos relajados y prácticamente extendidos.',
+      'Eleva los hombros hacia arriba de forma controlada.',
+      'Contrae el trapecio brevemente.',
+      'Desciende los hombros lentamente.'
+    ],
+    keyPoints: [
+      'El movimiento principal es vertical.',
+      'Mantén cuello y cabeza neutros.',
+      'Controla la bajada.'
+    ],
+    avoid: [
+      'Hacer círculos con los hombros.',
+      'Flexionar los codos para ayudar.',
+      'Usar rebotes con todo el cuerpo.'
+    ]
+  },
+
+  'Crunch': {
+    muscles: ['Abdomen'],
+    technique: [
+      'Colócate con la zona lumbar estable y las rodillas flexionadas según la variante.',
+      'Activa el abdomen antes de iniciar.',
+      'Acerca las costillas hacia la pelvis mediante flexión controlada del tronco.',
+      'Contrae el abdomen sin tirar del cuello.',
+      'Regresa lentamente sin perder tensión.'
+    ],
+    keyPoints: [
+      'Busca flexión del tronco, no tirar de la cabeza.',
+      'Exhala durante la contracción.',
+      'Utiliza un recorrido controlado.'
+    ],
+    avoid: [
+      'Tirar del cuello con las manos.',
+      'Usar impulso.',
+      'Convertirlo en un movimiento dominante de cadera.'
+    ]
+  },
+
+  'Elevación de piernas': {
+    muscles: ['Abdomen', 'Flexores de cadera'],
+    technique: [
+      'Estabiliza el tronco y la pelvis antes de mover las piernas.',
+      'Eleva las piernas de forma controlada.',
+      'Al final del recorrido, realiza una ligera retroversión de pelvis si puedes mantener el control.',
+      'Mantén el abdomen activo.',
+      'Desciende lentamente sin perder la posición lumbar.'
+    ],
+    keyPoints: [
+      'Controla especialmente la bajada.',
+      'Mantén la pelvis estable.',
+      'Reduce el recorrido si la espalda comienza a arquearse.'
+    ],
+    avoid: [
+      'Balancear las piernas.',
+      'Arquear excesivamente la zona lumbar.',
+      'Dejar caer las piernas.'
+    ]
+  },
+
+  'Peso muerto convencional': {
+    muscles: ['Glúteo', 'Femoral', 'Lumbar', 'Cuádriceps', 'Espalda'],
+    technique: [
+      'Coloca los pies bajo la barra y mantenla cerca de las tibias.',
+      'Agarra la barra y crea tensión en el tronco y la espalda antes de despegarla.',
+      'Empuja el suelo manteniendo la barra cerca del cuerpo.',
+      'Extiende rodillas y cadera de forma coordinada hasta quedar erguido.',
+      'Desciende llevando primero la cadera atrás y después flexionando las rodillas.'
+    ],
+    keyPoints: [
+      'Crea tensión antes de iniciar el levantamiento.',
+      'Mantén la barra cerca del cuerpo.',
+      'Finaliza erguido, sin inclinarte hacia atrás.'
+    ],
+    avoid: [
+      'Tirar bruscamente de la barra sin crear tensión.',
+      'Alejar la barra del cuerpo.',
+      'Hiperextender la zona lumbar al finalizar.'
+    ]
+  },
+
+  'Hiperextensiones': {
+    muscles: ['Lumbar', 'Glúteo', 'Femoral'],
+    technique: [
+      'Ajusta el banco para permitir movimiento libre de la cadera.',
+      'Mantén el tronco estable y los pies bien sujetos.',
+      'Desciende de forma controlada mediante flexión de cadera.',
+      'Extiende la cadera para elevar el torso.',
+      'Termina con el cuerpo alineado sin sobrepasar la posición neutra.'
+    ],
+    keyPoints: [
+      'Mantén el movimiento controlado.',
+      'Utiliza glúteos y femorales además de la musculatura lumbar.',
+      'Finaliza en posición neutra.'
+    ],
+    avoid: [
+      'Hiperextender la espalda arriba.',
+      'Usar rebotes.',
+      'Añadir carga antes de dominar el movimiento.'
+    ]
+  }
+};
 
 const templateExercise = (
   name,
@@ -2245,9 +3265,63 @@ useEffect(() => {
 }, [nutritionGoals, nutritionLoaded]);
 const [editingNutritionEntryId, setEditingNutritionEntryId] = useState(null);
 const [expandedNutritionMeal, setExpandedNutritionMeal] = useState(null);
-  const [draftExercises, setDraftExercises] = useState([
-    emptyExercise(),
-  ]);
+  const [draftExercises, setDraftExercises] = useState([]);
+  const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
+  const [exercisePickerMuscle, setExercisePickerMuscle] = useState(null);
+  const [exercisePickerName, setExercisePickerName] = useState(null);
+
+  const [exerciseGuideName, setExerciseGuideName] = useState(null);
+  const [exerciseGuideHoldingName, setExerciseGuideHoldingName] = useState(null);
+  const exerciseGuideProgress = useRef(new Animated.Value(0)).current;
+  const exerciseGuideLongPressDone = useRef(false);
+
+  const startExerciseGuideProgress = (name) => {
+    if (!EXERCISE_GUIDES[name]) return;
+
+    exerciseGuideLongPressDone.current = false;
+    setExerciseGuideHoldingName(name);
+
+    exerciseGuideProgress.stopAnimation();
+    exerciseGuideProgress.setValue(0);
+
+    Animated.timing(exerciseGuideProgress, {
+      toValue: 1,
+      duration: 1500,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (!finished) return;
+
+      exerciseGuideLongPressDone.current = true;
+
+      Haptics.impactAsync(
+        Haptics.ImpactFeedbackStyle.Medium
+      ).catch(() => {});
+
+      setExerciseGuideName(name);
+      setExerciseGuideHoldingName(null);
+    });
+  };
+
+  const cancelExerciseGuideProgress = () => {
+    if (exerciseGuideLongPressDone.current) return;
+
+    exerciseGuideProgress.stopAnimation();
+    exerciseGuideProgress.setValue(0);
+    setExerciseGuideHoldingName(null);
+  };
+
+  const openExerciseGuide = (name) => {
+    if (!EXERCISE_GUIDES[name]) return;
+
+    exerciseGuideLongPressDone.current = true;
+
+    Haptics.impactAsync(
+      Haptics.ImpactFeedbackStyle.Medium
+    ).catch(() => {});
+
+    setExerciseGuideName(name);
+    setExerciseGuideHoldingName(null);
+  };
 
   const [activeRoutine, setActiveRoutine] = useState(null);
 
@@ -3592,7 +4666,31 @@ const loginWithGoogle = async () => {
               historicalExercise.name
             ) === normalized;
 
-          if (!sameId && !sameName) {
+          const currentVariant =
+            String(
+              exercise.variant ||
+              exercise.equipment ||
+              ''
+            )
+              .trim()
+              .toLowerCase();
+
+          const historicalVariant =
+            String(
+              historicalExercise.variant ||
+              historicalExercise.equipment ||
+              ''
+            )
+              .trim()
+              .toLowerCase();
+
+          const sameVariant =
+            currentVariant === historicalVariant;
+
+          if (
+            (!sameId && !sameName) ||
+            !sameVariant
+          ) {
             return;
           }
 
@@ -3859,7 +4957,7 @@ if (tab === 'Liga') {
 
     setEditingRoutineId(null);
     setRoutineName('');
-    setDraftExercises([emptyExercise()]);
+    setDraftExercises([]);
     setScreen('editor');
   };
 
@@ -4002,6 +5100,55 @@ if (tab === 'Liga') {
       )
     );
   };
+
+const addLibraryExercise = async (libraryExercise) => {
+  await impact();
+
+  const newExercise = {
+    ...emptyExercise(),
+    exerciseId: libraryExercise.id,
+    name: libraryExercise.name,
+    variant: libraryExercise.variant,
+    equipment: libraryExercise.equipment,
+    primaryMuscles: [...(libraryExercise.primaryMuscles || [])],
+    secondaryMuscles: [...(libraryExercise.secondaryMuscles || [])],
+    muscles: [
+      ...(libraryExercise.primaryMuscles || []),
+      ...(libraryExercise.secondaryMuscles || []),
+    ],
+  };
+
+  if (screen === 'workout') {
+    const liveExercise = {
+      ...newExercise,
+      isExtraWorkoutExercise: true,
+      expanded: true,
+      sets: buildWorkoutSets(newExercise),
+    };
+
+    setWorkoutExercises((items) => [
+      ...items,
+      liveExercise,
+    ]);
+  } else {
+    setDraftExercises((items) => {
+      const isInitialEmpty =
+        items.length === 1 &&
+        !items[0].name &&
+        !items[0].series &&
+        !items[0].reps &&
+        !items[0].weight;
+
+      return isInitialEmpty
+        ? [newExercise]
+        : [...items, newExercise];
+    });
+  }
+
+  setExercisePickerOpen(false);
+  setExercisePickerMuscle(null);
+  setExercisePickerName(null);
+};
 
 const toggleExerciseMuscle = async (
   exerciseId,
@@ -4157,7 +5304,7 @@ if (
 
       setEditingRoutineId(null);
       setRoutineName('');
-      setDraftExercises([emptyExercise()]);
+      setDraftExercises([]);
       setScreen('routines');
 
       return;
@@ -4175,7 +5322,7 @@ if (
     await notificationHaptic();
 
     setRoutineName('');
-    setDraftExercises([emptyExercise()]);
+    setDraftExercises([]);
     setScreen('routines');
   };
 
@@ -4836,9 +5983,9 @@ setWorkoutExercises([]);
   const BottomNavigation = () => (
     <LinearGradient
       colors={[
-        'rgba(28,28,28,0.76)',
-        'rgba(20,20,20,0.76)',
-        'rgba(14,14,14,0.80)',
+        'rgba(46,34,15,0.72)',
+        'rgba(44,33,15,0.72)',
+        'rgba(42,32,15,0.72)',
       ]}
       locations={[0, 0.5, 1]}
       style={styles.navigation}
@@ -10961,7 +12108,11 @@ blurOnSubmit={true}
 
         <TouchableOpacity
           style={styles.addExerciseButton}
-          onPress={addExercise}
+          onPress={() => {
+            setExercisePickerOpen((value) => !value);
+            setExercisePickerMuscle(null);
+            setExercisePickerName(null);
+          }}
         >
           <Text style={styles.addExerciseIcon}>
             ＋
@@ -10971,6 +12122,205 @@ blurOnSubmit={true}
             Añadir ejercicio
           </Text>
         </TouchableOpacity>
+
+        {exercisePickerOpen && (
+          <View style={styles.exercisePickerCard}>
+            <View style={styles.exercisePickerHeader}>
+              <View>
+                <Text style={styles.exercisePickerTitle}>
+                  {exercisePickerName
+                    ? exercisePickerName
+                    : exercisePickerMuscle
+                    ? exercisePickerMuscle
+                    : 'Elige grupo muscular'}
+                </Text>
+
+                <Text style={styles.exercisePickerSubtitle}>
+                  {exercisePickerName
+                    ? 'Elige la variante'
+                    : exercisePickerMuscle
+                    ? 'Elige un ejercicio'
+                    : 'RivalSet asignará el músculo automáticamente'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  if (exercisePickerName) {
+                    setExercisePickerName(null);
+                  } else if (exercisePickerMuscle) {
+                    setExercisePickerMuscle(null);
+                  } else {
+                    setExercisePickerOpen(false);
+                  }
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={
+                    exercisePickerMuscle
+                      ? 'arrow-left'
+                      : 'close'
+                  }
+                  size={23}
+                  color={COLORS.text}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {!exercisePickerMuscle && (
+              <View style={styles.exercisePickerGrid}>
+                {[...new Set(
+                  EXERCISE_LIBRARY.flatMap(
+                    (item) => item.primaryMuscles || []
+                  )
+                )].map((muscle) => (
+                  <TouchableOpacity
+                    key={muscle}
+                    activeOpacity={0.75}
+                    style={styles.exercisePickerOption}
+                    onPress={() =>
+                      setExercisePickerMuscle(muscle)
+                    }
+                  >
+                    <Text style={styles.exercisePickerOptionText}>
+                      {muscle}
+                    </Text>
+
+                    <MaterialCommunityIcons
+                      name="chevron-right"
+                      size={18}
+                      color={COLORS.orange}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {exercisePickerMuscle && !exercisePickerName && (
+              <View style={styles.exercisePickerList}>
+                {[...new Set(
+                  EXERCISE_LIBRARY
+                    .filter((item) =>
+                      (item.primaryMuscles || []).includes(
+                        exercisePickerMuscle
+                      )
+                    )
+                    .map((item) => item.name)
+                )].map((name) => (
+                  <TouchableOpacity
+                    key={name}
+                    activeOpacity={0.75}
+                    style={[
+                      styles.exercisePickerOption,
+                      EXERCISE_GUIDES[name] &&
+                        styles.exerciseGuidePressable,
+                    ]}
+                    delayLongPress={1500}
+                    onPressIn={() =>
+                      startExerciseGuideProgress(name)
+                    }
+                    onPressOut={cancelExerciseGuideProgress}
+                    onLongPress={() =>
+                      openExerciseGuide(name)
+                    }
+                    onPress={() => {
+                      if (exerciseGuideLongPressDone.current) {
+                        exerciseGuideLongPressDone.current = false;
+                        return;
+                      }
+
+                      setExercisePickerName(name);
+                    }}
+                  >
+                    {EXERCISE_GUIDES[name] &&
+                      exerciseGuideHoldingName === name && (
+                        <Animated.View
+                          pointerEvents="none"
+                          style={[
+                            styles.exerciseGuideProgressFill,
+                            {
+                              width: exerciseGuideProgress.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0%', '100%'],
+                              }),
+                            },
+                          ]}
+                        />
+                      )}
+
+                    <Text
+                      style={[
+                        styles.exercisePickerOptionText,
+                        EXERCISE_GUIDES[name] &&
+                          styles.exerciseGuideForeground,
+                      ]}
+                    >
+                      {name}
+                    </Text>
+
+                    <View
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        borderWidth: 1.5,
+                        borderColor: COLORS.orange,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="play"
+                        size={17}
+                        color={COLORS.orange}
+                        style={{ marginLeft: 2 }}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {exercisePickerMuscle && exercisePickerName && (
+              <View style={styles.exercisePickerList}>
+                {EXERCISE_LIBRARY
+                  .filter(
+                    (item) =>
+                      item.name === exercisePickerName &&
+                      (item.primaryMuscles || []).includes(
+                        exercisePickerMuscle
+                      )
+                  )
+                  .map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      activeOpacity={0.75}
+                      style={styles.exercisePickerOption}
+                      onPress={() =>
+                        addLibraryExercise(item)
+                      }
+                    >
+                      <View>
+                        <Text style={styles.exercisePickerOptionText}>
+                          {item.variant}
+                        </Text>
+
+                        <Text style={styles.exercisePickerVariantHint}>
+                          {item.name}
+                        </Text>
+                      </View>
+
+                      <MaterialCommunityIcons
+                        name="plus-circle-outline"
+                        size={20}
+                        color={COLORS.orange}
+                      />
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            )}
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.buttonShadow}
@@ -12385,6 +13735,33 @@ const PersonalRecords = () => {
                     styles.liveExerciseCardComplete,
                 ]}
               >
+                {exercise.isExtraWorkoutExercise && (
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    onPress={() => {
+                      setWorkoutExercises((items) =>
+                        items.filter((item) => item.id !== exercise.id)
+                      );
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      zIndex: 50,
+                      width: 30,
+                      height: 30,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="close"
+                      size={21}
+                      color={COLORS.text}
+                    />
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
                   activeOpacity={0.78}
                   onPress={() =>
@@ -12392,7 +13769,12 @@ const PersonalRecords = () => {
                       exercise.id
                     )
                   }
-                  style={styles.liveExerciseHeader}
+                  style={[
+                    styles.liveExerciseHeader,
+                    exercise.isExtraWorkoutExercise && {
+                      paddingRight: 38,
+                    },
+                  ]}
                 >
                   <View style={styles.liveExerciseIcon}>
                     <MaterialCommunityIcons
@@ -12407,25 +13789,131 @@ const PersonalRecords = () => {
                   </View>
 
                   <View style={styles.flex}>
-                  {exercise.isExtraWorkoutExercise ? (
-  <TextInput
-    style={styles.liveExerciseName}
-    value={exercise.name}
-    placeholder="Nombre del ejercicio"
-    placeholderTextColor="#888"
-    onChangeText={(name) =>
-      setWorkoutExercises((items) =>
-        items.map((item) =>
-          item.id === exercise.id ? { ...item, name } : item
-        )
-      )
-    }
-  />
-) : (
-  <Text style={styles.liveExerciseName}>
-    {exercise.name}
-  </Text>
-)}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 7,
+                    }}
+                  >
+                    <Text style={styles.liveExerciseName}>
+                      {exercise.name}
+                    </Text>
+
+                    {!isCardioExercise(exercise) && (() => {
+                      const currentLibraryExercise =
+                        EXERCISE_LIBRARY.find(
+                          (candidate) =>
+                            candidate.id === exercise.exerciseId
+                        );
+
+                      const exerciseName =
+                        currentLibraryExercise?.name ||
+                        exercise.name;
+
+                      const variants = EXERCISE_LIBRARY.filter(
+                        (candidate) =>
+                          candidate.name === exerciseName
+                      );
+
+                      if (
+                        variants.length <= 1 &&
+                        !exercise.isExtraWorkoutExercise
+                      ) return null;
+
+                      return (
+                        <TouchableOpacity
+                          activeOpacity={0.75}
+                          onPress={() => {
+                            Alert.alert(
+                              'Cambiar variante',
+                              `Actual: ${
+                                exercise.variant ||
+                                exercise.equipment ||
+                                'Sin variante'
+                              }`,
+                              [
+                                ...variants
+                                  .filter(
+                                    (candidate) =>
+                                      candidate.id !==
+                                      exercise.exerciseId
+                                  )
+                                  .map((candidate) => ({
+                                    text:
+                                      candidate.variant ||
+                                      candidate.equipment ||
+                                      'Variante',
+                                    onPress: () => {
+                                      setWorkoutExercises(
+                                        (items) =>
+                                          items.map((item) =>
+                                            item.id === exercise.id
+                                              ? {
+                                                  ...item,
+                                                  exerciseId:
+                                                    candidate.id,
+                                                  name:
+                                                    candidate.name,
+                                                  variant:
+                                                    candidate.variant,
+                                                  equipment:
+                                                    candidate.equipment,
+                                                  primaryMuscles: [
+                                                    ...(candidate.primaryMuscles ||
+                                                      []),
+                                                  ],
+                                                  secondaryMuscles: [
+                                                    ...(candidate.secondaryMuscles ||
+                                                      []),
+                                                  ],
+                                                  muscles: [
+                                                    ...(candidate.primaryMuscles ||
+                                                      []),
+                                                    ...(candidate.secondaryMuscles ||
+                                                      []),
+                                                  ],
+                                                }
+                                              : item
+                                          )
+                                      );
+                                    },
+                                  })),
+                                {
+                                  text: 'Cancelar',
+                                  style: 'cancel',
+                                },
+                              ]
+                            );
+                          }}
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor:
+                              'rgba(255,176,0,0.35)',
+                            backgroundColor:
+                              'rgba(255,176,0,0.08)',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: COLORS.orange,
+                              fontSize: 10,
+                              fontWeight: '800',
+                            }}
+                          >
+                            {exercise.variant ||
+                              exercise.equipment ||
+                              'Variante'}{' '}
+                            · Cambiar
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })()}
+                  </View>
 
                     <Text style={styles.liveExerciseMeta}>
                       {muscleText(exercise)}
@@ -12464,6 +13952,8 @@ const PersonalRecords = () => {
                     color="#777C86"
                   />
                 </TouchableOpacity>
+
+
 
                 {Boolean(exercise.expanded) && (
                   <View style={styles.liveSetsContainer}>
@@ -12759,16 +14249,9 @@ const PersonalRecords = () => {
   style={styles.addLiveSetButton}
   activeOpacity={0.75}
   onPress={() => {
-    const extra = emptyExercise();
-    setWorkoutExercises((items) => [
-      ...items,
-      {
-        ...extra,
-        isExtraWorkoutExercise: true,
-        expanded: true,
-        sets: buildWorkoutSets(extra),
-      },
-    ]);
+    setExercisePickerOpen((value) => !value);
+    setExercisePickerMuscle(null);
+    setExercisePickerName(null);
   }}
 >
   <MaterialCommunityIcons
@@ -12778,6 +14261,191 @@ const PersonalRecords = () => {
   />
   <Text style={styles.addLiveSetText}>Añadir ejercicio</Text>
 </TouchableOpacity>
+
+{exercisePickerOpen && (
+  <View style={styles.exercisePickerCard}>
+    <View style={styles.exercisePickerHeader}>
+      <View>
+        <Text style={styles.exercisePickerTitle}>
+          {exercisePickerName
+            ? exercisePickerName
+            : exercisePickerMuscle
+            ? exercisePickerMuscle
+            : 'Elige grupo muscular'}
+        </Text>
+
+        <Text style={styles.exercisePickerSubtitle}>
+          {exercisePickerName
+            ? 'Elige la variante'
+            : exercisePickerMuscle
+            ? 'Elige un ejercicio'
+            : 'Selecciona el grupo muscular'}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        onPress={() => {
+          if (exercisePickerName) {
+            setExercisePickerName(null);
+          } else if (exercisePickerMuscle) {
+            setExercisePickerMuscle(null);
+          } else {
+            setExercisePickerOpen(false);
+          }
+        }}
+      >
+        <MaterialCommunityIcons
+          name={
+            exercisePickerMuscle
+              ? 'arrow-left'
+              : 'close'
+          }
+          size={23}
+          color={COLORS.text}
+        />
+      </TouchableOpacity>
+    </View>
+
+    {!exercisePickerMuscle && (
+      <View style={styles.exercisePickerGrid}>
+        {[...new Set(
+          EXERCISE_LIBRARY.flatMap(
+            (item) => item.primaryMuscles || []
+          )
+        )].map((muscle) => (
+          <TouchableOpacity
+            key={muscle}
+            activeOpacity={0.75}
+            style={styles.exercisePickerOption}
+            onPress={() =>
+              setExercisePickerMuscle(muscle)
+            }
+          >
+            <Text style={styles.exercisePickerOptionText}>
+              {muscle}
+            </Text>
+
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={18}
+              color={COLORS.orange}
+            />
+          </TouchableOpacity>
+        ))}
+      </View>
+    )}
+
+    {exercisePickerMuscle &&
+      !exercisePickerName && (
+        <View style={styles.exercisePickerList}>
+          {[...new Set(
+            EXERCISE_LIBRARY
+              .filter((item) =>
+                (item.primaryMuscles || []).includes(
+                  exercisePickerMuscle
+                )
+              )
+              .map((item) => item.name)
+          )].map((name) => (
+            <TouchableOpacity
+              key={name}
+              activeOpacity={0.75}
+              style={[
+                styles.exercisePickerOption,
+                EXERCISE_GUIDES[name] &&
+                  styles.exerciseGuidePressable,
+              ]}
+              onPressIn={() =>
+                startExerciseGuideProgress(name)
+              }
+              onPressOut={cancelExerciseGuideProgress}
+              onPress={() => {
+                if (exerciseGuideLongPressDone.current) {
+                  exerciseGuideLongPressDone.current = false;
+                  return;
+                }
+
+                setExercisePickerName(name);
+              }}
+            >
+              {EXERCISE_GUIDES[name] &&
+                exerciseGuideHoldingName === name && (
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.exerciseGuideProgressFill,
+                      {
+                        width: exerciseGuideProgress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0%', '100%'],
+                        }),
+                      },
+                    ]}
+                  />
+                )}
+
+              <Text
+                style={[
+                  styles.exercisePickerOptionText,
+                  EXERCISE_GUIDES[name] &&
+                    styles.exerciseGuideForeground,
+                ]}
+              >
+                {name}
+              </Text>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color={COLORS.orange}
+                style={styles.exerciseGuideForeground}
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+    {exercisePickerMuscle &&
+      exercisePickerName && (
+        <View style={styles.exercisePickerList}>
+          {EXERCISE_LIBRARY
+            .filter(
+              (item) =>
+                item.name === exercisePickerName &&
+                (item.primaryMuscles || []).includes(
+                  exercisePickerMuscle
+                )
+            )
+            .map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                activeOpacity={0.75}
+                style={styles.exercisePickerOption}
+                onPress={() =>
+                  addLibraryExercise(item)
+                }
+              >
+                <View style={styles.flex}>
+                  <Text
+                    style={styles.exercisePickerOptionText}
+                  >
+                    {item.variant ||
+                      item.equipment ||
+                      'Estándar'}
+                  </Text>
+                </View>
+
+                <MaterialCommunityIcons
+                  name="plus"
+                  size={18}
+                  color={COLORS.orange}
+                />
+              </TouchableOpacity>
+            ))}
+        </View>
+      )}
+  </View>
+)}
           {totalCurrentPRs > 0 && (
             <View style={styles.prSummaryCard}>
               <View style={styles.prSummaryTop}>
@@ -13147,6 +14815,156 @@ return (
         barStyle="light-content"
         backgroundColor="#08090C"
       />
+
+      {exerciseGuideName &&
+        EXERCISE_GUIDES[exerciseGuideName] && (() => {
+          const guide = EXERCISE_GUIDES[exerciseGuideName];
+
+          return (
+            <View style={styles.exerciseGuideOverlay}>
+              <SafeAreaView style={styles.exerciseGuideSafe}>
+                <View style={styles.exerciseGuideHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.exerciseGuideEyebrow}>
+                      GUÍA DE EJERCICIO
+                    </Text>
+
+                    <Text style={styles.exerciseGuideTitle}>
+                      {exerciseGuideName}
+                    </Text>
+
+                    <Text style={styles.exerciseGuideSubtitle}>
+                      {(guide.muscles || [])
+                        .slice(0, 2)
+                        .join(' · ')
+                        .toUpperCase()}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.exerciseGuideClose}
+                    onPress={() => {
+                      setExerciseGuideName(null);
+                      exerciseGuideLongPressDone.current = false;
+                      exerciseGuideProgress.setValue(0);
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="close"
+                      size={24}
+                      color={COLORS.text}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.exerciseGuideScroll}
+                >
+                  {exerciseGuideName === 'Press banca' && (
+                    <BenchPressAnimation />
+                  )}
+
+                  <Text style={styles.exerciseGuideSectionTitle}>
+                    MÚSCULOS
+                  </Text>
+
+                  <View style={styles.exerciseGuideChips}>
+                    {(guide.muscles || []).map((muscle) => (
+                      <View
+                        key={muscle}
+                        style={styles.exerciseGuideChip}
+                      >
+                        <Text style={styles.exerciseGuideChipText}>
+                          {muscle}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <Text style={styles.exerciseGuideSectionTitle}>
+                    TÉCNICA
+                  </Text>
+
+                  {(guide.technique || []).map((text, index) => (
+                    <View
+                      key={`${exerciseGuideName}-technique-${index}`}
+                      style={styles.exerciseGuideStep}
+                    >
+                      <View style={styles.exerciseGuideStepNumber}>
+                        <Text
+                          style={styles.exerciseGuideStepNumberText}
+                        >
+                          {index + 1}
+                        </Text>
+                      </View>
+
+                      <Text style={styles.exerciseGuideStepText}>
+                        {text}
+                      </Text>
+                    </View>
+                  ))}
+
+                  <Text style={styles.exerciseGuideSectionTitle}>
+                    PUNTOS CLAVE
+                  </Text>
+
+                  {(guide.keyPoints || []).map((text, index) => (
+                    <View
+                      key={`${exerciseGuideName}-key-${index}`}
+                      style={styles.exerciseGuideBullet}
+                    >
+                      <MaterialCommunityIcons
+                        name="check-circle-outline"
+                        size={18}
+                        color={COLORS.orange}
+                      />
+
+                      <Text style={styles.exerciseGuideBulletText}>
+                        {text}
+                      </Text>
+                    </View>
+                  ))}
+
+                  <Text style={styles.exerciseGuideSectionTitle}>
+                    EVITA
+                  </Text>
+
+                  {(guide.avoid || []).map((text, index) => (
+                    <View
+                      key={`${exerciseGuideName}-avoid-${index}`}
+                      style={styles.exerciseGuideBullet}
+                    >
+                      <MaterialCommunityIcons
+                        name="close-circle-outline"
+                        size={18}
+                        color="#FF6B6B"
+                      />
+
+                      <Text style={styles.exerciseGuideBulletText}>
+                        {text}
+                      </Text>
+                    </View>
+                  ))}
+
+                  <View style={styles.exerciseGuideSafety}>
+                    <MaterialCommunityIcons
+                      name="shield-check-outline"
+                      size={22}
+                      color={COLORS.orange}
+                    />
+
+                    <Text style={styles.exerciseGuideSafetyText}>
+                      Utiliza una carga que puedas controlar y detén
+                      el ejercicio si aparece dolor.
+                    </Text>
+                  </View>
+                </ScrollView>
+              </SafeAreaView>
+            </View>
+          );
+        })()}
+
 <GlobalInputAccessory />
       <KeyboardAvoidingView
         style={styles.flex}
@@ -13186,6 +15004,80 @@ return (
 /* =========================================================
    ESTILOS
 ========================================================= */
+
+
+const BenchPressAnimation = () => {
+  const frames = [
+    require('./assets/exercise-guides/bench-press/uniform-1.png'),
+    require('./assets/exercise-guides/bench-press/uniform-2.png'),
+    require('./assets/exercise-guides/bench-press/uniform-3.png'),
+  ];
+
+  // 1 → 2 → 3 → 2 → 1 → 2 → 3 → 2...
+  const sequence = [0, 1, 2, 1];
+  const [sequencePosition, setSequencePosition] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSequencePosition((position) =>
+        (position + 1) % sequence.length
+      );
+    }, 300);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const activeFrame = sequence[sequencePosition];
+
+  return (
+    <View
+      style={{
+        width: '100%',
+        height: 235,
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+      }}
+    >
+      <View
+        style={{
+          width: '100%',
+          height: 205,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {frames.map((source, index) => (
+          <Image
+            key={index}
+            source={source}
+            resizeMode="contain"
+            fadeDuration={0}
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              opacity: activeFrame === index ? 1 : 0,
+            }}
+          />
+        ))}
+      </View>
+
+      <Text
+        style={{
+          position: 'absolute',
+          bottom: 1,
+          fontSize: 10,
+          fontWeight: '600',
+          color: '#FFFFFF',
+          textAlign: 'center',
+        }}
+      >
+        Baja al pecho · Empuja hasta extender
+      </Text>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
 screen: {
@@ -14715,6 +16607,271 @@ leaguePlayerAward: {
     marginTop: 8,
   },
 
+  exercisePickerCard: {
+    marginTop: 12,
+    marginBottom: 18,
+    padding: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(72,62,42,0.42)',
+  },
+
+  exercisePickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+
+  exercisePickerTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  exercisePickerSubtitle: {
+    color: COLORS.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+
+  exercisePickerGrid: {
+    gap: 8,
+  },
+
+  exercisePickerList: {
+    gap: 8,
+  },
+
+  exercisePickerOption: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  exercisePickerOptionText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  exercisePickerVariantHint: {
+    color: COLORS.muted,
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  exerciseGuidePressable: {
+    overflow: 'hidden',
+    position: 'relative',
+  },
+
+  exerciseGuideProgressFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,176,0,0.70)',
+    borderRadius: 14,
+  },
+
+  exerciseGuideForeground: {
+    zIndex: 2,
+  },
+
+  exerciseGuideOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#08090C',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 999999,
+    elevation: 999999,
+  },
+
+  exerciseGuideSafe: {
+    flex: 1,
+  },
+
+  exerciseGuideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+
+  exerciseGuideEyebrow: {
+    color: COLORS.orange,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    marginBottom: 5,
+  },
+
+  exerciseGuideTitle: {
+    color: COLORS.text,
+    fontSize: 28,
+    fontWeight: '900',
+  },
+
+  exerciseGuideSubtitle: {
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 4,
+    letterSpacing: 0.8,
+  },
+
+  exerciseGuideClose: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
+
+  exerciseGuideScroll: {
+    padding: 20,
+    paddingBottom: 50,
+  },
+
+  exerciseGuideDemo: {
+    minHeight: 190,
+    borderRadius: 22,
+    backgroundColor: 'rgba(72,62,42,0.42)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    marginBottom: 26,
+  },
+
+  exerciseGuideDemoTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 14,
+  },
+
+  exerciseGuideDemoText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 7,
+  },
+
+  exerciseGuideSectionTitle: {
+    color: COLORS.orange,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    marginTop: 8,
+    marginBottom: 13,
+  },
+
+  exerciseGuideChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 22,
+  },
+
+  exerciseGuideChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,176,0,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.28)',
+  },
+
+  exerciseGuideChipText: {
+    color: COLORS.orange,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  exerciseGuideStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+
+  exerciseGuideStepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  exerciseGuideStepNumberText: {
+    color: '#111111',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  exerciseGuideStepText: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+
+  exerciseGuideBullet: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  exerciseGuideBulletText: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+
+  exerciseGuideSafety: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,176,0,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.24)',
+    marginTop: 18,
+  },
+
+  exerciseGuideSafetyText: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+
   routineCard: {
     backgroundColor: 'rgba(72,62,42,0.42)',
     borderRadius: 24,
@@ -15152,9 +17309,9 @@ leaguePlayerAward: {
 
   quickHero: {
     minHeight: 220,
-    backgroundColor: '#11120F',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#302A1B',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
@@ -15193,9 +17350,9 @@ leaguePlayerAward: {
   },
 
   quickFeaturedCard: {
-    backgroundColor: '#14140F',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#4B3C17',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 25,
     padding: 16,
     marginBottom: 15,
@@ -15252,9 +17409,9 @@ leaguePlayerAward: {
 
   quickListCard: {
     minHeight: 82,
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#252830',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 20,
     padding: 13,
     flexDirection: 'row',
@@ -15284,7 +17441,9 @@ leaguePlayerAward: {
   },
 
   quickEmptyCard: {
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(72,62,42,0.42)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 26,
     padding: 26,
     alignItems: 'center',
@@ -15539,10 +17698,10 @@ leaguePlayerAward: {
   },
 
   workoutProgressCard: {
-    backgroundColor: '#11120F',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#2E291B',
+    borderColor: 'rgba(255,255,255,0.18)',
     padding: 17,
     marginBottom: 22,
   },
@@ -15591,10 +17750,10 @@ leaguePlayerAward: {
   },
 
   liveExerciseCard: {
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#292C34',
+    borderColor: 'rgba(255,255,255,0.18)',
     marginBottom: 11,
     overflow: 'hidden',
   },
@@ -15884,9 +18043,9 @@ leaguePlayerAward: {
   },
 
   prSummaryCard: {
-    backgroundColor: '#151309',
+    backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
-    borderColor: '#594517',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 18,
     padding: 14,
     marginTop: 7,
