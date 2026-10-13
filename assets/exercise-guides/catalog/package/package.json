@@ -1,0 +1,64 @@
+{
+  "name": "@bryllim/workout-guide",
+  "version": "1.0.0",
+  "description": "302 exercises with three open-source, integration-ready frames each.",
+  "author": {
+    "name": "Bryl Lim",
+    "url": "https://bryllim.com"
+  },
+  "homepage": "https://bryllim.github.io/workout-guide/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bryllim/workout-guide.git",
+    "directory": "packages/workout-guide"
+  },
+  "bugs": "https://github.com/bryllim/workout-guide/issues",
+  "license": "SEE LICENSE IN LICENSES.md",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./manifest.json": "./manifest.json",
+    "./assets/*": "./assets/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "assets",
+    "dist",
+    "manifest.json",
+    "README.md",
+    "LICENSE",
+    "LICENSE-ASSETS",
+    "LICENSES.md",
+    "ATTRIBUTION.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --sourcemap",
+    "test": "vitest run test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "exercise",
+    "fitness",
+    "workout",
+    "images",
+    "react-native",
+    "expo"
+  ]
+}

@@ -142,6 +142,8 @@ const WORKOUTS_KEY = '@app_gym_workouts';
 const WEEK_CHECKS_KEY = '@app_gym_week_checks';
 const PROFILE_KEY = '@app_gym_profile';
 const SETTINGS_KEY = '@app_gym_settings';
+const APPEARANCE_KEY = '@rivalset_appearance';
+const ACCENT_COLOR_KEY = '@rivalset_accent_color';
 const LEAGUE_KEY = '@app_gym_league';
 const NUTRITION_KEY = '@rivalset_nutrition';
 const NUTRITION_GOALS_KEY = '@rivalset_nutrition_goals';
@@ -185,6 +187,8 @@ const MUSCLE_GROUPS = [
   'Cuádriceps',
   'Femoral',
   'Glúteo',
+  'Aductor',
+  'Abductor',
   'Gemelo',
   'Abdomen',
   'Cardio',
@@ -192,6 +196,189 @@ const MUSCLE_GROUPS = [
 ];
 
 
+
+
+const RivalSetMuscleIcon = ({ type, size = 24, color = '#FFB300' }) => {
+  if (type === 'chest') {
+    return (
+      <Svg
+        width={size}
+        height={size}
+        viewBox="0 0 48 48"
+        fill="none"
+      >
+        {/* Silueta frontal */}
+        <Path
+          d="M17 8
+             C18.5 5.8 20.8 4.5 24 4.5
+             C27.2 4.5 29.5 5.8 31 8
+             C33.5 8.8 36.1 10.2 38 12.2
+             C39.6 14 40.5 16.3 40.8 19
+             L37.2 20.3
+             C36.7 18.3 35.8 16.8 34.4 15.7
+             L33.6 23.5
+             L34.8 40
+             L13.2 40
+             L14.4 23.5
+             L13.6 15.7
+             C12.2 16.8 11.3 18.3 10.8 20.3
+             L7.2 19
+             C7.5 16.3 8.4 14 10 12.2
+             C11.9 10.2 14.5 8.8 17 8Z"
+          stroke="rgba(255,255,255,0.38)"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Pectoral izquierdo */}
+        <Path
+          d="M15.4 14.5
+             C17.8 12.3 20.7 11.8 23.2 13
+             L23.2 20.4
+             C20.3 20.9 17.5 20.1 15.3 18.3
+             C14.7 17.1 14.8 15.7 15.4 14.5Z"
+          fill={color}
+          fillOpacity="0.9"
+        />
+
+        {/* Pectoral derecho */}
+        <Path
+          d="M32.6 14.5
+             C30.2 12.3 27.3 11.8 24.8 13
+             L24.8 20.4
+             C27.7 20.9 30.5 20.1 32.7 18.3
+             C33.3 17.1 33.2 15.7 32.6 14.5Z"
+          fill={color}
+          fillOpacity="0.9"
+        />
+
+        {/* Línea central */}
+        <Path
+          d="M24 12.8V22.5"
+          stroke="rgba(8,9,12,0.55)"
+          strokeWidth="1"
+          strokeLinecap="round"
+        />
+      </Svg>
+    );
+  }
+
+  if (type === 'back') {
+    return (
+      <Svg
+        width={size}
+        height={size}
+        viewBox="0 0 48 48"
+        fill="none"
+      >
+        {/* Silueta posterior */}
+        <Path
+          d="M17 8
+             C18.5 5.8 20.8 4.5 24 4.5
+             C27.2 4.5 29.5 5.8 31 8
+             C33.5 8.8 36.1 10.2 38 12.2
+             C39.6 14 40.5 16.3 40.8 19
+             L37.2 20.3
+             C36.7 18.3 35.8 16.8 34.4 15.7
+             L33.6 23.5
+             L34.8 40
+             L13.2 40
+             L14.4 23.5
+             L13.6 15.7
+             C12.2 16.8 11.3 18.3 10.8 20.3
+             L7.2 19
+             C7.5 16.3 8.4 14 10 12.2
+             C11.9 10.2 14.5 8.8 17 8Z"
+          stroke="rgba(255,255,255,0.38)"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Dorsal izquierdo */}
+        <Path
+          d="M16.2 13
+             C18.4 11.8 20.6 11.4 22.8 12.3
+             L22.8 29
+             C20.2 27.7 18.1 25.5 16.8 22.8
+             C15.6 20.2 15.3 16.2 16.2 13Z"
+          fill={color}
+          fillOpacity="0.88"
+        />
+
+        {/* Dorsal derecho */}
+        <Path
+          d="M31.8 13
+             C29.6 11.8 27.4 11.4 25.2 12.3
+             L25.2 29
+             C27.8 27.7 29.9 25.5 31.2 22.8
+             C32.4 20.2 32.7 16.2 31.8 13Z"
+          fill={color}
+          fillOpacity="0.88"
+        />
+
+        {/* Columna */}
+        <Path
+          d="M24 11.5V32"
+          stroke="rgba(255,255,255,0.32)"
+          strokeWidth="1.1"
+          strokeLinecap="round"
+        />
+      </Svg>
+    );
+  }
+
+  return null;
+};
+
+const EXERCISE_ZONES = [
+  {
+    id: 'chest',
+    name: 'Pecho',
+    anatomicalIcon: 'chest',
+    icon: 'arm-flex-outline',
+    muscles: ['Pecho'],
+  },
+  {
+    id: 'back',
+    name: 'Espalda',
+    anatomicalIcon: 'back',
+    icon: 'human-handsup',
+    muscles: ['Dorsal', 'Trapecio', 'Lumbar'],
+  },
+  {
+    id: 'arms',
+    name: 'Brazos',
+    icon: 'arm-flex',
+    muscles: ['Hombro', 'Bíceps', 'Tríceps'],
+  },
+  {
+    id: 'legs',
+    name: 'Piernas',
+    icon: 'run',
+    muscles: [
+      'Cuádriceps',
+      'Femoral',
+      'Glúteo',
+      'Aductor',
+      'Abductor',
+      'Gemelo',
+    ],
+  },
+  {
+    id: 'core',
+    name: 'Core',
+    icon: 'human',
+    muscles: ['Abdomen'],
+  },
+  {
+    id: 'cardio',
+    name: 'Cardio',
+    icon: 'heart-pulse',
+    muscles: ['Cardio'],
+  },
+];
 
 const EXERCISE_LIBRARY = [
   // PECHO
@@ -263,7 +450,8 @@ const EXERCISE_LIBRARY = [
   { id: 'hip_thrust_smith', name: 'Hip thrust', variant: 'Smith', equipment: 'smith', primaryMuscles: ['Glúteo'] },
   { id: 'hip_thrust_machine', name: 'Hip thrust', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Glúteo'] },
   { id: 'glute_kickback', name: 'Patada de glúteo', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Glúteo'] },
-  { id: 'abductor_machine', name: 'Abductores', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Glúteo'] },
+  { id: 'abductor_machine', name: 'Abducción', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Abductor'], secondaryMuscles: ['Glúteo'] },
+  { id: 'adductor_machine', name: 'Aducción', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Aductor'] },
 
   // GEMELO
   { id: 'calf_raise_standing', name: 'Elevación de gemelos', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Gemelo'] },
@@ -282,6 +470,13 @@ const EXERCISE_LIBRARY = [
   // LUMBAR
   { id: 'deadlift_barbell', name: 'Peso muerto convencional', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Lumbar'] },
   { id: 'back_extension', name: 'Hiperextensiones', variant: 'Peso corporal', equipment: 'bodyweight', primaryMuscles: ['Lumbar'] },
+
+  // CARDIO
+  { id: 'treadmill', name: 'Cinta', variant: 'Cardio', equipment: 'cardio', primaryMuscles: ['Cardio'] },
+  { id: 'stationary_bike', name: 'Bicicleta', variant: 'Cardio', equipment: 'cardio', primaryMuscles: ['Cardio'] },
+  { id: 'elliptical', name: 'Elíptica', variant: 'Cardio', equipment: 'cardio', primaryMuscles: ['Cardio'] },
+  { id: 'rowing_machine', name: 'Remo ergómetro', variant: 'Cardio', equipment: 'cardio', primaryMuscles: ['Cardio'] },
+  { id: 'stair_climber', name: 'Escaladora', variant: 'Cardio', equipment: 'cardio', primaryMuscles: ['Cardio'] },
 ];
 
 
@@ -2081,8 +2276,85 @@ const COLORS = {
   orange: '#FFB000',
   darkOrange: '#C97800',
   text: '#F8F8FA',
-  muted: '#858A95',
+  muted: ('#858A95'),
   darkText: '#181205',
+};
+
+/* =========================================================
+   RIVALSET · COLOR DINÁMICO GLOBAL
+========================================================= */
+
+const hexToRgb = (hex) => {
+  const clean = String(hex || '#FFB000').replace('#', '');
+
+  const value =
+    clean.length === 3
+      ? clean.split('').map((c) => c + c).join('')
+      : clean;
+
+  const number = parseInt(value, 16);
+
+  return {
+    r: (number >> 16) & 255,
+    g: (number >> 8) & 255,
+    b: number & 255,
+  };
+};
+
+const accentRgba = (alpha = 1) => {
+  const { r, g, b } = hexToRgb(COLORS.orange);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
+const darkenAccent = (hex, amount = 0.28) => {
+  const { r, g, b } = hexToRgb(hex);
+
+  const factor = 1 - amount;
+
+  return `rgb(${Math.round(r * factor)},${Math.round(
+    g * factor
+  )},${Math.round(b * factor)})`;
+};
+
+const mixAccent = (hex, targetHex, amount) => {
+  const source = hexToRgb(hex);
+  const target = hexToRgb(targetHex);
+
+  const mix = (a, b) =>
+    Math.round(a + (b - a) * amount);
+
+  return `rgb(${mix(source.r, target.r)},${mix(
+    source.g,
+    target.g
+  )},${mix(source.b, target.b)})`;
+};
+
+const getAccentBackground = (color, light = false) => {
+  if (light) {
+    return [
+      color,
+      mixAccent(color, '#B9B09C', 0.28),
+      mixAccent(color, '#9A9589', 0.52),
+      mixAccent(color, '#77746D', 0.78),
+      '#77746D',
+    ];
+  }
+
+  return [
+    mixAccent(color, '#08090C', 0.36),
+    mixAccent(color, '#08090C', 0.53),
+    mixAccent(color, '#08090C', 0.70),
+    mixAccent(color, '#08090C', 0.86),
+    '#08090C',
+  ];
+};
+
+const applyAccentColor = (color) => {
+  if (!color) return;
+
+  COLORS.orange = color;
+  COLORS.yellow = color;
+  COLORS.darkOrange = darkenAccent(color, 0.28);
 };
 
 /* =========================================================
@@ -2383,18 +2655,40 @@ const routineExerciseFromWorkout = (exercise) => {
    DEGRADADO GENERAL
 ========================================================= */
 
-const AppGradient = () => (
+const AppGradient = () => (<LinearGradient
+colors={["rgb(102,72,7)","rgb(75,54,9)","rgb(43,32,10)","rgb(20,17,11)","rgb(8,9,12)"]}
+locations={[0, 0.18, 0.40, 0.58, 0.70]}
+start={{ x: 0.5, y: 0 }}
+end={{ x: 0.5, y: 1 }}
+style={StyleSheet.absoluteFillObject} pointerEvents="none" />);
+
+
+
+
+
+
+/* =========================================================
+   RIVALSET · LUZ DIAGONAL
+   Solo color oficial #FFB300
+========================================================= */
+
+const RivalSetDiagonalLight = () => (
   <LinearGradient
-    colors={[
-    'rgba(255,176,0,0.34)',
-'rgba(255,176,0,0.18)',
-'rgba(255,176,0,0.07)',
-'rgba(8,9,12,0.97)',
-'#08090C',
-    ]}
-    locations={[0, 0.16, 0.31, 0.52, 0.70]}
-    style={StyleSheet.absoluteFillObject}
     pointerEvents="none"
+
+    colors={[
+      'rgba(255,179,0,0.00)',
+      'rgba(255,179,0,0.08)',
+      'rgba(255,179,0,0.035)',
+      'rgba(255,179,0,0.00)',
+    ]}
+
+    locations={[0, 0.30, 0.62, 1]}
+
+    start={{ x: 0.05, y: 0 }}
+    end={{ x: 0.95, y: 1 }}
+
+    style={StyleSheet.absoluteFillObject}
   />
 );
 
@@ -3267,6 +3561,7 @@ const [editingNutritionEntryId, setEditingNutritionEntryId] = useState(null);
 const [expandedNutritionMeal, setExpandedNutritionMeal] = useState(null);
   const [draftExercises, setDraftExercises] = useState([]);
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
+  const [exercisePickerZone, setExercisePickerZone] = useState(null);
   const [exercisePickerMuscle, setExercisePickerMuscle] = useState(null);
   const [exercisePickerName, setExercisePickerName] = useState(null);
 
@@ -3399,6 +3694,140 @@ const [settingsLoaded, setSettingsLoaded] =
   useState(false);
   const [vibrationEnabled, setVibrationEnabled] =
     useState(true);
+
+  /* =====================================================
+     APARIENCIA RIVALSET
+  ===================================================== */
+
+  const [appearanceMode, setAppearanceMode] =
+    useState('dark');
+
+  const [accentColor, setAccentColor] =
+    useState(COLORS.orange);
+
+  const isLightTheme = appearanceMode === 'light';
+
+  // RIVALSET · textos secundarios del tema claro
+  const lightSmallText = 'rgba(255,255,255,0.92)';
+
+  const lightTextStyle = isLightTheme
+    ? { color: lightSmallText }
+    : null;
+
+  const lightSecondaryText = isLightTheme
+    ? 'rgba(255,255,255,0.88)'
+    : null;
+
+  const lightTertiaryText = isLightTheme
+    ? 'rgba(255,255,255,0.72)'
+    : null;
+
+  const themeMutedText = isLightTheme
+    ? 'rgba(255,255,255,0.82)'
+    : COLORS.muted;
+
+  const themeSoftText = isLightTheme
+    ? 'rgba(255,255,255,0.68)'
+    : '#626873';
+
+  const LIGHT_THEME = {
+    background: '#F5F3EE',
+    backgroundTop: '#FFF1D6',
+    card: 'rgba(255,255,255,0.78)',
+    cardBorder: 'rgba(20,20,20,0.08)',
+    text: '#171717',
+    textSecondary: '#6F6F73',
+    orange: accentColor,
+  };
+
+  const changeAccentColor = async (color) => {
+    if (!color) return;
+
+    applyAccentColor(color);
+    styles = createRivalSetStyles();
+    setAccentColor(color);
+
+    try {
+      await AsyncStorage.setItem(
+        ACCENT_COLOR_KEY,
+        color
+      );
+    } catch (error) {
+      console.log(
+        'Error guardando color de RivalSet:',
+        error
+      );
+    }
+  };
+
+  const changeAppearance = async (mode) => {
+    if (mode !== 'dark' && mode !== 'light') return;
+
+    setAppearanceMode(mode);
+
+    try {
+      await AsyncStorage.setItem(
+        APPEARANCE_KEY,
+        mode
+      );
+    } catch (error) {
+      console.log(
+        'Error guardando apariencia:',
+        error
+      );
+    }
+  };
+
+  useEffect(() => {
+    const loadAppearance = async () => {
+      try {
+        const saved =
+          await AsyncStorage.getItem(
+            APPEARANCE_KEY
+          );
+
+        if (
+          saved === 'dark' ||
+          saved === 'light'
+        ) {
+          setAppearanceMode(saved);
+        }
+      } catch (error) {
+        console.log(
+          'Error cargando apariencia:',
+          error
+        );
+      }
+    };
+
+    loadAppearance();
+  }, []);
+
+  useEffect(() => {
+    const loadAccentColor = async () => {
+      try {
+        const savedColor =
+          await AsyncStorage.getItem(
+            ACCENT_COLOR_KEY
+          );
+
+        if (savedColor) {
+          applyAccentColor(savedColor);
+          styles = createRivalSetStyles();
+          setAccentColor(savedColor);
+        }
+      } catch (error) {
+        console.log(
+          'Error cargando color de RivalSet:',
+          error
+        );
+      }
+    };
+
+    loadAccentColor();
+  }, []);
+
+
 
   const [sendingTestNotification, setSendingTestNotification] =
     useState(false);
@@ -4950,6 +5379,141 @@ if (tab === 'Liga') {
      RUTINAS
   ===================================================== */
 
+  const analyzeImportedRoutine = async (asset) => {
+    if (!asset?.base64) {
+      Alert.alert(
+        'Error',
+        'No se ha podido leer la imagen seleccionada.'
+      );
+      return;
+    }
+
+    try {
+      const exerciseCatalog = [
+        ...new Set(
+          EXERCISE_LIBRARY.map((exercise) => exercise.name)
+        ),
+      ];
+
+      const { data, error } = await supabase.functions.invoke(
+        'analyze-routine',
+        {
+          body: {
+            imageBase64: asset.base64,
+            mimeType: asset.mimeType || 'image/jpeg',
+            exerciseCatalog,
+          },
+        }
+      );
+
+      if (error) {
+        console.log('Error importando rutina:', error);
+
+        Alert.alert(
+          'No se pudo analizar',
+          'No hemos podido leer la rutina de esta imagen.'
+        );
+        return;
+      }
+
+      if (!data?.exercises?.length) {
+        Alert.alert(
+          'No se encontró una rutina',
+          'Prueba con una imagen donde los ejercicios, series y repeticiones se vean con claridad.'
+        );
+        return;
+      }
+
+      const importedExercises = data.exercises.map(
+        (detected, index) => {
+          const detectedName =
+            String(detected.matchedName || detected.detectedName || '')
+              .trim();
+
+          const normalizedDetectedName = detectedName
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+
+          const libraryExercise =
+            EXERCISE_LIBRARY.find((exercise) => {
+              const normalizedLibraryName = exercise.name
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+
+              return normalizedLibraryName === normalizedDetectedName;
+            }) || null;
+
+          const series = String(
+            Math.max(1, Number(detected.sets) || 1)
+          );
+
+          const reps = String(detected.reps || '');
+          const weight = String(detected.weight || '');
+
+          const base = {
+            ...emptyExercise(),
+            id: Date.now() + index + Math.random(),
+            name: libraryExercise?.name || detectedName,
+            series,
+            reps,
+            weight,
+          };
+
+          if (!libraryExercise) {
+            return base;
+          }
+
+          return {
+            ...base,
+            exerciseId: libraryExercise.id,
+            name: libraryExercise.name,
+            variant: libraryExercise.variant,
+            equipment: libraryExercise.equipment,
+            primaryMuscles: [
+              ...(libraryExercise.primaryMuscles || []),
+            ],
+            secondaryMuscles: [
+              ...(libraryExercise.secondaryMuscles || []),
+            ],
+            muscles: [
+              ...(libraryExercise.primaryMuscles || []),
+              ...(libraryExercise.secondaryMuscles || []),
+            ],
+          };
+        }
+      );
+
+      setEditingRoutineId(null);
+      setRoutineName(
+        String(data.routineName || 'Rutina importada')
+      );
+      setDraftExercises(importedExercises);
+      setScreen('editor');
+
+      const reviewCount = data.exercises.filter(
+        (exercise) => exercise.needsReview
+      ).length;
+
+      if (reviewCount > 0) {
+        setTimeout(() => {
+          Alert.alert(
+            'Rutina importada',
+            `Se han detectado ${importedExercises.length} ejercicios. ${reviewCount} necesitan revisión antes de guardar.`
+          );
+        }, 350);
+      }
+    } catch (error) {
+      console.log('Error analizando rutina:', error);
+
+      Alert.alert(
+        'Error',
+        'No se ha podido analizar la rutina.'
+      );
+    }
+  };
+
   const beginCreate = async () => {
     await impact(
       Haptics.ImpactFeedbackStyle.Medium
@@ -5146,6 +5710,7 @@ const addLibraryExercise = async (libraryExercise) => {
   }
 
   setExercisePickerOpen(false);
+  setExercisePickerZone(null);
   setExercisePickerMuscle(null);
   setExercisePickerName(null);
 };
@@ -6009,7 +6574,7 @@ setWorkoutExercises([]);
               size={22}
               color={
                 selectedTab === tab
-                  ? COLORS.orange
+                  ? accentColor
                   : '#5C5D61'
               }
               style={styles.navVectorIcon}
@@ -6020,7 +6585,7 @@ setWorkoutExercises([]);
     size={22}
     color={
       selectedTab === tab
-        ? COLORS.orange
+        ? accentColor
         : '#5C5D61'
     }
     style={styles.navVectorIcon}
@@ -6033,8 +6598,8 @@ setWorkoutExercises([]);
       letterSpacing: -0.8,
       color:
         selectedTab === tab
-          ? COLORS.orange
-          : '#5C5D61',
+          ? accentColor
+          : ('#5C5D61'),
       marginBottom: 1,
     }}
   >
@@ -6059,8 +6624,8 @@ setWorkoutExercises([]);
           borderRadius: 2,
           backgroundColor:
             selectedTab === tab
-              ? COLORS.orange
-              : '#5C5D61',
+              ? accentColor
+              : ('#5C5D61'),
         }}
       />
     ))}
@@ -6071,7 +6636,7 @@ setWorkoutExercises([]);
   size={22}
   color={
     selectedTab === tab
-      ? COLORS.orange
+      ? accentColor
       : '#5C5D61'
   }
   style={styles.navVectorIcon}
@@ -6083,13 +6648,21 @@ setWorkoutExercises([]);
               styles.navText,
               selectedTab === tab &&
                 styles.navTextSelected,
+              selectedTab === tab && {
+                color: accentColor,
+              },
             ]}
           >
             {tab}
           </Text>
 
           {selectedTab === tab && (
-            <View style={styles.navIndicator} />
+            <View
+              style={[
+                styles.navIndicator,
+                { backgroundColor: accentColor },
+              ]}
+            />
           )}
         </TouchableOpacity>
       ))}
@@ -6123,7 +6696,7 @@ setWorkoutExercises([]);
           {title}
         </Text>
 
-        <Text style={styles.pageSubtitle}>
+        <Text style={[styles.pageSubtitle, lightTextStyle]}>
           {subtitle}
         </Text>
       </View>
@@ -6148,7 +6721,7 @@ setWorkoutExercises([]);
                 Hola, {profileName || ''}
               </Text>
 
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, lightTextStyle]}>
                 ¡Sigue Así, Hazlo posible!
               </Text>
             </View>
@@ -6178,7 +6751,7 @@ setWorkoutExercises([]);
                   {nextAchievement.title}
                 </Text>
 
-                <Text style={styles.pointsMessage}>
+                <Text style={[styles.pointsMessage, lightTextStyle]}>
                   {nextAchievement.description}
                 </Text>
               </View>
@@ -6304,7 +6877,7 @@ setWorkoutExercises([]);
                 Ver todos los logros
               </Text>
 
-              <Text style={styles.achievementButtonSubtext}>
+              <Text style={[styles.achievementButtonSubtext, lightTextStyle]}>
                 Descubre tus próximos desafíos
               </Text>
             </View>
@@ -6459,7 +7032,7 @@ isMonthlyMvp: monthlyAwards.some(
     value={joinLeagueCode}
     onChangeText={setJoinLeagueCode}
     placeholder="Código de liga"
-    placeholderTextColor="#626873"
+    placeholderTextColor={'#626873'}
     autoCapitalize="characters"
     maxLength={6}
     style={{
@@ -6559,7 +7132,7 @@ isMonthlyMvp: monthlyAwards.some(
                     onBlur={saveLeagueName}
                     style={styles.leagueNameInput}
                     placeholder="Nombre de la liga"
-                    placeholderTextColor="#626873"
+                    placeholderTextColor={'#626873'}
                   />
                 ) : (
                   <>
@@ -6857,7 +7430,7 @@ isMonthlyMvp: monthlyAwards.some(
                       CLASIFICACIÓN
                     </Text>
 
-                    <Text style={styles.leagueSectionSubtitle}>
+                    <Text style={[styles.leagueSectionSubtitle, lightTextStyle]}>
                       Ranking mensual
                     </Text>
                   </View>
@@ -6974,7 +7547,7 @@ isMonthlyMvp: monthlyAwards.some(
                     ACTIVIDAD GRUPAL
                   </Text>
 
-                  <Text style={styles.leagueSectionSubtitle}>
+                  <Text style={[styles.leagueSectionSubtitle, lightTextStyle]}>
                     Lo último de tus rivales
                   </Text>
                 </View>
@@ -7031,14 +7604,14 @@ const activityDate = new Date(activity.event_at);
           </Text>
         </View>
 
-        <Text style={styles.leagueActivityTime}>
+        <Text style={[styles.leagueActivityTime, lightTextStyle]}>
           {timeText}
         </Text>
       </View>
     );
   })
 ) : (
-  <Text style={styles.leagueSectionSubtitle}>
+  <Text style={[styles.leagueSectionSubtitle, lightTextStyle]}>
     Aún no hay actividad en la liga
   </Text>
 )}
@@ -7122,8 +7695,8 @@ const AuthScreen = () => {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar
-        barStyle="light-content"
-        backgroundColor="#08090C"
+        barStyle={isLightTheme ? "dark-content" : "light-content"}
+        backgroundColor={isLightTheme ? "#FFB300" : "#08090C"}
       />
 
       <View
@@ -7158,7 +7731,7 @@ const AuthScreen = () => {
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
-          placeholderTextColor="#626873"
+          placeholderTextColor={'#626873'}
           autoCapitalize="none"
           keyboardType="email-address"
           style={{
@@ -7177,7 +7750,7 @@ const AuthScreen = () => {
           value={password}
           onChangeText={setPassword}
           placeholder="Contraseña"
-          placeholderTextColor="#626873"
+          placeholderTextColor={'#626873'}
           secureTextEntry
           style={{
             backgroundColor: '#111318',
@@ -7331,7 +7904,7 @@ const ProfileLogin = () => (
             value={authEmail}
             onChangeText={setAuthEmail}
             placeholder="Email"
-            placeholderTextColor="#626873"
+            placeholderTextColor={'#626873'}
             autoCapitalize="none"
             keyboardType="email-address"
             style={{
@@ -7349,7 +7922,7 @@ const ProfileLogin = () => (
             value={authPassword}
             onChangeText={setAuthPassword}
             placeholder="Contraseña"
-            placeholderTextColor="#626873"
+            placeholderTextColor={'#626873'}
             secureTextEntry
             style={{
               height: 50,
@@ -7459,7 +8032,7 @@ const ProfileLogin = () => (
   value={profileName}
   onChangeText={setProfileName}
   placeholder="Tu nombre"
-  placeholderTextColor="#626873"
+  placeholderTextColor={'#626873'}
   style={styles.nameInput}
   maxLength={20}
   returnKeyType="done"
@@ -7475,152 +8048,293 @@ const ProfileLogin = () => (
           </View>
         </View>
 
-        <View style={styles.profileStatsCard}>
-          <View style={styles.profileStat}>
-            <Text style={styles.profileStatNumber}>
-              {workouts.length}
-            </Text>
+        {/* =================================================
+            TU ACTIVIDAD
+        ================================================= */}
 
-            <Text style={styles.profileStatLabel}>
-              Entrenamientos
-            </Text>
-          </View>
+        <Text style={styles.profileGlassSectionLabel}>
+          TU ACTIVIDAD
+        </Text>
 
-          <View style={styles.profileStatDivider} />
+        <View style={styles.profileActivityGlass}>
 
-          <View style={styles.profileStat}>
-            <Text style={styles.profileStatNumber}>
-              {uniqueTrainingDays}
-            </Text>
-
-            <Text style={styles.profileStatLabel}>
-              Días
-            </Text>
-          </View>
-
-          <View style={styles.profileStatDivider} />
-
-          <View style={styles.profileStat}>
-            <Text style={styles.profileStatNumber}>
-              {unlockedAchievements}
-            </Text>
-
-            <Text style={styles.profileStatLabel}>
-              Logros
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.profileTitleRow}>
-          <Text style={styles.profileSectionTitle}>
-            Objetivo de peso
-          </Text>
-
-          <MaterialCommunityIcons
-            name="target"
-            size={18}
-            color={COLORS.orange}
-          />
-        </View>
-
-        <View style={styles.weightCard}>
-          <View style={styles.weightTopRow}>
-            <View style={styles.weightColumn}>
-              <Text style={styles.weightLabel}>
-                PESO ACTUAL
+          <View style={styles.profileActivityTop}>
+            <View>
+              <Text style={styles.profileActivityHeadline}>
+                Tu progreso
               </Text>
 
-              <View style={styles.weightInputBox}>
-                <TextInput
-                  value={currentWeight}
-                  onChangeText={setCurrentWeight}
-                  placeholder="--"
-                  placeholderTextColor="#555A64"
-                  keyboardType="decimal-pad"
-                  maxLength={6}
-                  style={styles.weightInputValue}
-                />
+              <Text style={styles.profileActivitySubheadline}>
+                Todo lo que llevas en RivalSet
+              </Text>
+            </View>
 
-                <Text style={styles.weightKg}>
-                  kg
+            <View style={styles.profileActivityActivePill}>
+              <MaterialCommunityIcons
+                name="lightning-bolt"
+                size={13}
+                color={COLORS.orange}
+              />
+
+              <Text style={styles.profileActivityActiveText}>
+                ACTIVO
+              </Text>
+            </View>
+          </View>
+
+
+          <View style={styles.profileActivityContent}>
+
+            <View style={styles.profileActivityCircle}>
+              <View style={styles.profileActivityCircleInner}>
+                <Text style={styles.profileActivityBigNumber}>
+                  {workouts.length}
+                </Text>
+
+                <Text style={styles.profileActivityBigLabel}>
+                  ENTRENOS
                 </Text>
               </View>
             </View>
 
-            <View style={styles.weightArrow}>
+
+            <View style={styles.profileActivityRight}>
+
+              <View style={styles.profileActivityMiniStat}>
+                <View style={styles.profileActivityMiniIcon}>
+                  <MaterialCommunityIcons
+                    name="calendar-check-outline"
+                    size={18}
+                    color={COLORS.orange}
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.profileActivityMiniNumber}>
+                    {uniqueTrainingDays}
+                  </Text>
+
+                  <Text style={styles.profileActivityMiniLabel}>
+                    Días activos
+                  </Text>
+                </View>
+              </View>
+
+
+              <View style={styles.profileActivityDivider} />
+
+
+              <View style={styles.profileActivityMiniStat}>
+                <View style={styles.profileActivityMiniIcon}>
+                  <MaterialCommunityIcons
+                    name="trophy-outline"
+                    size={18}
+                    color={COLORS.orange}
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.profileActivityMiniNumber}>
+                    {unlockedAchievements}
+                  </Text>
+
+                  <Text style={styles.profileActivityMiniLabel}>
+                    Logros
+                  </Text>
+                </View>
+              </View>
+
+            </View>
+          </View>
+
+
+          <View style={styles.profileActivityBottom}>
+            <MaterialCommunityIcons
+              name="chart-line"
+              size={15}
+              color={COLORS.orange}
+            />
+
+            <Text style={styles.profileActivityBottomText}>
+              Cada entrenamiento cuenta
+            </Text>
+          </View>
+
+        </View>
+
+
+        {/* =================================================
+            PERSONALIZACIÓN
+        ================================================= */}
+
+        <Text style={styles.profileGlassSectionLabel}>
+          PERSONALIZACIÓN
+        </Text>
+
+        <View style={styles.profileSettingsGlass}>
+
+          <TouchableOpacity
+            activeOpacity={0.72}
+            style={styles.settingRow}
+            onPress={() =>
+              Alert.alert(
+                'Apariencia',
+                'Elige el estilo de RivalSet.',
+                [
+                  {
+                    text: 'Oscuro',
+                    onPress: () => changeAppearance('dark'),
+                  },
+                  {
+                    text: 'Claro',
+                    onPress: () => changeAppearance('light'),
+                  },
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                  },
+                ]
+              )
+            }
+          >
+            <View style={styles.profileSettingGlassIcon}>
               <MaterialCommunityIcons
-                name="arrow-right"
-                size={20}
+                name="theme-light-dark"
+                size={19}
                 color={COLORS.orange}
               />
             </View>
 
-            <View style={styles.weightColumn}>
-              <Text style={styles.weightLabel}>
-                OBJETIVO
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingName}>
+                Apariencia
               </Text>
 
-              <View style={styles.weightInputBox}>
-                <TextInput
-                  value={targetWeight}
-                  onChangeText={setTargetWeight}
-                  placeholder="--"
-                  placeholderTextColor="#555A64"
-                  keyboardType="decimal-pad"
-                  maxLength={6}
-                  style={styles.weightInputValue}
-                />
-
-                <Text style={styles.weightKg}>
-                  kg
-                </Text>
-              </View>
+              <Text style={[styles.settingDescription, isLightTheme && { color: lightSecondaryText }]}>
+                Tema de RivalSet
+              </Text>
             </View>
-          </View>
 
-          <View style={styles.weightProgressTop}>
-            <Text style={styles.weightProgressLabel}>
-              PROGRESO
-            </Text>
+            <View style={styles.profileSettingValue}>
+              <Text style={styles.profileSettingValueText}>
+                {appearanceMode === 'light' ? 'Claro' : 'Oscuro'}
+              </Text>
 
-            <Text style={styles.weightProgressPercent}>
-              {Math.round(bodyWeightProgress)}%
-            </Text>
-          </View>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#777C86"
+              />
+            </View>
+          </TouchableOpacity>
 
-          <View style={styles.weightProgressTrack}>
-            <View
-              style={[
-                styles.weightProgressFill,
-                {
-                  width: `${bodyWeightProgress}%`,
-                },
-              ]}
-            />
-          </View>
 
-          <View style={styles.weightFooter}>
-            <Text style={styles.weightFooterText}>
-              {startWeightNumber === null ||
-              currentWeightNumber === null ||
-              targetWeightNumber === null
-                ? 'Guarda tu peso para empezar'
-                : remainingWeight <= 0.01
-                ? 'Objetivo conseguido ✓'
-                : `${remainingWeight.toFixed(
-                    1
-                  )} kg restantes`}
-            </Text>
-          </View>
+          <View style={styles.settingDivider} />
+
+          {/* COLOR DE LA APP */}
+          <TouchableOpacity
+            activeOpacity={0.72}
+            style={styles.settingRow}
+            onPress={() =>
+              Alert.alert(
+                'Color de la app',
+                'Elige el color principal de RivalSet.',
+                [
+                  {
+                    text: 'Naranja RivalSet',
+                    onPress: () => changeAccentColor('#FFB000'),
+                  },
+                  {
+                    text: 'Azul cyan',
+                    onPress: () => changeAccentColor('#00CFFF'),
+                  },
+                  {
+                    text: 'Verde eléctrico',
+                    onPress: () => changeAccentColor('#39FF88'),
+                  },
+                  {
+                    text: 'Rojo',
+                    onPress: () => changeAccentColor('#FF3B3B'),
+                  },
+                  {
+                    text: 'Amarillo',
+                    onPress: () => changeAccentColor('#FFD60A'),
+                  },
+                  {
+                    text: 'Salmón',
+                    onPress: () => changeAccentColor('#FF7A70'),
+                  },
+                  {
+                    text: 'Violeta',
+                    onPress: () => changeAccentColor('#A855F7'),
+                  },
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                  },
+                ]
+              )
+            }
+          >
+            <View style={styles.profileSettingGlassIcon}>
+              <MaterialCommunityIcons
+                name="palette-outline"
+                size={19}
+                color={accentColor}
+              />
+            </View>
+
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingName}>
+                Color de la app
+              </Text>
+
+              <Text style={styles.settingDescription}>
+                Personaliza el color de RivalSet
+              </Text>
+            </View>
+
+            <View style={styles.profileSettingValue}>
+              <View
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  backgroundColor: accentColor,
+                  borderWidth: 2,
+                  borderColor: 'rgba(255,255,255,0.45)',
+                  marginRight: 8,
+                }}
+              />
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color="#777C86"
+              />
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.settingDivider} />
+
+
+          
+
         </View>
 
-        <Text style={styles.settingsTitle}>
-          AJUSTES
+
+        {/* =================================================
+            PREFERENCIAS
+        ================================================= */}
+
+        <Text style={styles.profileGlassSectionLabel}>
+          PREFERENCIAS
         </Text>
 
-        <View style={styles.settingsCard}>
+        <View style={styles.profileSettingsGlass}>
+
           <View style={styles.settingRow}>
-            <View style={styles.settingIcon}>
+            <View style={styles.profileSettingGlassIcon}>
               <MaterialCommunityIcons
                 name="bell-outline"
                 size={19}
@@ -7633,7 +8347,7 @@ const ProfileLogin = () => (
                 Notificaciones
               </Text>
 
-              <Text style={styles.settingDescription}>
+              <Text style={[styles.settingDescription, isLightTheme && { color: lightSecondaryText }]}>
                 Recordatorios y avisos
               </Text>
             </View>
@@ -7657,58 +8371,12 @@ const ProfileLogin = () => (
             </TouchableOpacity>
           </View>
 
-          <View style={styles.settingDivider} />
-
-          <TouchableOpacity
-            activeOpacity={
-              notificationsEnabled ? 0.7 : 1
-            }
-            onPress={sendTestNotification}
-            style={[
-              styles.settingRow,
-              !notificationsEnabled &&
-                styles.settingDisabled,
-            ]}
-          >
-            <View style={styles.settingIcon}>
-              <MaterialCommunityIcons
-                name="bell-ring-outline"
-                size={19}
-                color={
-                  notificationsEnabled
-                    ? COLORS.orange
-                    : '#555861'
-                }
-              />
-            </View>
-
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingName}>
-                Enviar notificación de prueba
-              </Text>
-
-              <Text style={styles.settingDescription}>
-                Comprueba cómo se verá en tu móvil
-              </Text>
-            </View>
-
-            {sendingTestNotification ? (
-              <Text style={styles.notificationTestStatus}>
-                ENVIANDO
-              </Text>
-            ) : (
-              <View style={styles.notificationTestButton}>
-                <Text style={styles.notificationTestButtonText}>
-                  PROBAR
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
 
           <View style={styles.settingDivider} />
+
 
           <View style={styles.settingRow}>
-            <View style={styles.settingIcon}>
+            <View style={styles.profileSettingGlassIcon}>
               <MaterialCommunityIcons
                 name="vibrate"
                 size={19}
@@ -7721,7 +8389,7 @@ const ProfileLogin = () => (
                 Vibración
               </Text>
 
-              <Text style={styles.settingDescription}>
+              <Text style={[styles.settingDescription, isLightTheme && { color: lightSecondaryText }]}>
                 Respuesta al interactuar
               </Text>
             </View>
@@ -7744,7 +8412,9 @@ const ProfileLogin = () => (
               />
             </TouchableOpacity>
           </View>
+
         </View>
+
 
         <TouchableOpacity
           style={styles.profileSaveDepth}
@@ -9943,11 +10613,52 @@ goal={fatsGoal}
   }}
 >
   <TextInput
-    defaultValue={String(food.grams)}
-    keyboardType="decimal-pad"
-    onChangeText={(value) =>
-      updateNutritionPhotoFoodGrams(index, value)
+    value={
+      food.gramsInput !== undefined
+        ? String(food.gramsInput)
+        : String(food.grams ?? '')
     }
+    keyboardType="decimal-pad"
+    blurOnSubmit={false}
+    onChangeText={(value) => {
+      setNutritionPhotoResult((prev) => {
+        if (!prev) return prev;
+
+        const foods = [...(prev.foods || [])];
+        const current = foods[index];
+        if (!current) return prev;
+
+        foods[index] = {
+          ...current,
+          gramsInput: value,
+        };
+
+        return {
+          ...prev,
+          foods,
+        };
+      });
+    }}
+    onEndEditing={(event) => {
+      const value = event.nativeEvent.text;
+      updateNutritionPhotoFoodGrams(index, value);
+
+      setNutritionPhotoResult((prev) => {
+        if (!prev) return prev;
+
+        const foods = [...(prev.foods || [])];
+        const current = foods[index];
+        if (!current) return prev;
+
+        const { gramsInput, ...cleanFood } = current;
+        foods[index] = cleanFood;
+
+        return {
+          ...prev,
+          foods,
+        };
+      });
+    }}
     style={{
       minWidth: 58,
       height: 34,
@@ -10167,7 +10878,7 @@ goal={fatsGoal}
     value={localFoodSearch}
     onChangeText={setLocalFoodSearch}
     placeholder="Buscar alimento..."
-    placeholderTextColor="#666A73"
+    placeholderTextColor={'#666A73'}
     returnKeyType="search"
     autoCapitalize="sentences"
     onSubmitEditing={() => {
@@ -10201,7 +10912,7 @@ goal={fatsGoal}
     value={localFoodBrand}
     onChangeText={setLocalFoodBrand}
     placeholder="Marca (opcional, recomendado)"
-    placeholderTextColor="#666A73"
+    placeholderTextColor={'#666A73'}
     autoCapitalize="words"
     returnKeyType="search"
     onSubmitEditing={() => {
@@ -10467,7 +11178,7 @@ const ratio = baseAmount / 100;
       });
     }}
     placeholder="Cantidad"
-    placeholderTextColor="#666A73"
+    placeholderTextColor={'#666A73'}
     keyboardType="decimal-pad"
     style={{
       flex: 1,
@@ -10557,7 +11268,7 @@ const ratio = baseAmount / 100;
             color:
               nutritionUnit === unit
                 ? '#08090C'
-                : '#8D9098',
+                : ('#8D9098'),
             fontSize: 12,
             fontWeight: '900',
           }}
@@ -10589,7 +11300,7 @@ const ratio = baseAmount / 100;
             }))
           }
           placeholder={placeholder}
-          placeholderTextColor="#666A73"
+          placeholderTextColor={'#666A73'}
           keyboardType="decimal-pad"
           style={{
             flex: 1,
@@ -11076,7 +11787,7 @@ setShowNutritionManual(true);      }}
           }))
         }
         placeholder="Calorías"
-        placeholderTextColor="#666A73"
+        placeholderTextColor={'#666A73'}
         keyboardType="number-pad"
         style={{
           flex: 1,
@@ -11097,7 +11808,7 @@ setShowNutritionManual(true);      }}
           }))
         }
         placeholder="Proteína"
-        placeholderTextColor="#666A73"
+        placeholderTextColor={'#666A73'}
         keyboardType="number-pad"
         style={{
           flex: 1,
@@ -11120,7 +11831,7 @@ setShowNutritionManual(true);      }}
           }))
         }
         placeholder="Carbohidratos"
-        placeholderTextColor="#666A73"
+        placeholderTextColor={'#666A73'}
         keyboardType="number-pad"
         style={{
           flex: 1,
@@ -11141,7 +11852,7 @@ setShowNutritionManual(true);      }}
           }))
         }
         placeholder="Grasas"
-        placeholderTextColor="#666A73"
+        placeholderTextColor={'#666A73'}
         keyboardType="number-pad"
         style={{
           flex: 1,
@@ -11225,7 +11936,7 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
 
     <View>
       <Text style={styles.mainButtonText}>
-        CREAR RUTINA
+        CREAR RUTINA DESDE CERO
       </Text>
 
       <Text style={styles.mainButtonSubtext}>
@@ -11233,6 +11944,132 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
       </Text>
     </View>
   </View>
+</TouchableOpacity>
+
+<TouchableOpacity
+  activeOpacity={0.8}
+  onPress={() => {
+    Alert.alert(
+      'Importar rutina',
+      'Elige cómo quieres importar tu rutina',
+      [
+        {
+          text: 'Hacer foto',
+          onPress: async () => {
+            const permission =
+              await ImagePicker.requestCameraPermissionsAsync();
+
+            if (!permission.granted) {
+              Alert.alert(
+                'Permiso necesario',
+                'Necesitas permitir el acceso a la cámara.'
+              );
+              return;
+            }
+
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ['images'],
+              allowsEditing: false,
+              quality: 0.9,
+              base64: true,
+            });
+
+            if (!result.canceled) {
+              await analyzeImportedRoutine(result.assets[0]);
+            }
+          },
+        },
+        {
+          text: 'Elegir imagen',
+          onPress: async () => {
+            const permission =
+              await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+            if (!permission.granted) {
+              Alert.alert(
+                'Permiso necesario',
+                'Necesitas permitir el acceso a tus fotos.'
+              );
+              return;
+            }
+
+            const result =
+              await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: false,
+                quality: 0.9,
+                base64: true,
+              });
+
+            if (!result.canceled) {
+              await analyzeImportedRoutine(result.assets[0]);
+            }
+          },
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+      ]
+    );
+  }}
+  style={{
+    minHeight: 68,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.35)',
+    backgroundColor: 'rgba(255,176,0,0.055)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  }}
+>
+  <View
+    style={{
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      backgroundColor: '#211B0C',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    }}
+  >
+    <MaterialCommunityIcons
+      name="image-plus"
+      size={22}
+      color={COLORS.orange}
+    />
+  </View>
+
+  <View style={{ flex: 1 }}>
+    <Text
+      style={{
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '900',
+      }}
+    >
+      IMPORTAR RUTINA
+    </Text>
+
+    <Text
+      style={{
+        color: '#858A95',
+        fontSize: 10,
+        marginTop: 3,
+      }}
+    >
+      Crea una rutina desde una foto o captura
+    </Text>
+  </View>
+
+  <MaterialCommunityIcons
+    name="chevron-right"
+    size={24}
+    color={COLORS.orange}
+  />
 </TouchableOpacity>
 
 <TouchableOpacity
@@ -11879,7 +12716,7 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
         <TextInput
           style={styles.routineInput}
           placeholder="Ejemplo: Push, Pierna, Torso..."
-          placeholderTextColor="#626873"
+          placeholderTextColor={'#626873'}
           value={routineName}
           onChangeText={setRoutineName}
         />
@@ -11899,208 +12736,245 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
             const selectedMuscles =
               getExerciseMuscles(exercise);
 
+            const isLibraryExercise =
+              !!exercise.exerciseId;
+
+            const cardio =
+              isCardioExercise(exercise);
+
+            const exerciseMeta = [
+              exercise.variant,
+              ...selectedMuscles,
+            ].filter(Boolean);
+
             return (
               <View
                 key={exercise.id}
                 style={styles.exerciseRow}
               >
-                <View style={styles.exerciseNumber}>
-                  <Text style={styles.exerciseNumberText}>
-                    {index + 1}
-                  </Text>
-                </View>
-
-                <View style={styles.exerciseFields}>
-                  <TextInput
-                    style={styles.exerciseNameInput}
-                    placeholder="Nombre del ejercicio"
-                    placeholderTextColor="#626873"
-                    returnKeyType="done"
-blurOnSubmit={true}
-                    value={exercise.name}
-                    onChangeText={(value) =>
-                      updateExercise(
-                        exercise.id,
-                        'name',
-                        value
-                      )
-                    }
-                  />
-
-
-                  {isCardioExercise(exercise) ? (
-  <View style={styles.exerciseMetricsRow}>
-    <TextInput
-      style={styles.metricInput}
-      placeholder="Min"
-      placeholderTextColor="#626873"
-      keyboardType="number-pad"
-      value={exercise.duration}
-      onChangeText={(value) =>
-        updateExercise(
-          exercise.id,
-          'duration',
-          value
-        )
-      }
-    />
-
-    <TextInput
-      style={styles.metricInput}
-      placeholder="Km"
-      placeholderTextColor="#626873"
-      keyboardType="decimal-pad"
-      value={exercise.distance}
-      onChangeText={(value) =>
-        updateExercise(
-          exercise.id,
-          'distance',
-          value
-        )
-      }
-    />
-
-    <TextInput
-      style={styles.metricInput}
-      placeholder="PPM"
-      placeholderTextColor="#626873"
-      keyboardType="number-pad"
-      value={exercise.heartRate}
-      onChangeText={(value) =>
-        updateExercise(
-          exercise.id,
-          'heartRate',
-          value
-        )
-      }
-    />
-  </View>
-) : (
-  <View style={styles.exerciseMetricsRow}>
-    <TextInput
-      style={styles.metricInput}
-      placeholder="Series"
-      placeholderTextColor="#626873"
-      keyboardType="number-pad"
-      value={exercise.series}
-      onChangeText={(value) =>
-        updateExercise(
-          exercise.id,
-          'series',
-          value
-        )
-      }
-    />
-
-    <TextInput
-      style={styles.metricInput}
-      placeholder="Reps"
-      placeholderTextColor="#626873"
-      keyboardType="number-pad"
-      value={exercise.reps}
-      onChangeText={(value) =>
-        updateExercise(
-          exercise.id,
-          'reps',
-          value
-        )
-      }
-    />
-
-    <TextInput
-      style={[
-        styles.metricInput,
-        styles.weightInput,
-      ]}
-      placeholder="Kg"
-      placeholderTextColor="#8B773B"
-      keyboardType="decimal-pad"
-      value={exercise.weight}
-      onChangeText={(value) =>
-        updateExercise(
-          exercise.id,
-          'weight',
-          value
-        )
-      }
-    />
-  </View>
-)}
-
-                  <View style={styles.muscleLabelRow}>
-                    <Text style={styles.muscleLabel}>
-                      GRUPOS MUSCULARES
+                {/* CABECERA */}
+                <View style={styles.exerciseCardHeader}>
+                  <View style={styles.exerciseNumber}>
+                    <Text style={styles.exerciseNumberText}>
+                      {String(index + 1).padStart(2, '0')}
                     </Text>
+                  </View>
 
-                    {selectedMuscles.length > 0 && (
-                      <Text style={styles.muscleSelectedCount}>
-                        {selectedMuscles.length}{' '}
-                        {selectedMuscles.length === 1
-                          ? 'seleccionado'
-                          : 'seleccionados'}
-                      </Text>
+                  <View style={styles.exerciseCardIdentity}>
+                    {isLibraryExercise ? (
+                      <>
+                        <Text
+                          style={styles.exerciseCardName}
+                          numberOfLines={1}
+                        >
+                          {exercise.name}
+                        </Text>
+
+                        {exerciseMeta.length > 0 && (
+                          <Text
+                            style={styles.exerciseCardMeta}
+                            numberOfLines={1}
+                          >
+                            {exerciseMeta.join('  ·  ')}
+                          </Text>
+                        )}
+                      </>
+                    ) : (
+                      <TextInput
+                        style={styles.exerciseNameInput}
+                        placeholder="Nombre del ejercicio"
+                        placeholderTextColor={'#626873'}
+                        returnKeyType="done"
+                        blurOnSubmit={true}
+                        value={exercise.name}
+                        onChangeText={(value) =>
+                          updateExercise(
+                            exercise.id,
+                            'name',
+                            value
+                          )
+                        }
+                      />
                     )}
                   </View>
 
-                  <Text style={styles.muscleHelper}>
-                    Puedes seleccionar varios
-                  </Text>
-
-                  <View style={styles.muscleOptions}>
-                    {MUSCLE_GROUPS.map((muscle) => {
-                      const selected =
-                        selectedMuscles.includes(muscle);
-
-                      return (
-                        <TouchableOpacity
-                          key={muscle}
-                          activeOpacity={0.72}
-                          onPress={() =>
-                            toggleExerciseMuscle(
-                              exercise.id,
-                              muscle
-                            )
-                          }
-                          style={[
-                            styles.muscleChip,
-                            selected &&
-                              styles.muscleChipSelected,
-                          ]}
-                        >
-                          {selected && (
-                            <MaterialCommunityIcons
-                              name="check"
-                              size={12}
-                              color={COLORS.darkText}
-                              style={styles.muscleChipCheck}
-                            />
-                          )}
-
-                          <Text
-                            style={[
-                              styles.muscleChipText,
-                              selected &&
-                                styles.muscleChipTextSelected,
-                            ]}
-                          >
-                            {muscle}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    style={styles.removeButton}
+                    onPress={() =>
+                      removeExercise(exercise.id)
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name="trash-can-outline"
+                      size={19}
+                      color="#D77770"
+                    />
+                  </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() =>
-                    removeExercise(exercise.id)
-                  }
-                >
-                  <Text style={styles.removeText}>
-                    ×
+                {/* MÉTRICAS */}
+                <View style={styles.exerciseMetricLabels}>
+                  <Text style={styles.exerciseMetricLabel}>
+                    {cardio ? 'MINUTOS' : 'SERIES'}
                   </Text>
-                </TouchableOpacity>
+
+                  <Text style={styles.exerciseMetricLabel}>
+                    {cardio ? 'KM' : 'REPS'}
+                  </Text>
+
+                  <Text style={styles.exerciseMetricLabel}>
+                    {cardio ? 'PPM' : 'KG'}
+                  </Text>
+                </View>
+
+                {cardio ? (
+                  <View style={styles.exerciseMetricsRow}>
+                    <TextInput
+                      style={styles.metricInput}
+                      placeholder="0"
+                      placeholderTextColor={'#626873'}
+                      keyboardType="number-pad"
+                      value={exercise.duration}
+                      onChangeText={(value) =>
+                        updateExercise(
+                          exercise.id,
+                          'duration',
+                          value
+                        )
+                      }
+                    />
+
+                    <TextInput
+                      style={styles.metricInput}
+                      placeholder="0"
+                      placeholderTextColor={'#626873'}
+                      keyboardType="decimal-pad"
+                      value={exercise.distance}
+                      onChangeText={(value) =>
+                        updateExercise(
+                          exercise.id,
+                          'distance',
+                          value
+                        )
+                      }
+                    />
+
+                    <TextInput
+                      style={[
+                        styles.metricInput,
+                        styles.lastMetricInput,
+                      ]}
+                      placeholder="0"
+                      placeholderTextColor={'#626873'}
+                      keyboardType="number-pad"
+                      value={exercise.heartRate}
+                      onChangeText={(value) =>
+                        updateExercise(
+                          exercise.id,
+                          'heartRate',
+                          value
+                        )
+                      }
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.exerciseMetricsRow}>
+                    <TextInput
+                      style={styles.metricInput}
+                      placeholder="0"
+                      placeholderTextColor={'#626873'}
+                      keyboardType="number-pad"
+                      value={exercise.series}
+                      onChangeText={(value) =>
+                        updateExercise(
+                          exercise.id,
+                          'series',
+                          value
+                        )
+                      }
+                    />
+
+                    <TextInput
+                      style={styles.metricInput}
+                      placeholder="0"
+                      placeholderTextColor={'#626873'}
+                      keyboardType="number-pad"
+                      value={exercise.reps}
+                      onChangeText={(value) =>
+                        updateExercise(
+                          exercise.id,
+                          'reps',
+                          value
+                        )
+                      }
+                    />
+
+                    <TextInput
+                      style={[
+                        styles.metricInput,
+                        styles.weightInput,
+                        styles.lastMetricInput,
+                      ]}
+                      placeholder="0"
+                      placeholderTextColor="#8B773B"
+                      keyboardType="decimal-pad"
+                      value={exercise.weight}
+                      onChangeText={(value) =>
+                        updateExercise(
+                          exercise.id,
+                          'weight',
+                          value
+                        )
+                      }
+                    />
+                  </View>
+                )}
+
+                {/* SOLO EJERCICIOS MANUALES:
+                    permitimos seguir asignando músculos */}
+                {!isLibraryExercise && (
+                  <View style={styles.manualMuscleSection}>
+                    <Text style={styles.muscleLabel}>
+                      GRUPO MUSCULAR
+                    </Text>
+
+                    <View style={styles.muscleOptions}>
+                      {MUSCLE_GROUPS.map((muscle) => {
+                        const selected =
+                          selectedMuscles.includes(muscle);
+
+                        return (
+                          <TouchableOpacity
+                            key={muscle}
+                            activeOpacity={0.72}
+                            onPress={() =>
+                              toggleExerciseMuscle(
+                                exercise.id,
+                                muscle
+                              )
+                            }
+                            style={[
+                              styles.muscleChip,
+                              selected &&
+                                styles.muscleChipSelected,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.muscleChipText,
+                                selected &&
+                                  styles.muscleChipTextSelected,
+                              ]}
+                            >
+                              {muscle}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
               </View>
             );
           }
@@ -12110,6 +12984,7 @@ blurOnSubmit={true}
           style={styles.addExerciseButton}
           onPress={() => {
             setExercisePickerOpen((value) => !value);
+            setExercisePickerZone(null);
             setExercisePickerMuscle(null);
             setExercisePickerName(null);
           }}
@@ -12126,13 +13001,15 @@ blurOnSubmit={true}
         {exercisePickerOpen && (
           <View style={styles.exercisePickerCard}>
             <View style={styles.exercisePickerHeader}>
-              <View>
+              <View style={{ flex: 1, paddingRight: 12 }}>
                 <Text style={styles.exercisePickerTitle}>
                   {exercisePickerName
                     ? exercisePickerName
                     : exercisePickerMuscle
                     ? exercisePickerMuscle
-                    : 'Elige grupo muscular'}
+                    : exercisePickerZone
+                    ? exercisePickerZone.name
+                    : '¿Qué vas a entrenar?'}
                 </Text>
 
                 <Text style={styles.exercisePickerSubtitle}>
@@ -12140,7 +13017,11 @@ blurOnSubmit={true}
                     ? 'Elige la variante'
                     : exercisePickerMuscle
                     ? 'Elige un ejercicio'
-                    : 'RivalSet asignará el músculo automáticamente'}
+                    : exercisePickerZone?.id === 'cardio'
+                    ? 'Elige una actividad'
+                    : exercisePickerZone
+                    ? 'Elige el grupo muscular'
+                    : 'Primero selecciona una zona'}
                 </Text>
               </View>
 
@@ -12150,6 +13031,8 @@ blurOnSubmit={true}
                     setExercisePickerName(null);
                   } else if (exercisePickerMuscle) {
                     setExercisePickerMuscle(null);
+                  } else if (exercisePickerZone) {
+                    setExercisePickerZone(null);
                   } else {
                     setExercisePickerOpen(false);
                   }
@@ -12157,7 +13040,7 @@ blurOnSubmit={true}
               >
                 <MaterialCommunityIcons
                   name={
-                    exercisePickerMuscle
+                    exercisePickerZone
                       ? 'arrow-left'
                       : 'close'
                   }
@@ -12167,24 +13050,57 @@ blurOnSubmit={true}
               </TouchableOpacity>
             </View>
 
-            {!exercisePickerMuscle && (
+            {/* NIVEL 1 · ZONA */}
+            {!exercisePickerZone && (
               <View style={styles.exercisePickerGrid}>
-                {[...new Set(
-                  EXERCISE_LIBRARY.flatMap(
-                    (item) => item.primaryMuscles || []
-                  )
-                )].map((muscle) => (
+                {EXERCISE_ZONES.map((zone) => (
                   <TouchableOpacity
-                    key={muscle}
+                    key={zone.id}
                     activeOpacity={0.75}
                     style={styles.exercisePickerOption}
-                    onPress={() =>
-                      setExercisePickerMuscle(muscle)
-                    }
+                    onPress={() => {
+                      setExercisePickerZone(zone);
+
+                      if (zone.id === 'cardio') {
+                        setExercisePickerMuscle('Cardio');
+                      }
+                    }}
                   >
-                    <Text style={styles.exercisePickerOptionText}>
-                      {muscle}
-                    </Text>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        flex: 1,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 28,
+                          height: 28,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginRight: 10,
+                        }}
+                      >
+                        {zone.anatomicalIcon ? (
+                          <RivalSetMuscleIcon
+                            type={zone.anatomicalIcon}
+                            size={27}
+                            color={COLORS.orange}
+                          />
+                        ) : (
+                          <MaterialCommunityIcons
+                            name={zone.icon}
+                            size={21}
+                            color={COLORS.orange}
+                          />
+                        )}
+                      </View>
+
+                      <Text style={styles.exercisePickerOptionText}>
+                        {zone.name}
+                      </Text>
+                    </View>
 
                     <MaterialCommunityIcons
                       name="chevron-right"
@@ -12196,8 +13112,67 @@ blurOnSubmit={true}
               </View>
             )}
 
+            {/* NIVEL 2 · MÚSCULO */}
+            {exercisePickerZone &&
+              exercisePickerZone.id !== 'cardio' &&
+              !exercisePickerMuscle && (
+                <View style={styles.exercisePickerGrid}>
+                  {exercisePickerZone.muscles.map((muscle) => (
+                    <TouchableOpacity
+                      key={muscle}
+                      activeOpacity={0.75}
+                      style={styles.exercisePickerOption}
+                      onPress={() =>
+                        setExercisePickerMuscle(muscle)
+                      }
+                    >
+                      <Text style={styles.exercisePickerOptionText}>
+                        {muscle}
+                      </Text>
+
+                      <MaterialCommunityIcons
+                        name="chevron-right"
+                        size={18}
+                        color={COLORS.orange}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+            {/* NIVEL 3 · EJERCICIO */}
             {exercisePickerMuscle && !exercisePickerName && (
               <View style={styles.exercisePickerList}>
+
+                {exercisePickerMuscle !== 'Cardio' && (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 4,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="gesture-tap-hold"
+                      size={16}
+                      color={COLORS.orange}
+                      style={{ marginRight: 7 }}
+                    />
+
+                    <Text
+                      style={{
+                        color: '#8C9099',
+                        fontSize: 10,
+                        fontWeight: '600',
+                        flex: 1,
+                      }}
+                    >
+                      Mantén pulsado un ejercicio para ver cómo hacerlo
+                    </Text>
+                  </View>
+                )}
+
                 {[...new Set(
                   EXERCISE_LIBRARY
                     .filter((item) =>
@@ -12206,81 +13181,103 @@ blurOnSubmit={true}
                       )
                     )
                     .map((item) => item.name)
-                )].map((name) => (
-                  <TouchableOpacity
-                    key={name}
-                    activeOpacity={0.75}
-                    style={[
-                      styles.exercisePickerOption,
-                      EXERCISE_GUIDES[name] &&
-                        styles.exerciseGuidePressable,
-                    ]}
-                    delayLongPress={1500}
-                    onPressIn={() =>
-                      startExerciseGuideProgress(name)
-                    }
-                    onPressOut={cancelExerciseGuideProgress}
-                    onLongPress={() =>
-                      openExerciseGuide(name)
-                    }
-                    onPress={() => {
-                      if (exerciseGuideLongPressDone.current) {
-                        exerciseGuideLongPressDone.current = false;
-                        return;
-                      }
+                )].map((name) => {
+                  const cardio =
+                    exercisePickerMuscle === 'Cardio';
 
-                      setExercisePickerName(name);
-                    }}
-                  >
-                    {EXERCISE_GUIDES[name] &&
-                      exerciseGuideHoldingName === name && (
-                        <Animated.View
-                          pointerEvents="none"
-                          style={[
-                            styles.exerciseGuideProgressFill,
-                            {
-                              width: exerciseGuideProgress.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: ['0%', '100%'],
-                              }),
-                            },
-                          ]}
-                        />
-                      )}
-
-                    <Text
+                  return (
+                    <TouchableOpacity
+                      key={name}
+                      activeOpacity={0.75}
                       style={[
-                        styles.exercisePickerOptionText,
+                        styles.exercisePickerOption,
                         EXERCISE_GUIDES[name] &&
-                          styles.exerciseGuideForeground,
+                          styles.exerciseGuidePressable,
                       ]}
-                    >
-                      {name}
-                    </Text>
+                      delayLongPress={1500}
+                      onPressIn={() => {
+                        if (!cardio && EXERCISE_GUIDES[name]) {
+                          startExerciseGuideProgress(name);
+                        }
+                      }}
+                      onPressOut={() => {
+                        if (!cardio && EXERCISE_GUIDES[name]) {
+                          cancelExerciseGuideProgress();
+                        }
+                      }}
+                      onLongPress={() => {
+                        if (!cardio && EXERCISE_GUIDES[name]) {
+                          openExerciseGuide(name);
+                        }
+                      }}
+                      onPress={() => {
+                        if (
+                          !cardio &&
+                          exerciseGuideLongPressDone.current
+                        ) {
+                          exerciseGuideLongPressDone.current = false;
+                          return;
+                        }
 
-                    <View
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 15,
-                        borderWidth: 1.5,
-                        borderColor: COLORS.orange,
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        const variants =
+                          EXERCISE_LIBRARY.filter(
+                            (item) =>
+                              item.name === name &&
+                              (item.primaryMuscles || []).includes(
+                                exercisePickerMuscle
+                              )
+                          );
+
+                        if (variants.length === 1) {
+                          addLibraryExercise(variants[0]);
+                        } else {
+                          setExercisePickerName(name);
+                        }
                       }}
                     >
+                      {EXERCISE_GUIDES[name] &&
+                        exerciseGuideHoldingName === name && (
+                          <Animated.View
+                            pointerEvents="none"
+                            style={[
+                              styles.exerciseGuideProgressFill,
+                              {
+                                width:
+                                  exerciseGuideProgress.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: ['0%', '100%'],
+                                  }),
+                              },
+                            ]}
+                          />
+                        )}
+
+                      <Text
+                        style={[
+                          styles.exercisePickerOptionText,
+                          EXERCISE_GUIDES[name] &&
+                            styles.exerciseGuideForeground,
+                        ]}
+                      >
+                        {name}
+                      </Text>
+
                       <MaterialCommunityIcons
-                        name="play"
-                        size={17}
+                        name={
+                          cardio
+                            ? 'plus-circle-outline'
+                            : 'chevron-right'
+                        }
+                        size={20}
                         color={COLORS.orange}
-                        style={{ marginLeft: 2 }}
                       />
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
+            {/* NIVEL 4 · VARIANTE */}
             {exercisePickerMuscle && exercisePickerName && (
               <View style={styles.exercisePickerList}>
                 {EXERCISE_LIBRARY
@@ -12506,7 +13503,7 @@ blurOnSubmit={true}
                   LIGA
                 </Text>
 
-                <Text style={styles.quickLeagueBannerText}>
+                <Text style={[styles.quickLeagueBannerText, lightTextStyle]}>
                   {leagueWeeklyLimitReached
                     ? 'Tu límite puntuable ya está completo. Esta sesión seguirá guardándose normalmente.'
                     : `Esta será tu sesión ${
@@ -12534,7 +13531,7 @@ blurOnSubmit={true}
               Hoy también cuenta
             </Text>
 
-            <Text style={styles.quickHeroText}>
+            <Text style={[styles.quickHeroText, lightTextStyle]}>
               Elige una rutina y registra cada serie de verdad.
             </Text>
           </View>
@@ -12564,7 +13561,7 @@ blurOnSubmit={true}
                       {preferredRoutine.name}
                     </Text>
 
-                    <Text style={styles.quickRoutineMeta}>
+                    <Text style={[styles.quickRoutineMeta, lightTextStyle]}>
                       {preferredRoutine.exercises.length}{' '}
                       ejercicios
                     </Text>
@@ -12612,7 +13609,7 @@ blurOnSubmit={true}
                       {routine.name}
                     </Text>
 
-                    <Text style={styles.quickRoutineMeta}>
+                    <Text style={[styles.quickRoutineMeta, lightTextStyle]}>
                       {routine.exercises.length}{' '}
                       ejercicios
                     </Text>
@@ -12921,7 +13918,7 @@ const selectedMuscleStats =
             style={{
               color: isCurrentMonth
                 ? '#FFFFFF'
-                : '#858A95',
+                : ('#858A95'),
               fontSize: 10,
               fontWeight: '800',
               marginBottom: 5,
@@ -12951,7 +13948,7 @@ const selectedMuscleStats =
             style={{
               color: isCurrentMonth
                 ? COLORS.orange
-                : '#858A95',
+                : ('#858A95'),
               fontSize: 11,
               fontWeight: isCurrentMonth ? '900' : '700',
               marginTop: 7,
@@ -13005,15 +14002,15 @@ const selectedMuscleStats =
   MÚSCULOS TRABAJADOS
 </Text>
 
-<Text style={styles.historySectionSubtitle}>
+<Text style={[styles.historySectionSubtitle, lightTextStyle]}>
   Toca una zona para ver cuánto la has trabajado
 </Text>
 
 <View
   style={{
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(16, 17, 21, 0.54)',
     borderWidth: 1,
-    borderColor: '#24272E',
+    borderColor: 'rgba(255, 255, 255, 0.13)',
     borderRadius: 20,
     padding: 16,
     marginBottom: 22,
@@ -13055,7 +14052,7 @@ const selectedMuscleStats =
             style={{
               color: active
                 ? '#17120A'
-                : '#777D88',
+                : ('#777D88'),
               fontSize: 12,
               fontWeight: '900',
             }}
@@ -13512,9 +14509,9 @@ const PersonalRecords = () => {
             <View
               key={normalizeExerciseName(record.name)}
               style={{
-                backgroundColor: '#111318',
+                backgroundColor: 'rgba(16, 17, 21, 0.54)',
                 borderWidth: 1,
-                borderColor: '#252830',
+                borderColor: 'rgba(255, 255, 255, 0.13)',
                 borderRadius: 18,
                 padding: 16,
                 marginBottom: 12,
@@ -14465,7 +15462,7 @@ const PersonalRecords = () => {
                       : 'nuevos récords'}
                   </Text>
 
-                  <Text style={styles.prSummarySubtitle}>
+                  <Text style={[styles.prSummarySubtitle, lightTextStyle]}>
                     Mejoras conseguidas hoy
                   </Text>
                 </View>
@@ -14798,16 +15795,26 @@ setLeagueHistory(groupedHistory);
 
 return (
 <LinearGradient
-  colors={[
-    'rgba(255,176,0,0.34)',
-    'rgba(255,176,0,0.18)',
-    'rgba(255,176,0,0.07)',
-    'rgba(8,9,12,0.97)',
-    '#08090C',
-  ]}
-  locations={[0, 0.16, 0.31, 0.52, 0.70]}
-  style={styles.screen}
->
+colors={
+  getAccentBackground(
+    accentColor,
+    isLightTheme
+  )
+}
+locations={
+  isLightTheme
+    ? [0, 0.16, 0.36, 0.58, 0.70]
+    : [0, 0.18, 0.40, 0.58, 0.70]
+}
+start={{ x: 0.5, y: 0 }}
+end={{ x: 0.5, y: 1 }}
+style={styles.screen}>
+  
+
+  
+
+  {!isLightTheme && <RivalSetDiagonalLight />}
+
   <SafeAreaView style={styles.flex}>
 
   
@@ -14861,9 +15868,7 @@ return (
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={styles.exerciseGuideScroll}
                 >
-                  {exerciseGuideName === 'Press banca' && (
-                    <BenchPressAnimation />
-                  )}
+                  <ExerciseAnimation exerciseName={exerciseGuideName} />
 
                   <Text style={styles.exerciseGuideSectionTitle}>
                     MÚSCULOS
@@ -15006,6 +16011,300 @@ return (
 ========================================================= */
 
 
+const EXERCISE_ANIMATION_FRAMES = {
+  'Jalón unilateral': [
+    require('./assets/exercise-guides/rivalset/close-grip-lat-pulldown/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/close-grip-lat-pulldown/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/close-grip-lat-pulldown/frame-3.png'),
+  ],
+  'Pullover': [
+    require('./assets/exercise-guides/rivalset/straight-arm-pulldown/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/straight-arm-pulldown/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/straight-arm-pulldown/frame-3.png'),
+  ],
+  'Press militar': [
+    require('./assets/exercise-guides/rivalset/overhead-press/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/overhead-press/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/overhead-press/frame-3.png'),
+  ],
+  'Press de hombro': [
+    require('./assets/exercise-guides/rivalset/machine-shoulder-press/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/machine-shoulder-press/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/machine-shoulder-press/frame-3.png'),
+  ],
+  'Extensión sobre cabeza': [
+    require('./assets/exercise-guides/rivalset/overhead-tricep-extension/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/overhead-tricep-extension/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/overhead-tricep-extension/frame-3.png'),
+  ],
+  'Press inclinado': [
+    require('./assets/exercise-guides/rivalset/incline-bench-press/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/incline-bench-press/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/incline-bench-press/frame-3.png'),
+  ],
+  'Press de pecho': [
+    require('./assets/exercise-guides/rivalset/machine-chest-press/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/machine-chest-press/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/machine-chest-press/frame-3.png'),
+  ],
+  'Aperturas': [
+    require('./assets/exercise-guides/rivalset/dumbbell-fly/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/dumbbell-fly/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/dumbbell-fly/frame-3.png'),
+  ],
+  'Contractora': [
+    require('./assets/exercise-guides/rivalset/pec-deck/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/pec-deck/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/pec-deck/frame-3.png'),
+  ],
+  'Fondos': [
+    require('./assets/exercise-guides/rivalset/chest-dip/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/chest-dip/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/chest-dip/frame-3.png'),
+  ],
+  'Dominadas': [
+    require('./assets/exercise-guides/rivalset/pull-up/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/pull-up/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/pull-up/frame-3.png'),
+  ],
+  'Jalón al pecho': [
+    require('./assets/exercise-guides/rivalset/lat-pulldown/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/lat-pulldown/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/lat-pulldown/frame-3.png'),
+  ],
+  'Remo': [
+    require('./assets/exercise-guides/rivalset/barbell-row/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/barbell-row/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/barbell-row/frame-3.png'),
+  ],
+  'Remo sentado': [
+    require('./assets/exercise-guides/rivalset/seated-row/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/seated-row/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/seated-row/frame-3.png'),
+  ],
+  'Remo T': [
+    require('./assets/exercise-guides/rivalset/t-bar-row/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/t-bar-row/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/t-bar-row/frame-3.png'),
+  ],
+  'Elevaciones laterales': [
+    require('./assets/exercise-guides/rivalset/lateral-raise/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/lateral-raise/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/lateral-raise/frame-3.png'),
+  ],
+  'Pájaros': [
+    require('./assets/exercise-guides/rivalset/rear-delt-fly/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/rear-delt-fly/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/rear-delt-fly/frame-3.png'),
+  ],
+  'Face pull': [
+    require('./assets/exercise-guides/rivalset/face-pull/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/face-pull/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/face-pull/frame-3.png'),
+  ],
+  'Curl de bíceps': [
+    require('./assets/exercise-guides/rivalset/bicep-curl/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/bicep-curl/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/bicep-curl/frame-3.png'),
+  ],
+  'Curl martillo': [
+    require('./assets/exercise-guides/rivalset/hammer-curl/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/hammer-curl/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/hammer-curl/frame-3.png'),
+  ],
+  'Curl predicador': [
+    require('./assets/exercise-guides/rivalset/preacher-curl/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/preacher-curl/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/preacher-curl/frame-3.png'),
+  ],
+  'Extensión de tríceps': [
+    require('./assets/exercise-guides/rivalset/tricep-pushdown/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/tricep-pushdown/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/tricep-pushdown/frame-3.png'),
+  ],
+  'Press francés': [
+    require('./assets/exercise-guides/rivalset/skull-crusher/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/skull-crusher/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/skull-crusher/frame-3.png'),
+  ],
+  'Press cerrado': [
+    require('./assets/exercise-guides/rivalset/close-grip-bench-press/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/close-grip-bench-press/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/close-grip-bench-press/frame-3.png'),
+  ],
+  'Fondos de tríceps': [
+    require('./assets/exercise-guides/rivalset/bench-dip/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/bench-dip/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/bench-dip/frame-3.png'),
+  ],
+  'Sentadilla': [
+    require('./assets/exercise-guides/rivalset/squat/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/squat/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/squat/frame-3.png'),
+  ],
+  'Hack squat': [
+    require('./assets/exercise-guides/rivalset/hack-squat/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/hack-squat/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/hack-squat/frame-3.png'),
+  ],
+  'Prensa': [
+    require('./assets/exercise-guides/rivalset/leg-press/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/leg-press/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/leg-press/frame-3.png'),
+  ],
+  'Extensión de cuádriceps': [
+    require('./assets/exercise-guides/rivalset/leg-extension/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/leg-extension/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/leg-extension/frame-3.png'),
+  ],
+  'Sentadilla búlgara': [
+    require('./assets/exercise-guides/rivalset/bulgarian-split-squat/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/bulgarian-split-squat/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/bulgarian-split-squat/frame-3.png'),
+  ],
+  'Peso muerto rumano': [
+    require('./assets/exercise-guides/rivalset/romanian-deadlift/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/romanian-deadlift/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/romanian-deadlift/frame-3.png'),
+  ],
+  'Curl femoral tumbado': [
+    require('./assets/exercise-guides/rivalset/lying-leg-curl/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/lying-leg-curl/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/lying-leg-curl/frame-3.png'),
+  ],
+  'Curl femoral sentado': [
+    require('./assets/exercise-guides/rivalset/seated-leg-curl/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/seated-leg-curl/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/seated-leg-curl/frame-3.png'),
+  ],
+  'Hip thrust': [
+    require('./assets/exercise-guides/rivalset/hip-thrust/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/hip-thrust/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/hip-thrust/frame-3.png'),
+  ],
+  'Patada de glúteo': [
+    require('./assets/exercise-guides/rivalset/cable-kickback/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/cable-kickback/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/cable-kickback/frame-3.png'),
+  ],
+  'Abductores': [
+    require('./assets/exercise-guides/rivalset/hip-abduction-machine/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/hip-abduction-machine/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/hip-abduction-machine/frame-3.png'),
+  ],
+  'Elevación de gemelos': [
+    require('./assets/exercise-guides/rivalset/standing-calf-raise/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/standing-calf-raise/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/standing-calf-raise/frame-3.png'),
+  ],
+  'Gemelo sentado': [
+    require('./assets/exercise-guides/rivalset/seated-calf-raise/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/seated-calf-raise/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/seated-calf-raise/frame-3.png'),
+  ],
+  'Encogimientos': [
+    require('./assets/exercise-guides/rivalset/shrug/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/shrug/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/shrug/frame-3.png'),
+  ],
+  'Crunch': [
+    require('./assets/exercise-guides/rivalset/crunch/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/crunch/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/crunch/frame-3.png'),
+  ],
+  'Elevación de piernas': [
+    require('./assets/exercise-guides/rivalset/hanging-leg-raise/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/hanging-leg-raise/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/hanging-leg-raise/frame-3.png'),
+  ],
+  'Peso muerto convencional': [
+    require('./assets/exercise-guides/rivalset/deadlift/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/deadlift/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/deadlift/frame-3.png'),
+  ],
+  'Hiperextensiones': [
+    require('./assets/exercise-guides/rivalset/back-extension/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/back-extension/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/back-extension/frame-3.png'),
+  ],
+};
+
+const ExerciseAnimation = ({ exerciseName }) => {
+  const frames = EXERCISE_ANIMATION_FRAMES[exerciseName];
+
+  // Press banca mantiene exactamente la animación
+  // original que ya sabemos que funciona.
+  if (exerciseName === 'Press banca') {
+    return <BenchPressAnimation />;
+  }
+
+  if (!frames || frames.length !== 3) {
+    return null;
+  }
+
+  return (
+    <ExerciseFramesAnimation
+      key={exerciseName}
+      frames={frames}
+    />
+  );
+};
+
+const ExerciseFramesAnimation = ({ frames }) => {
+  // Exactamente el mismo sistema que BenchPressAnimation:
+  // 1 → 2 → 3 → 2 → 1...
+  const sequence = [0, 1, 2, 1];
+  const [sequencePosition, setSequencePosition] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSequencePosition((position) =>
+        (position + 1) % sequence.length
+      );
+    }, 300);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const activeFrame = sequence[sequencePosition];
+
+  return (
+    <View
+      style={{
+        width: '100%',
+        height: 235,
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+      }}
+    >
+      <View
+        style={{
+          width: '100%',
+          height: 205,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {frames.map((source, index) => (
+          <Image
+            key={index}
+            source={source}
+            resizeMode="contain"
+            fadeDuration={0}
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              opacity: activeFrame === index ? 1 : 0,
+            }}
+          />
+        ))}
+      </View>
+    </View>
+  );
+};
+
 const BenchPressAnimation = () => {
   const frames = [
     require('./assets/exercise-guides/bench-press/uniform-1.png'),
@@ -15079,7 +16378,7 @@ const BenchPressAnimation = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createRivalSetStyles = () => StyleSheet.create({
 screen: {
   flex: 1,
   backgroundColor: '#08090C',
@@ -15713,7 +17012,7 @@ comingSoonRoutineBadgeText: {
   marginTop: 2,
   fontSize: 8,
   fontWeight: '600',
-  color: '#FFB000',
+  color: COLORS.orange,
   letterSpacing: 0.8,
   opacity: 0.9,
 },
@@ -16449,6 +17748,228 @@ leaguePlayerAward: {
     marginBottom: 9,
   },
 
+  /* =====================================================
+     PERFIL · CRISTAL
+  ===================================================== */
+
+  profileGlassSectionLabel: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.15,
+    marginTop: 4,
+    marginBottom: 9,
+    marginLeft: 2,
+  },
+
+  profileActivityGlass: {
+    backgroundColor: 'rgba(14,15,19,0.34)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 22,
+
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+
+  profileActivityTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+
+  profileActivityHeadline: {
+    color: '#F5F5F7',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  profileActivitySubheadline: {
+    color: 'rgba(255,255,255,0.43)',
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+
+  profileActivityActivePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,179,0,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.22)',
+  },
+
+  profileActivityActiveText: {
+    color: COLORS.orange,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    marginLeft: 3,
+  },
+
+  profileActivityContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  profileActivityCircle: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    backgroundColor: 'rgba(255,179,0,0.055)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,194,51,0.48)',
+  },
+
+  profileActivityCircleInner: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    backgroundColor: 'rgba(8,9,12,0.20)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+
+  profileActivityBigNumber: {
+    color: COLORS.yellow,
+    fontSize: 31,
+    lineHeight: 33,
+    fontWeight: '900',
+  },
+
+  profileActivityBigLabel: {
+    color: 'rgba(255,194,51,0.62)',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.9,
+    marginTop: 2,
+  },
+
+  profileActivityRight: {
+    flex: 1,
+    marginLeft: 20,
+  },
+
+  profileActivityMiniStat: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  profileActivityMiniIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+  },
+
+  profileActivityMiniNumber: {
+    color: '#F5F5F7',
+    fontSize: 19,
+    fontWeight: '900',
+    lineHeight: 20,
+  },
+
+  profileActivityMiniLabel: {
+    color: 'rgba(255,255,255,0.44)',
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  profileActivityDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginVertical: 4,
+  },
+
+  profileActivityBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 17,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+  },
+
+  profileActivityBottomText: {
+    color: 'rgba(255,255,255,0.42)',
+    fontSize: 9,
+    fontWeight: '600',
+    marginLeft: 7,
+  },
+
+  profileSettingsGlass: {
+    overflow: 'hidden',
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(14,15,19,0.34)',
+    marginBottom: 20,
+
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+
+  profileSettingGlassIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+
+    backgroundColor: 'rgba(255,179,0,0.065)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.14)',
+  },
+
+  profileSettingValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  profileSettingValueText: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 11,
+    fontWeight: '700',
+    marginRight: 3,
+  },
+
+  profileAmberDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: COLORS.orange,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.30)',
+    marginRight: 7,
+  },
+
   settingsCard: {
     overflow: 'hidden',
     borderRadius: 19,
@@ -16989,9 +18510,9 @@ leaguePlayerAward: {
 
   routineInput: {
     height: 54,
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(18, 18, 22, 0.54)',
     borderWidth: 1,
-    borderColor: '#4A3A17',
+    borderColor: 'rgba(255, 194, 51, 0.24)',
     borderRadius: 15,
     color: COLORS.text,
     fontSize: 16,
@@ -17017,28 +18538,54 @@ leaguePlayerAward: {
   },
 
   exerciseRow: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
+    backgroundColor: 'rgba(16, 17, 21, 0.58)',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 9,
-    marginBottom: 10,
+    borderColor: 'rgba(255,255,255,0.13)',
+    padding: 14,
+    marginBottom: 12,
+  },
+
+  exerciseCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
   exerciseNumber: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: '#302707',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,179,0,0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 9,
+    marginRight: 11,
   },
 
   exerciseNumberText: {
     color: COLORS.yellow,
+    fontSize: 12,
     fontWeight: '900',
+  },
+
+  exerciseCardIdentity: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  exerciseCardName: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.1,
+  },
+
+  exerciseCardMeta: {
+    color: '#8C9099',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 4,
   },
 
   exerciseFields: {
@@ -17046,34 +18593,65 @@ leaguePlayerAward: {
   },
 
   exerciseNameInput: {
-    height: 46,
+    height: 42,
     borderWidth: 1,
-    borderColor: '#353943',
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
     borderRadius: 11,
     color: COLORS.text,
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
+    fontWeight: '700',
+  },
+
+  exerciseMetricLabels: {
+    flexDirection: 'row',
+    marginTop: 15,
+    marginBottom: 5,
+  },
+
+  exerciseMetricLabel: {
+    flex: 1,
+    color: '#747A85',
+    fontSize: 8,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 0.7,
+    marginRight: 6,
   },
 
   exerciseMetricsRow: {
     flexDirection: 'row',
-    marginTop: 7,
   },
 
   metricInput: {
     flex: 1,
-    height: 42,
+    height: 44,
     borderWidth: 1,
-    borderColor: '#30333B',
-    borderRadius: 11,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12,
     color: COLORS.text,
     textAlign: 'center',
     marginRight: 6,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  lastMetricInput: {
+    marginRight: 0,
   },
 
   weightInput: {
-    marginRight: 0,
-    borderColor: '#4B3C17',
+    borderColor: 'rgba(255,179,0,0.28)',
+    backgroundColor: 'rgba(255,179,0,0.06)',
     color: COLORS.yellow,
+  },
+
+  manualMuscleSection: {
+    marginTop: 13,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.07)',
   },
 
   muscleLabelRow: {
@@ -17087,6 +18665,7 @@ leaguePlayerAward: {
     color: COLORS.muted,
     fontSize: 9,
     fontWeight: '900',
+    marginBottom: 7,
   },
 
   muscleSelectedCount: {
@@ -17109,7 +18688,8 @@ leaguePlayerAward: {
 
   muscleChip: {
     borderWidth: 1,
-    borderColor: '#30333B',
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
     borderRadius: 11,
     paddingVertical: 7,
     paddingHorizontal: 9,
@@ -17139,8 +18719,13 @@ leaguePlayerAward: {
   },
 
   removeButton: {
-    width: 30,
+    width: 34,
+    height: 34,
+    borderRadius: 11,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 7,
+    backgroundColor: 'rgba(215,119,112,0.06)',
   },
 
   removeText: {
@@ -17150,10 +18735,11 @@ leaguePlayerAward: {
 
   addExerciseButton: {
     height: 50,
+    backgroundColor: 'rgba(20, 17, 10, 0.32)',
     borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#5B491D',
+    borderColor: 'rgba(255, 194, 51, 0.40)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -17181,9 +18767,9 @@ leaguePlayerAward: {
   /* LOGROS */
 
   achievementSummary: {
-    backgroundColor: '#11120F',
+    backgroundColor: 'rgba(16, 17, 21, 0.54)',
     borderWidth: 1,
-    borderColor: '#2E291B',
+    borderColor: 'rgba(255, 255, 255, 0.13)',
     borderRadius: 24,
     padding: 20,
     alignItems: 'center',
@@ -17202,9 +18788,9 @@ leaguePlayerAward: {
   },
 
   achievementCard: {
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(16, 17, 21, 0.54)',
     borderWidth: 1,
-    borderColor: '#24272E',
+    borderColor: 'rgba(255, 255, 255, 0.13)',
     borderRadius: 22,
     padding: 14,
     flexDirection: 'row',
@@ -18135,3 +19721,6 @@ leaguePlayerAward: {
     marginTop: 3,
   },
 });
+
+let styles = createRivalSetStyles();
+

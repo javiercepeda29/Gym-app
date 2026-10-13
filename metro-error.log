@@ -1,0 +1,25 @@
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+Starting project at /workspaces/Gym-app
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+React Compiler enabled
+ ERROR  An unknown error occurred while installing React Native DevTools. Details:
+
+/workspaces/Gym-app/node_modules/@react-native/debugger-shell/bin/react-native-devtools: error while loading shared libraries: libatk-1.0.so.0: cannot open shared object file: No such file or directory
+
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+Waiting on http://localhost:8081
+
+An update for expo is available: 57.0.15 → ~57.0.26
+20 other packages may need updating. Run npx expo install --check for details.
+Logs for your project will appear below.
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
+No 'androidAppId' was provided. The native Google Mobile Ads SDK will crash on Android without it.
