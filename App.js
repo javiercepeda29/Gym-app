@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  Ionicons } from "@expo/vector-icons";
+import { useCallback,
+  useEffect,
+  useRef,
+  useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -7,7 +12,7 @@ import {
   Image,
   InputAccessoryView,
   KeyboardAvoidingView,
-Keyboard,
+  Keyboard,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -18,6 +23,8 @@ Keyboard,
   TextInput as RNTextInput,
   TouchableOpacity,
   View,
+  Modal,
+  RefreshControl
 } from 'react-native';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -25,7 +32,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path, Circle, Ellipse, Rect } from 'react-native-svg';
+import { BlurView } from 'expo-blur';
+import Svg, { Path, Circle, Ellipse, Rect, Defs, RadialGradient, Stop } from 'react-native-svg';
 import Body from 'react-native-body-highlighter';
 import mobileAds, {
   BannerAd,
@@ -36,12 +44,14 @@ import mobileAds, {
 } from 'react-native-google-mobile-ads';
 
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { supabase } from './supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Modal as BarcodeModal } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { useVideoPlayer, VideoView } from 'expo-video';
 const GLOBAL_INPUT_ACCESSORY_ID = 'rivalset_input_done';
 
 const TextInput = (props) => {
@@ -125,6 +135,100 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+
+/* RIVALSET_PUSH_TOKEN_REGISTRATION */
+const registerRivalSetPushToken = async () => {
+  if (Platform.OS === 'web') return;
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    let permissions =
+      await Notifications.getPermissionsAsync();
+
+    let finalStatus = permissions.status;
+
+    if (finalStatus !== 'granted') {
+      const requested =
+        await Notifications.requestPermissionsAsync();
+
+      finalStatus = requested.status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.log(
+        'RIVALSET PUSH: permiso de notificaciones no concedido'
+      );
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync(
+        'rivalset-league',
+        {
+          name: 'Actividad de Liga',
+          importance:
+            Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 150, 250],
+          sound: 'default',
+        }
+      );
+    }
+
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ??
+      Constants?.easConfig?.projectId;
+
+    if (!projectId) {
+      console.log(
+        'RIVALSET PUSH: no encuentro EAS projectId'
+      );
+      return;
+    }
+
+    const tokenData =
+      await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+
+    const expoPushToken = tokenData.data;
+
+    if (!expoPushToken) return;
+
+    const { error } = await supabase
+      .from('push_tokens')
+      .upsert(
+        {
+          user_id: user.id,
+          expo_push_token: expoPushToken,
+          platform: Platform.OS,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: 'user_id,expo_push_token',
+        }
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(
+      '✅ RIVALSET PUSH TOKEN REGISTRADO:',
+      expoPushToken
+    );
+  } catch (error) {
+    console.log(
+      '❌ ERROR REGISTRANDO RIVALSET PUSH:',
+      error
+    );
+  }
+};
+
 const leagueInterstitial = InterstitialAd.createForAdRequest(
   TestIds.INTERSTITIAL,
   {
@@ -175,30 +279,12 @@ const LEAGUE_BADGE = require('./assets/Medalla-liga.png');
 
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-const MUSCLE_GROUPS = [
-  
-  'Trapecio',
-  'Dorsal',
-  'Pecho',
-  'Lumbar',
-  'Hombro',
-  'Bíceps',
-  'Tríceps',
-  'Cuádriceps',
-  'Femoral',
-  'Glúteo',
-  'Aductor',
-  'Abductor',
-  'Gemelo',
-  'Abdomen',
-  'Cardio',
-  'Otro',
-];
+const MUSCLE_GROUPS = ["Trapecio","Dorsal","Espalda alta","Pecho","Lumbar","Hombro","Bíceps","Tríceps","Cuádriceps","Femoral","Glúteo","Aductor","Abductor","Gemelo","Abdomen","Cardio","Otro"];
 
 
 
 
-const RivalSetMuscleIcon = ({ type, size = 24, color = '#FFB300' }) => {
+const RivalSetMuscleIcon = ({ type, size = 24, color = '#FF9D00' }) => {
   if (type === 'chest') {
     return (
       <Svg
@@ -345,7 +431,7 @@ const EXERCISE_ZONES = [
     name: 'Espalda',
     anatomicalIcon: 'back',
     icon: 'human-handsup',
-    muscles: ['Dorsal', 'Trapecio', 'Lumbar'],
+    muscles: ["Dorsal","Espalda alta","Trapecio","Lumbar"],
   },
   {
     id: 'arms',
@@ -381,6 +467,19 @@ const EXERCISE_ZONES = [
 ];
 
 const EXERCISE_LIBRARY = [
+  // CARDIO · RIVALSET
+  { id: 'cardio_treadmill', name: 'Cinta', variant: 'Gimnasio', equipment: 'treadmill', primaryMuscles: ['Cardio'] },
+  { id: 'cardio_static_bike', name: 'Bicicleta estática', variant: 'Gimnasio', equipment: 'bike', primaryMuscles: ['Cardio'] },
+  { id: 'cardio_elliptical', name: 'Elíptica', variant: 'Gimnasio', equipment: 'elliptical', primaryMuscles: ['Cardio'] },
+  { id: 'cardio_rower', name: 'Remo', variant: 'Gimnasio', equipment: 'rowing', primaryMuscles: ['Cardio'] },
+  { id: 'cardio_stairs', name: 'Escaladora', variant: 'Gimnasio', equipment: 'stairs', primaryMuscles: ['Cardio'] },
+
+  { id: 'cardio_running', name: 'Correr', variant: 'Aire libre', equipment: 'outdoor', primaryMuscles: ['Cardio'] },
+  { id: 'cardio_walking', name: 'Caminar', variant: 'Aire libre', equipment: 'outdoor', primaryMuscles: ['Cardio'] },
+  { id: 'cardio_cycling', name: 'Bicicleta', variant: 'Aire libre', equipment: 'outdoor', primaryMuscles: ['Cardio'] },
+  { id: 'cardio_hiking', name: 'Senderismo', variant: 'Aire libre', equipment: 'outdoor', primaryMuscles: ['Cardio'] },
+
+
   // PECHO
   { id: 'bench_press_barbell', name: 'Press banca', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Pecho'] },
   { id: 'bench_press_dumbbell', name: 'Press banca', variant: 'Mancuernas', equipment: 'dumbbell', primaryMuscles: ['Pecho'] },
@@ -398,11 +497,11 @@ const EXERCISE_LIBRARY = [
   { id: 'pullup', name: 'Dominadas', variant: 'Peso corporal', equipment: 'bodyweight', primaryMuscles: ['Dorsal'] },
   { id: 'lat_pulldown', name: 'Jalón al pecho', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Dorsal'] },
   { id: 'lat_pulldown_unilateral', name: 'Jalón unilateral', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Dorsal'] },
-  { id: 'barbell_row', name: 'Remo', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Dorsal'] },
-  { id: 'dumbbell_row', name: 'Remo', variant: 'Mancuerna', equipment: 'dumbbell', primaryMuscles: ['Dorsal'] },
-  { id: 'cable_row', name: 'Remo sentado', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Dorsal'] },
-  { id: 'machine_row', name: 'Remo', variant: 'Máquina', equipment: 'machine', primaryMuscles: ['Dorsal'] },
-  { id: 'tbar_row', name: 'Remo T', variant: 'Barra', equipment: 'barbell', primaryMuscles: ['Dorsal'] },
+  { id: 'barbell_row', name: 'Remo', variant: 'Barra', equipment: 'barbell', primaryMuscles: ["Dorsal","Espalda alta"] },
+  { id: 'dumbbell_row', name: 'Remo', variant: 'Mancuerna', equipment: 'dumbbell', primaryMuscles: ["Dorsal","Espalda alta"] },
+  { id: 'cable_row', name: 'Remo sentado', variant: 'Polea', equipment: 'cable', primaryMuscles: ["Dorsal","Espalda alta"] },
+  { id: 'machine_row', name: 'Remo', variant: 'Máquina', equipment: 'machine', primaryMuscles: ["Dorsal","Espalda alta"] },
+  { id: 'tbar_row', name: 'Remo T', variant: 'Barra', equipment: 'barbell', primaryMuscles: ["Dorsal","Espalda alta"] },
   { id: 'pullover_cable', name: 'Pullover', variant: 'Polea', equipment: 'cable', primaryMuscles: ['Dorsal'] },
 
   // HOMBRO
@@ -486,6 +585,50 @@ const EXERCISE_LIBRARY = [
 ========================================================= */
 
 const EXERCISE_GUIDES = {
+"Aducción": {
+  "muscles": [
+    "Aductores"
+  ],
+  "technique": [
+    "Siéntate con la espalda apoyada y la pelvis estable.",
+    "Coloca las almohadillas en la cara interna de los muslos, según los ajustes de la máquina.",
+    "Empieza con una apertura cómoda y junta las piernas de forma controlada.",
+    "Regresa lentamente a la posición inicial."
+  ],
+  "keyPoints": [
+    "Mantén el tronco estable durante todo el movimiento.",
+    "Usa una carga que te permita controlar la apertura y el cierre.",
+    "Trabaja en un recorrido cómodo, sin dolor."
+  ],
+  "avoid": [
+    "Cerrar las piernas con golpes o rebotes.",
+    "Forzar una apertura excesiva.",
+    "Balancear el cuerpo para mover el peso.",
+    "Dejar caer las placas al volver."
+  ]
+},
+
+"Abducción": {
+    muscles: ['Glúteo medio', 'Glúteo menor'],
+    technique: [
+      'Siéntate estable con espalda y pelvis apoyadas.',
+      'Coloca las piernas correctamente contra los apoyos.',
+      'Separa las rodillas de forma controlada.',
+      'Mantén una breve contracción en la apertura.',
+      'Vuelve lentamente sin dejar que las placas golpeen.'
+    ],
+    keyPoints: [
+      'Mantén la pelvis estable.',
+      'Controla tanto apertura como cierre.',
+      'Usa un rango cómodo.'
+    ],
+    avoid: [
+      'Rebotar al abrir.',
+      'Cerrar las piernas bruscamente.',
+      'Mover todo el torso para generar impulso.'
+    ]
+  },
+
   'Press banca': {
     muscles: ['Pectoral', 'Tríceps', 'Hombro anterior'],
     technique: [
@@ -2185,85 +2328,452 @@ const ROUTINE_TEMPLATES = [
 ];
 
 const ACHIEVEMENTS = [
+  // INICIO
   {
-    id: 'first',
+    id: 'first_workout',
     tier: 'bronze',
-    title: 'Primer día',
-    description: 'Completa tu primer día de entrenamiento',
-    type: 'uniqueDays',
+    category: 'Inicio',
+    difficulty: 'Fácil',
+    xp: 10,
+    title: 'Primer paso',
+    description: 'Completa tu primer entrenamiento',
+    type: 'workouts',
     target: 1,
   },
   {
-    id: 'week',
+    id: 'first_pr',
     tier: 'bronze',
+    category: 'Récords',
+    difficulty: 'Fácil',
+    xp: 10,
+    title: 'Primera marca',
+    description: 'Consigue tu primer récord personal',
+    type: 'totalPRs',
+    target: 1,
+  },
+  {
+    id: 'three_workouts',
+    tier: 'bronze',
+    category: 'Inicio',
+    difficulty: 'Fácil',
+    xp: 10,
+    title: 'Cogiendo ritmo',
+    description: 'Completa 3 entrenamientos',
+    type: 'workouts',
+    target: 3,
+  },
+  {
+    id: 'first_active_week',
+    tier: 'bronze',
+    category: 'Constancia',
+    difficulty: 'Fácil',
+    xp: 10,
     title: 'Primera semana',
-    description: 'Mantente activo durante tu primera semana',
-    type: 'elapsedWeeks',
+    description: 'Registra entrenamientos durante tu primera semana activa',
+    type: 'activeWeeks',
     target: 1,
   },
   {
-    id: 'ten',
+    id: 'five_workouts',
     tier: 'bronze',
-    title: '10 días entrenados',
-    description: 'Entrena durante 10 días diferentes',
-    type: 'uniqueDays',
+    category: 'Inicio',
+    difficulty: 'Fácil',
+    xp: 10,
+    title: 'Ya es rutina',
+    description: 'Completa 5 entrenamientos',
+    type: 'workouts',
+    target: 5,
+  },
+  {
+    id: 'double_pr',
+    tier: 'bronze',
+    category: 'Récords',
+    difficulty: 'Fácil',
+    xp: 10,
+    title: 'Doble golpe',
+    description: 'Consigue 2 récords personales en un entrenamiento',
+    type: 'prsInWorkout',
+    target: 2,
+  },
+  {
+    id: 'ten_workouts',
+    tier: 'bronze',
+    category: 'Inicio',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Diez dentro',
+    description: 'Completa 10 entrenamientos',
+    type: 'workouts',
     target: 10,
   },
   {
-    id: 'twoWeeks',
-    tier: 'silver',
-    title: 'Dos semanas activo',
-    description: 'Registra entrenamientos durante 2 semanas',
+    id: 'five_prs',
+    tier: 'bronze',
+    category: 'Récords',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Cazador de marcas',
+    description: 'Acumula 5 récords personales',
+    type: 'totalPRs',
+    target: 5,
+  },
+  {
+    id: 'two_active_weeks',
+    tier: 'bronze',
+    category: 'Constancia',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Creando el hábito',
+    description: 'Mantente activo durante 2 semanas diferentes',
     type: 'activeWeeks',
     target: 2,
   },
   {
-    id: 'month',
+    id: 'three_pr_session',
+    tier: 'bronze',
+    category: 'Récords',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Día de récords',
+    description: 'Consigue 3 récords personales en un entrenamiento',
+    type: 'prsInWorkout',
+    target: 3,
+  },
+
+  // PROGRESIÓN
+  {
+    id: 'five_pr_exercises',
     tier: 'silver',
-    title: 'Primer mes',
-    description: 'Registra entrenamientos durante 4 semanas',
+    category: 'Récords',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Todo terreno',
+    description: 'Consigue récords en 5 ejercicios diferentes',
+    type: 'exercisesWithPR',
+    target: 5,
+  },
+  {
+    id: 'twenty_workouts',
+    tier: 'silver',
+    category: 'Constancia',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Sin aflojar',
+    description: 'Completa 20 entrenamientos',
+    type: 'workouts',
+    target: 20,
+  },
+  {
+    id: 'four_active_weeks',
+    tier: 'silver',
+    category: 'Constancia',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Mes sólido',
+    description: 'Registra entrenamientos durante 4 semanas diferentes',
     type: 'activeWeeks',
     target: 4,
   },
   {
-    id: 'twentyFive',
+    id: 'three_pr_streak',
     tier: 'silver',
-    title: '25 días entrenados',
-    description: 'Entrena durante 25 días diferentes',
-    type: 'uniqueDays',
+    category: 'Especiales',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'En llamas',
+    description: 'Consigue algún PR en 3 entrenamientos consecutivos',
+    type: 'prWorkoutStreak',
+    target: 3,
+  },
+  {
+    id: 'perfect_week',
+    tier: 'silver',
+    category: 'Especiales',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Semana perfecta',
+    description: 'Consigue algún PR en 4 días de entrenamiento de una misma semana',
+    type: 'perfectWeek',
+    target: 4,
+  },
+  {
+    id: 'twentyfive_workouts',
+    tier: 'silver',
+    category: 'Constancia',
+    difficulty: 'Media',
+    xp: 20,
+    title: '25 dentro',
+    description: 'Completa 25 entrenamientos',
+    type: 'workouts',
     target: 25,
   },
   {
-    id: 'fifty',
+    id: 'ten_prs',
+    tier: 'silver',
+    category: 'Récords',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Rompiendo marcas',
+    description: 'Acumula 10 récords personales',
+    type: 'totalPRs',
+    target: 10,
+  },
+  {
+    id: 'ten_pr_workouts',
+    tier: 'silver',
+    category: 'Récords',
+    difficulty: 'Media',
+    xp: 20,
+    title: 'Progreso real',
+    description: 'Completa 10 entrenamientos en los que hayas conseguido algún PR',
+    type: 'workoutsWithPR',
+    target: 10,
+  },
+  {
+    id: 'eight_active_weeks',
+    tier: 'silver',
+    category: 'Constancia',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Disciplina',
+    description: 'Registra entrenamientos durante 8 semanas diferentes',
+    type: 'activeWeeks',
+    target: 8,
+  },
+  {
+    id: 'five_pr_streak',
+    tier: 'silver',
+    category: 'Especiales',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Imparable',
+    description: 'Consigue algún PR en 5 entrenamientos consecutivos',
+    type: 'prWorkoutStreak',
+    target: 5,
+  },
+
+  // AVANZADOS
+  {
+    id: 'fifty_workouts',
     tier: 'gold',
-    title: '50 días entrenados',
-    description: 'Entrena durante 50 días diferentes',
-    type: 'uniqueDays',
+    category: 'Constancia',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Medio centenar',
+    description: 'Completa 50 entrenamientos',
+    type: 'workouts',
     target: 50,
   },
   {
-    id: 'threeMonths',
+    id: 'twentyfive_prs',
     tier: 'gold',
-    title: 'Tres meses constante',
-    description: 'Registra entrenamientos durante 12 semanas',
+    category: 'Récords',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Rompiendo límites',
+    description: 'Acumula 25 récords personales',
+    type: 'totalPRs',
+    target: 25,
+  },
+  {
+    id: 'ten_pr_exercises',
+    tier: 'gold',
+    category: 'Récords',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Diversificado',
+    description: 'Consigue récords en 10 ejercicios diferentes',
+    type: 'exercisesWithPR',
+    target: 10,
+  },
+  {
+    id: 'five_pr_session',
+    tier: 'gold',
+    category: 'Especiales',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Día histórico',
+    description: 'Consigue 5 récords personales en un solo entrenamiento',
+    type: 'prsInWorkout',
+    target: 5,
+  },
+  {
+    id: 'twelve_active_weeks',
+    tier: 'gold',
+    category: 'Constancia',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Trimestre de hierro',
+    description: 'Registra entrenamientos durante 12 semanas diferentes',
     type: 'activeWeeks',
     target: 12,
   },
   {
-    id: 'hundred',
+    id: 'twentyfive_pr_workouts',
     tier: 'gold',
-    title: '100 días entrenados',
-    description: 'Entrena durante 100 días diferentes',
-    type: 'uniqueDays',
+    category: 'Récords',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: 'Siempre mejorando',
+    description: 'Consigue algún PR en 25 entrenamientos diferentes',
+    type: 'workoutsWithPR',
+    target: 25,
+  },
+  {
+    id: 'seventyfive_workouts',
+    tier: 'gold',
+    category: 'Constancia',
+    difficulty: 'Difícil',
+    xp: 30,
+    title: '75 sesiones',
+    description: 'Completa 75 entrenamientos',
+    type: 'workouts',
+    target: 75,
+  },
+  {
+    id: 'fifty_prs',
+    tier: 'gold',
+    category: 'Récords',
+    difficulty: 'Élite',
+    xp: 50,
+    title: 'Cincuenta marcas',
+    description: 'Acumula 50 récords personales',
+    type: 'totalPRs',
+    target: 50,
+  },
+  {
+    id: 'hundred_workouts',
+    tier: 'gold',
+    category: 'Constancia',
+    difficulty: 'Élite',
+    xp: 50,
+    title: 'Centenario',
+    description: 'Completa 100 entrenamientos',
+    type: 'workouts',
     target: 100,
   },
   {
-    id: 'iron',
+    id: 'sixteen_active_weeks',
+    tier: 'gold',
+    category: 'Constancia',
+    difficulty: 'Élite',
+    xp: 50,
+    title: 'Inquebrantable',
+    description: 'Registra entrenamientos durante 16 semanas diferentes',
+    type: 'activeWeeks',
+    target: 16,
+  },
+
+  // ÉLITE
+  {
+    id: 'twenty_pr_exercises',
     tier: 'diamond',
-    title: 'Disciplina de hierro',
-    description: 'Registra entrenamientos durante 24 semanas',
+    category: 'Récords',
+    difficulty: 'Élite',
+    xp: 50,
+    title: 'Arsenal completo',
+    description: 'Consigue récords en 20 ejercicios diferentes',
+    type: 'exercisesWithPR',
+    target: 20,
+  },
+  {
+    id: 'fifty_pr_workouts',
+    tier: 'diamond',
+    category: 'Récords',
+    difficulty: 'Élite',
+    xp: 50,
+    title: 'Máquina de progreso',
+    description: 'Consigue algún PR en 50 entrenamientos diferentes',
+    type: 'workoutsWithPR',
+    target: 50,
+  },
+  {
+    id: 'hundred_prs',
+    tier: 'diamond',
+    category: 'Récords',
+    difficulty: 'Legendaria',
+    xp: 75,
+    title: 'Cien barreras',
+    description: 'Acumula 100 récords personales',
+    type: 'totalPRs',
+    target: 100,
+  },
+  {
+    id: 'twentyfour_active_weeks',
+    tier: 'diamond',
+    category: 'Constancia',
+    difficulty: 'Legendaria',
+    xp: 75,
+    title: 'Medio año',
+    description: 'Registra entrenamientos durante 24 semanas diferentes',
     type: 'activeWeeks',
     target: 24,
+  },
+  {
+    id: 'onefifty_workouts',
+    tier: 'diamond',
+    category: 'Constancia',
+    difficulty: 'Élite',
+    xp: 50,
+    title: '150 sesiones',
+    description: 'Completa 150 entrenamientos',
+    type: 'workouts',
+    target: 150,
+  },
+  {
+    id: 'seventyfive_prs',
+    tier: 'diamond',
+    category: 'Récords',
+    difficulty: 'Élite',
+    xp: 50,
+    title: 'Sin techo',
+    description: 'Acumula 75 récords personales',
+    type: 'totalPRs',
+    target: 75,
+  },
+  {
+    id: 'twohundred_workouts',
+    tier: 'diamond',
+    category: 'Constancia',
+    difficulty: 'Legendaria',
+    xp: 75,
+    title: 'Veterano',
+    description: 'Completa 200 entrenamientos',
+    type: 'workouts',
+    target: 200,
+  },
+  {
+    id: 'onefifty_prs',
+    tier: 'diamond',
+    category: 'Récords',
+    difficulty: 'Legendaria',
+    xp: 75,
+    title: 'Máquina de PR',
+    description: 'Acumula 150 récords personales',
+    type: 'totalPRs',
+    target: 150,
+  },
+  {
+    id: 'twofifty_workouts',
+    tier: 'diamond',
+    category: 'Constancia',
+    difficulty: 'Legendaria',
+    xp: 75,
+    title: '250 sesiones',
+    description: 'Completa 250 entrenamientos',
+    type: 'workouts',
+    target: 250,
+  },
+  {
+    id: 'fivehundred_workouts',
+    tier: 'diamond',
+    category: 'Especiales',
+    difficulty: 'Legendaria',
+    xp: 100,
+    title: 'Leyenda RivalSet',
+    description: 'Completa 500 entrenamientos',
+    type: 'workouts',
+    target: 500,
   },
 ];
 
@@ -2332,22 +2842,142 @@ const mixAccent = (hex, targetHex, amount) => {
 const getAccentBackground = (color, light = false) => {
   if (light) {
     return [
-      color,
-      mixAccent(color, '#B9B09C', 0.28),
-      mixAccent(color, '#9A9589', 0.52),
-      mixAccent(color, '#77746D', 0.78),
-      '#77746D',
+      '#F7F6F2',
+      '#F5F3EE',
+      '#F3F1EC',
+      '#F1EFEA',
+      '#EEECE7',
+      '#ECEAE5',
     ];
   }
 
   return [
-    mixAccent(color, '#08090C', 0.36),
-    mixAccent(color, '#08090C', 0.53),
-    mixAccent(color, '#08090C', 0.70),
-    mixAccent(color, '#08090C', 0.86),
+    '#0B0C10',
+    '#0A0B0F',
+    '#090A0E',
+    '#090A0D',
+    '#08090C',
     '#08090C',
   ];
 };
+
+/* =========================================================
+   RIVALSET · AMBIENT GLOW
+   Halo muy amplio, sin bordes ni círculos visibles.
+========================================================= */
+
+const RivalSetAmbientGlow = ({
+  color = COLORS.orange,
+}) => {
+  const { r, g, b } = hexToRgb(
+    color || '#FFB000'
+  );
+
+  const glowColor = `rgb(${r},${g},${b})`;
+
+  return (
+    <Svg
+      pointerEvents="none"
+      width="100%"
+      height="100%"
+      style={[
+        StyleSheet.absoluteFillObject,
+        {
+          zIndex: -1,
+        },
+      ]}
+    >
+      <Defs>
+
+        {/* Halo principal: enorme y horizontal */}
+        <RadialGradient
+          id="rivalsetAmbientMain"
+          cx="50%"
+          cy="43%"
+          rx="92%"
+          ry="31%"
+        >
+          <Stop
+            offset="0%"
+            stopColor={glowColor}
+            stopOpacity="0.26"
+          />
+
+          <Stop
+            offset="32%"
+            stopColor={glowColor}
+            stopOpacity="0.21"
+          />
+
+          <Stop
+            offset="58%"
+            stopColor={glowColor}
+            stopOpacity="0.12"
+          />
+
+          <Stop
+            offset="78%"
+            stopColor={glowColor}
+            stopOpacity="0.045"
+          />
+
+          <Stop
+            offset="100%"
+            stopColor={glowColor}
+            stopOpacity="0"
+          />
+        </RadialGradient>
+
+        {/* Segunda difusión para romper cualquier
+            sensación de círculo definido */}
+        <RadialGradient
+          id="rivalsetAmbientSoft"
+          cx="43%"
+          cy="39%"
+          rx="110%"
+          ry="40%"
+        >
+          <Stop
+            offset="0%"
+            stopColor={glowColor}
+            stopOpacity="0.10"
+          />
+
+          <Stop
+            offset="48%"
+            stopColor={glowColor}
+            stopOpacity="0.055"
+          />
+
+          <Stop
+            offset="100%"
+            stopColor={glowColor}
+            stopOpacity="0"
+          />
+        </RadialGradient>
+
+      </Defs>
+
+      <Rect
+        x="0"
+        y="0"
+        width="100%"
+        height="100%"
+        fill="url(#rivalsetAmbientSoft)"
+      />
+
+      <Rect
+        x="0"
+        y="0"
+        width="100%"
+        height="100%"
+        fill="url(#rivalsetAmbientMain)"
+      />
+
+    </Svg>
+  );
+};
+
 
 const applyAccentColor = (color) => {
   if (!color) return;
@@ -2467,10 +3097,89 @@ const emptyExercise = () => ({
   duration: '',
   distance: '',
   heartRate: '',
+  cardioEnvironment: '',
+  cardioActivity: '',
   muscles: [],
   primaryMuscles: [],
   secondaryMuscles: [],
 });
+
+const getCardioMetricType = (exercise = {}) => {
+  const name = String(exercise.name || '')
+    .trim()
+    .toLowerCase();
+
+  // Actividades basadas en ritmo min/km
+  if (
+    [
+      'correr',
+      'caminar',
+      'senderismo',
+      'cinta',
+    ].includes(name)
+  ) {
+    return 'pace';
+  }
+
+  // Actividades basadas en velocidad km/h
+  if (
+    [
+      'bicicleta',
+      'bicicleta estática',
+    ].includes(name)
+  ) {
+    return 'speed';
+  }
+
+  // Elíptica, remo, escaladora y cualquier
+  // cardio sin distancia relevante.
+  return 'duration';
+};
+
+const getCardioCalculatedMetric = (exercise = {}) => {
+  const type = getCardioMetricType(exercise);
+
+  const duration = parseNumber(exercise.duration);
+  const distance = parseNumber(exercise.distance);
+
+  if (
+    type === 'duration' ||
+    duration === null ||
+    duration <= 0 ||
+    distance === null ||
+    distance <= 0
+  ) {
+    return null;
+  }
+
+  if (type === 'speed') {
+    const speed = distance / (duration / 60);
+
+    return {
+      type: 'speed',
+      value: speed.toFixed(1),
+      unit: 'km/h',
+      label: 'VELOCIDAD MEDIA',
+    };
+  }
+
+  const totalSeconds = Math.round(
+    (duration / distance) * 60
+  );
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return {
+    type: 'pace',
+    value: `${minutes}:${String(seconds).padStart(
+      2,
+      '0'
+    )}`,
+    unit: 'min/km',
+    label: 'RITMO MEDIO',
+  };
+};
 
 const exercisePlan = (exercise) => {
   if (isCardioExercise(exercise)) {
@@ -2484,7 +3193,11 @@ const exercisePlan = (exercise) => {
       parts.push(`${duration} min`);
     }
 
-    if (distance !== null && distance > 0) {
+    if (
+      getCardioMetricType(exercise) !== 'duration' &&
+      distance !== null &&
+      distance > 0
+    ) {
       parts.push(`${distance} km`);
     }
 
@@ -2494,22 +3207,14 @@ const exercisePlan = (exercise) => {
       distance !== null &&
       distance > 0
     ) {
-      const totalSeconds = Math.round(
-        (duration / distance) * 60
-      );
+      const calculated =
+        getCardioCalculatedMetric(exercise);
 
-      const paceMinutes = Math.floor(
-        totalSeconds / 60
-      );
-
-      const paceSeconds = totalSeconds % 60;
-
-      parts.push(
-        `${paceMinutes}:${String(paceSeconds).padStart(
-          2,
-          '0'
-        )} min/km`
-      );
+      if (calculated) {
+        parts.push(
+          `${calculated.value} ${calculated.unit}`
+        );
+      }
     }
 
     if (heartRate !== null && heartRate > 0) {
@@ -2655,6 +3360,331 @@ const routineExerciseFromWorkout = (exercise) => {
    DEGRADADO GENERAL
 ========================================================= */
 
+
+/* =========================================================
+   RIVALSET · CARDIO LIVE TIMER
+========================================================= */
+
+const RivalSetCardioLiveTimer = ({
+  exercise,
+  set,
+  onUpdate,
+}) => {
+  const [seconds, setSeconds] = useState(
+    Number(set?.timerSeconds || 0)
+  );
+  const [running, setRunning] = useState(false);
+
+  const startRef = useRef(null);
+  const baseRef = useRef(
+    Number(set?.timerSeconds || 0)
+  );
+
+  useEffect(() => {
+    if (!running) return;
+
+    const interval = setInterval(() => {
+      if (!startRef.current) return;
+
+      const extra = Math.floor(
+        (Date.now() - startRef.current) / 1000
+      );
+
+      setSeconds(baseRef.current + extra);
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [running]);
+
+  const formatTimer = (totalSeconds) => {
+    const total = Math.max(
+      0,
+      Math.floor(Number(totalSeconds) || 0)
+    );
+
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor(
+      (total % 3600) / 60
+    );
+    const secs = total % 60;
+
+    if (hours > 0) {
+      return `${String(hours).padStart(2, '0')}:${String(
+        minutes
+      ).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    return `${String(minutes).padStart(
+      2,
+      '0'
+    )}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const start = async () => {
+    baseRef.current = seconds;
+    startRef.current = Date.now();
+    setRunning(true);
+  };
+
+  const pause = async () => {
+    if (!running) return;
+
+    const extra = startRef.current
+      ? Math.floor(
+          (Date.now() - startRef.current) / 1000
+        )
+      : 0;
+
+    const next = baseRef.current + extra;
+
+    setSeconds(next);
+    baseRef.current = next;
+    startRef.current = null;
+    setRunning(false);
+
+    onUpdate('timerSeconds', next);
+  };
+
+  const finish = async () => {
+    let finalSeconds = seconds;
+
+    if (running && startRef.current) {
+      finalSeconds =
+        baseRef.current +
+        Math.floor(
+          (Date.now() - startRef.current) / 1000
+        );
+    }
+
+    setSeconds(finalSeconds);
+    baseRef.current = finalSeconds;
+    startRef.current = null;
+    setRunning(false);
+
+    onUpdate('timerSeconds', finalSeconds);
+
+    // Guardamos el tiempo real en minutos.
+    // 12:30 -> 12.5 min
+    if (finalSeconds > 0) {
+      const realMinutes =
+        Math.round(
+          (finalSeconds / 60) * 10
+        ) / 10;
+
+      onUpdate(
+        'duration',
+        String(realMinutes)
+      );
+    }
+  };
+
+  const targetMinutes =
+    parseNumber(set?.duration) ||
+    parseNumber(exercise?.duration) ||
+    0;
+
+  const targetSeconds =
+    targetMinutes > 0
+      ? targetMinutes * 60
+      : 0;
+
+  const progress =
+    targetSeconds > 0
+      ? Math.min(
+          1,
+          seconds / targetSeconds
+        )
+      : 0;
+
+  const progressWidth =
+    `${Math.round(progress * 100)}%`;
+
+  const exerciseName = String(
+    exercise?.name || ''
+  ).toLowerCase();
+
+  let activityIcon = 'run';
+
+  if (exerciseName.includes('bici')) {
+    activityIcon = 'bike';
+  } else if (
+    exerciseName.includes('caminar') ||
+    exerciseName.includes('sender')
+  ) {
+    activityIcon = 'walk';
+  } else if (exerciseName.includes('remo')) {
+    activityIcon = 'rowing';
+  } else if (exerciseName.includes('escal')) {
+    activityIcon = 'stairs';
+  } else if (exerciseName.includes('elípt')) {
+    activityIcon = 'run';
+  }
+
+  const hasStarted =
+    seconds > 0 || running;
+
+  return (
+    <View style={styles.cardioLiveTimer}>
+      <View style={styles.cardioLiveTimerTop}>
+        <Text style={styles.cardioLiveTimerLabel}>
+          CRONÓMETRO
+        </Text>
+
+        {running && (
+          <View style={styles.cardioLiveStatus}>
+            <View style={styles.cardioLiveDot} />
+
+            <Text style={styles.cardioLiveStatusText}>
+              EN CURSO
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={styles.cardioLiveTime}>
+        {formatTimer(seconds)}
+      </Text>
+
+      {targetSeconds > 0 && (
+        <Text style={styles.cardioLiveObjective}>
+          Objetivo · {formatTimer(targetSeconds)}
+        </Text>
+      )}
+
+      <View style={styles.cardioLiveButtons}>
+        {!running ? (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.cardioLivePrimary}
+            onPress={start}
+          >
+            <MaterialCommunityIcons
+              name={
+                hasStarted
+                  ? 'play'
+                  : 'timer-play-outline'
+              }
+              size={18}
+              color="#1A1200"
+            />
+
+            <Text style={styles.cardioLivePrimaryText}>
+              {hasStarted
+                ? 'REANUDAR'
+                : 'INICIAR'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.cardioLivePause}
+            onPress={pause}
+          >
+            <MaterialCommunityIcons
+              name="pause"
+              size={18}
+              color={COLORS.orange}
+            />
+
+            <Text style={styles.cardioLivePauseText}>
+              PAUSAR
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {hasStarted && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.cardioLiveFinish}
+            onPress={finish}
+          >
+            <MaterialCommunityIcons
+              name="check"
+              size={17}
+              color="#F4F4F5"
+            />
+
+            <Text style={styles.cardioLiveFinishText}>
+              FINALIZAR
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* PISTA */}
+      <View style={styles.cardioLiveTrackArea}>
+        <View style={styles.cardioLiveTrack}>
+          <View style={styles.cardioLiveTrackBase} />
+
+          <View
+            style={[
+              styles.cardioLiveTrackProgress,
+              {
+                width:
+                  targetSeconds > 0
+                    ? progressWidth
+                    : running
+                    ? '35%'
+                    : '0%',
+              },
+            ]}
+          />
+
+          <View
+            style={[
+              styles.cardioLivePerson,
+              {
+                left:
+                  targetSeconds > 0
+                    ? progressWidth
+                    : running
+                    ? '35%'
+                    : '0%',
+              },
+            ]}
+          >
+            <View style={styles.cardioLivePersonGlow}>
+              <MaterialCommunityIcons
+                name={activityIcon}
+                size={24}
+                color={COLORS.orange}
+              />
+            </View>
+          </View>
+
+          <View style={styles.cardioLiveGoal}>
+            <MaterialCommunityIcons
+              name="flag-checkered"
+              size={25}
+              color={COLORS.orange}
+            />
+          </View>
+        </View>
+
+        <View style={styles.cardioLiveTrackFooter}>
+          <Text style={styles.cardioLiveTrackText}>
+            {targetSeconds > 0
+              ? `${Math.round(
+                  progress * 100
+                )}% completado`
+              : running
+              ? 'Entrenamiento en curso'
+              : 'Preparado'}
+          </Text>
+
+          {targetSeconds > 0 && (
+            <Text style={styles.cardioLiveTrackText}>
+              {formatTimer(seconds)}
+              {' / '}
+              {formatTimer(targetSeconds)}
+            </Text>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+};
+
 const AppGradient = () => (<LinearGradient
 colors={["rgb(102,72,7)","rgb(75,54,9)","rgb(43,32,10)","rgb(20,17,11)","rgb(8,9,12)"]}
 locations={[0, 0.18, 0.40, 0.58, 0.70]}
@@ -2669,7 +3699,7 @@ style={StyleSheet.absoluteFillObject} pointerEvents="none" />);
 
 /* =========================================================
    RIVALSET · LUZ DIAGONAL
-   Solo color oficial #FFB300
+   Solo color oficial #FF9D00
 ========================================================= */
 
 const RivalSetDiagonalLight = () => (
@@ -2729,8 +3759,9 @@ const Medal = ({
 
 const ProfileButton = ({
   onPress,
-  letter = 'J',
   vibrationEnabled = true,
+  isLightTheme = false,
+  accentColor = '#FFB300',
 }) => {
   const [pressed, setPressed] = useState(false);
 
@@ -2746,28 +3777,71 @@ const ProfileButton = ({
     }
   };
 
+  const innerBackground = isLightTheme
+    ? 'rgba(255,255,255,0.92)'
+    : 'rgba(255,255,255,0.12)';
+
+  const innerBorder = isLightTheme
+    ? 'rgba(20,22,28,0.12)'
+    : 'rgba(255,255,255,0.18)';
+
+  const iconColor = isLightTheme
+    ? '#17191F'
+    : '#F7F8FA';
+
   return (
     <TouchableOpacity
       activeOpacity={1}
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={() => setPressed(false)}
-      style={[
-        styles.avatarDepth,
-        pressed && styles.avatarDepthPressed,
-      ]}
+      style={{
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+
+        alignItems: 'center',
+        justifyContent: 'center',
+
+        borderWidth: 2.5,
+        borderColor: accentColor,
+
+        backgroundColor: 'rgba(255,179,0,0.04)',
+
+        shadowColor: accentColor,
+        shadowOffset: {
+          width: 0,
+          height: 3,
+        },
+        shadowOpacity: isLightTheme ? 0.12 : 0.20,
+        shadowRadius: 7,
+        elevation: 4,
+
+        transform: [
+          { scale: pressed ? 0.94 : 1 }
+        ],
+      }}
     >
       <View
-        style={[
-          styles.avatar,
-          pressed && styles.avatarPressed,
-        ]}
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: 21,
+
+          alignItems: 'center',
+          justifyContent: 'center',
+
+          backgroundColor: innerBackground,
+
+          borderWidth: 1,
+          borderColor: innerBorder,
+        }}
       >
-    <MaterialCommunityIcons
-  name="account"
-  size={28}
-  color="#17191F"
-/>
+        <MaterialCommunityIcons
+          name="account"
+          size={27}
+          color={iconColor}
+        />
       </View>
     </TouchableOpacity>
   );
@@ -2781,7 +3855,10 @@ const MuscleBodyMap = ({
   selectedMuscle = null,
   onSelectMuscle = () => {},
 }) => {
+  const [selectedBodySlug, setSelectedBodySlug] = useState(null);
   const muscleConfig = {
+
+
     chest: 'Pecho',
     deltoids: 'Hombro',
     biceps: 'Bíceps',
@@ -2791,14 +3868,25 @@ obliques: 'Abdomen',
     quadriceps: 'Cuádriceps',
     calves: 'Gemelo',
     trapezius: 'Trapecio',
-    'upper-back': 'Dorsal',
     'lower-back': 'Lumbar',
     gluteal: 'Glúteo',
     hamstring: 'Femoral',
+    'upper-back': 'Dorsal',
+    'high-back': 'Espalda alta',
   };
 
   const getColor = (muscle) => {
-    const value = muscleIntensity[muscle] || 0;
+    let value = muscleIntensity[muscle] || 0;
+
+    // upper-back del muñeco = Espalda alta.
+    // Conservamos también la actividad de Dorsal en esta región
+    // hasta separar visualmente ambos músculos.
+    if (muscle === 'Espalda alta') {
+      value = Math.max(
+        muscleIntensity['Espalda alta'] || 0,
+        muscleIntensity['Dorsal'] || 0
+      );
+    }
 
     if (value >= 0.75) return '#FFB000';
     if (value >= 0.45) return '#A86C00';
@@ -2808,19 +3896,25 @@ obliques: 'Abdomen',
   };
 
   const bodyData = Object.entries(muscleConfig).map(
-    ([slug, muscle]) => ({
-      slug,
-      intensity: 1,
-      styles: {
-        fill: getColor(muscle),
-        stroke:
-          selectedMuscle === muscle
+    ([slug, muscle]) => {
+      const isSelected =
+        selectedMuscle === muscle &&
+        selectedBodySlug === slug;
+
+      return {
+        slug,
+        intensity: 1,
+        styles: {
+          fill: getColor(muscle),
+          stroke: isSelected
             ? '#FFFFFF'
             : '#16191F',
-        strokeWidth:
-          selectedMuscle === muscle ? 2 : 0.8,
-      },
-    })
+          strokeWidth: isSelected
+            ? 2
+            : 0.8,
+        },
+      };
+    }
   );
 
 const handlePress = (bodyPart) => {
@@ -2839,6 +3933,9 @@ const handlePress = (bodyPart) => {
     muscleConfig[normalizedSlug];
 
   if (muscle) {
+    setSelectedBodySlug(
+      muscleConfig[rawSlug] ? rawSlug : normalizedSlug
+    );
     onSelectMuscle(muscle);
   }
 };
@@ -2860,7 +3957,7 @@ const handlePress = (bodyPart) => {
       >
         <Text
           style={{
-            color: '#777D88',
+            color: '#FFFFFF',
             fontSize: 10,
             fontWeight: '900',
             letterSpacing: 1.2,
@@ -2892,7 +3989,7 @@ const handlePress = (bodyPart) => {
       >
         <Text
           style={{
-            color: '#777D88',
+            color: '#FFFFFF',
             fontSize: 10,
             fontWeight: '900',
             letterSpacing: 1.2,
@@ -2916,12 +4013,143 @@ const handlePress = (bodyPart) => {
       </View>
     </View>
   );
-};export default function App() {
+};
+// ============================================================
+// RIVALSET ANIMATED SPLASH
+// ============================================================
+
+const RivalSetSplash = ({ onFinish }) => {
+  const finishedRef = useRef(false);
+  const hapticRef = useRef(false);
+
+  const player = useVideoPlayer(
+    require('./assets/rivalset-splash.mp4')
+  );
+
+  useEffect(() => {
+    if (!player) return;
+
+    player.loop = false;
+    player.muted = true;
+    player.currentTime = 0;
+
+    const endSubscription = player.addListener(
+      'playToEnd',
+      () => {
+        if (finishedRef.current) return;
+        finishedRef.current = true;
+        onFinish();
+      }
+    );
+
+    // Arrancamos cuando VideoPlayer ya está montado.
+    const playTimer = setTimeout(() => {
+      try {
+        player.play();
+      } catch (error) {
+        console.log('RIVALSET SPLASH PLAY ERROR:', error);
+      }
+    }, 150);
+
+    // Seguridad.
+    const fallback = setTimeout(() => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
+      onFinish();
+    }, 5500);
+
+    return () => {
+      clearTimeout(playTimer);
+      clearTimeout(fallback);
+      endSubscription?.remove?.();
+
+      try {
+        player.pause();
+      } catch {}
+    };
+  }, [player, onFinish]);
+
+  useEffect(() => {
+    const hapticTimer = setTimeout(() => {
+      if (hapticRef.current) return;
+
+      hapticRef.current = true;
+
+      Haptics.impactAsync(
+        Haptics.ImpactFeedbackStyle.Heavy
+      ).catch(() => {});
+    }, 1300);
+
+    return () => clearTimeout(hapticTimer);
+  }, []);
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: '#000000',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <VideoView
+        player={player}
+        nativeControls={false}
+        contentFit="cover"
+        style={{
+          width: '85%',
+          height: '85%',
+          alignSelf: 'center',
+          backgroundColor: '#000000',
+        }}
+      />
+    </View>
+  );
+};
+
+export default function App() {
+  const [showRivalSetSplash, setShowRivalSetSplash] =
+    useState(true);
+
+
+  /* RIVALSET_PUSH_AUTH_LISTENER */
+  useEffect(() => {
+    // Intenta registrar el dispositivo si ya existe sesión.
+    registerRivalSetPushToken();
+
+    // Y vuelve a intentarlo cuando Supabase detecta login,
+    // incluido Google / Apple / email.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (
+          session?.user &&
+          (
+            event === 'SIGNED_IN' ||
+            event === 'INITIAL_SESSION' ||
+            event === 'TOKEN_REFRESHED'
+          )
+        ) {
+          setTimeout(() => {
+            registerRivalSetPushToken();
+          }, 500);
+        }
+      }
+    );
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+
 useEffect(() => {
   mobileAds().initialize().then(() => {
     leagueInterstitial.load();
   });
 }, []);  const [selectedTab, setSelectedTab] = useState('Inicio');
+  const [showLeagueInfo, setShowLeagueInfo] = useState(false);
   
   const [screen, setScreen] = useState('home');
 const [realLeagueId, setRealLeagueId] = useState(null);
@@ -3565,6 +4793,11 @@ const [expandedNutritionMeal, setExpandedNutritionMeal] = useState(null);
   const [exercisePickerMuscle, setExercisePickerMuscle] = useState(null);
   const [exercisePickerName, setExercisePickerName] = useState(null);
 
+  const [
+    exercisePickerCardioType,
+    setExercisePickerCardioType,
+  ] = useState(null);
+
   const [exerciseGuideName, setExerciseGuideName] = useState(null);
   const [exerciseGuideHoldingName, setExerciseGuideHoldingName] = useState(null);
   const exerciseGuideProgress = useRef(new Animated.Value(0)).current;
@@ -3626,6 +4859,10 @@ const [expandedNutritionMeal, setExpandedNutritionMeal] = useState(null);
 const [selectedMuscle, setSelectedMuscle] = useState(null);
   const [checkedDays, setCheckedDays] = useState([]);
   const [workoutOrigin, setWorkoutOrigin] = useState('home');
+
+  // RIVALSET · RESUMEN FINAL DEL ENTRENAMIENTO
+  const [workoutSummary, setWorkoutSummary] = useState(null);
+
 const [activeWorkoutLoaded, setActiveWorkoutLoaded] = useState(false);
 useEffect(() => {
   const loadActiveWorkout = async () => {
@@ -3850,6 +5087,9 @@ const [authPassword, setAuthPassword] = useState('');
 const [authLoading, setAuthLoading] = useState(false);
 const [showEmailAuth, setShowEmailAuth] = useState(false);
 const [session, setSession] = useState(null);
+const [profilePhoto, photoBusy, editProfilePhoto, clearProfilePhoto] =
+  useRivalSetPhoto(session?.user?.id);
+
 const [sessionLoading, setSessionLoading] = useState(true);
   const [editingLeagueName, setEditingLeagueName] =
     useState(false);
@@ -4394,7 +5634,11 @@ if (membershipError) {
 }
 
 if (!membership) {
+  setLeagueName('');
   setRealLeaguePlayers([]);
+  setCurrentLeagueId(null);
+  setInviteCode('');
+  await AsyncStorage.removeItem(LEAGUE_KEY);
   return;
 }
 
@@ -4988,22 +6232,214 @@ const loginWithGoogle = async () => {
       )
     : 0;
 
+  /* =====================================================
+     MOTOR DE PROGRESIÓN RIVALSET
+  ===================================================== */
+
+  const totalWorkouts = workouts.length;
+
+  const workoutPRCount = (workout) =>
+    (workout.exercises || []).reduce(
+      (total, exercise) =>
+        total +
+        (exercise.sets || []).filter(
+          (set) => !!set.prType
+        ).length,
+      0
+    );
+
+  const totalPRs = workouts.reduce(
+    (total, workout) =>
+      total + workoutPRCount(workout),
+    0
+  );
+
+  const workoutsWithPR = workouts.filter(
+    (workout) => workoutPRCount(workout) > 0
+  ).length;
+
+  const maxPRsInWorkout = workouts.reduce(
+    (max, workout) =>
+      Math.max(max, workoutPRCount(workout)),
+    0
+  );
+
+  const prExerciseNames = new Set();
+
+  workouts.forEach((workout) => {
+    (workout.exercises || []).forEach((exercise) => {
+      const hasPR = (exercise.sets || []).some(
+        (set) => !!set.prType
+      );
+
+      if (hasPR && exercise.name) {
+        prExerciseNames.add(
+          normalizeExerciseName(exercise.name)
+        );
+      }
+    });
+  });
+
+  const exercisesWithPR = prExerciseNames.size;
+
+  const sortedWorkouts = [...workouts].sort(
+    (a, b) =>
+      new Date(a.finishedAt) -
+      new Date(b.finishedAt)
+  );
+
+  let currentPRWorkoutStreak = 0;
+  let maxPRWorkoutStreak = 0;
+
+  sortedWorkouts.forEach((workout) => {
+    if (workoutPRCount(workout) > 0) {
+      currentPRWorkoutStreak += 1;
+      maxPRWorkoutStreak = Math.max(
+        maxPRWorkoutStreak,
+        currentPRWorkoutStreak
+      );
+    } else {
+      currentPRWorkoutStreak = 0;
+    }
+  });
+
+  const perfectWeekProgress = (() => {
+    const weeks = {};
+
+    workouts.forEach((workout) => {
+      const weekKey = localDayKey(
+        mondayFor(workout.finishedAt)
+      );
+
+      if (!weeks[weekKey]) {
+        weeks[weekKey] = new Set();
+      }
+
+      if (workoutPRCount(workout) > 0) {
+        weeks[weekKey].add(
+          localDayKey(workout.finishedAt)
+        );
+      }
+    });
+
+    return Math.max(
+      0,
+      ...Object.values(weeks).map(
+        (days) => days.size
+      )
+    );
+  })();
+
   const achievementProgress = (achievement) => {
-    if (achievement.type === 'uniqueDays') {
-      return uniqueTrainingDays;
-    }
+    switch (achievement.type) {
+      case 'uniqueDays':
+        return uniqueTrainingDays;
 
-    if (achievement.type === 'elapsedWeeks') {
-      return elapsedWeeks;
-    }
+      case 'elapsedWeeks':
+        return elapsedWeeks;
 
-    return activeWeeks;
+      case 'activeWeeks':
+        return activeWeeks;
+
+      case 'workouts':
+        return totalWorkouts;
+
+      case 'totalPRs':
+        return totalPRs;
+
+      case 'prsInWorkout':
+        return maxPRsInWorkout;
+
+      case 'exercisesWithPR':
+        return exercisesWithPR;
+
+      case 'prWorkoutStreak':
+        return maxPRWorkoutStreak;
+
+      case 'perfectWeek':
+        return perfectWeekProgress;
+
+      case 'workoutsWithPR':
+        return workoutsWithPR;
+
+      default:
+        return 0;
+    }
   };
 
-  const unlockedAchievements = ACHIEVEMENTS.filter(
+  const unlockedAchievementItems = ACHIEVEMENTS.filter(
     (item) =>
       achievementProgress(item) >= item.target
-  ).length;
+  );
+
+  const unlockedAchievements =
+    unlockedAchievementItems.length;
+
+  const achievementXP =
+    unlockedAchievementItems.reduce(
+      (total, item) => total + (item.xp || 0),
+      0
+    );
+
+  const xpNeededForLevel = (level) => {
+    if (level <= 20) return 20;
+    if (level <= 40) return 30;
+    if (level <= 60) return 40;
+    return 50;
+  };
+
+  const calculateRivalSetLevel = (xp) => {
+    let level = 1;
+    let remainingXP = xp;
+
+    while (
+      level < 80 &&
+      remainingXP >= xpNeededForLevel(level)
+    ) {
+      remainingXP -= xpNeededForLevel(level);
+      level += 1;
+    }
+
+    const needed =
+      level >= 80
+        ? 0
+        : xpNeededForLevel(level);
+
+    return {
+      level,
+      currentXP:
+        level >= 80 ? 0 : remainingXP,
+      neededXP: needed,
+      percent:
+        level >= 80
+          ? 100
+          : Math.min(
+              100,
+              (remainingXP / needed) * 100
+            ),
+    };
+  };
+
+  const rivalSetLevel =
+    calculateRivalSetLevel(achievementXP);
+
+  const levelTier =
+    rivalSetLevel.level <= 20
+      ? 'bronze'
+      : rivalSetLevel.level <= 40
+      ? 'silver'
+      : rivalSetLevel.level <= 60
+      ? 'gold'
+      : 'diamond';
+
+  const levelTierName =
+    levelTier === 'bronze'
+      ? 'BRONCE'
+      : levelTier === 'silver'
+      ? 'PLATA'
+      : levelTier === 'gold'
+      ? 'ORO'
+      : 'DIAMANTE';
 
   const nextAchievement =
     ACHIEVEMENTS.find(
@@ -5174,6 +6610,426 @@ const loginWithGoogle = async () => {
     return result;
   };
 
+
+  /* =====================================================
+     RIVALSET · ÚLTIMA SESIÓN DE FUERZA
+     Valores anteriores para cada serie
+  ===================================================== */
+
+  const getPreviousStrengthExerciseSets = (exercise) => {
+    const normalized = normalizeExerciseName(
+      exercise.name
+    );
+
+    const exerciseId = exercise.id;
+
+    const currentVariant = String(
+      exercise.variant ||
+      exercise.equipment ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+    const ordered = [...workouts].sort(
+      (a, b) =>
+        new Date(b.finishedAt || 0).getTime() -
+        new Date(a.finishedAt || 0).getTime()
+    );
+
+    for (const workout of ordered) {
+      const historicalExercise =
+        (workout.exercises || []).find(
+          (item) => {
+            const sameId =
+              exerciseId !== undefined &&
+              exerciseId !== null &&
+              item.id !== undefined &&
+              item.id !== null &&
+              item.id === exerciseId;
+
+            const sameName =
+              normalizeExerciseName(
+                item.name
+              ) === normalized;
+
+            const historicalVariant = String(
+              item.variant ||
+              item.equipment ||
+              ''
+            )
+              .trim()
+              .toLowerCase();
+
+            return (
+              (sameId || sameName) &&
+              historicalVariant === currentVariant
+            );
+          }
+        );
+
+      if (!historicalExercise) continue;
+
+      const historicalSets = Array.isArray(
+        historicalExercise.sets
+      )
+        ? historicalExercise.sets
+            .filter(
+              (set) =>
+                set.completed !== false
+            )
+            .map((set) => ({
+              weight: parseNumber(set.weight),
+              reps: parseNumber(set.reps),
+            }))
+            .filter(
+              (set) =>
+                set.weight !== null &&
+                set.reps !== null
+            )
+        : [];
+
+      if (historicalSets.length > 0) {
+        return historicalSets;
+      }
+    }
+
+    return [];
+  };
+
+
+  /* =====================================================
+     RIVALSET · RÉCORDS CARDIO
+     +3 puntos mediante el mismo sistema de PR de fuerza
+  ===================================================== */
+
+  const getHistoricalCardioSets = (exercise) => {
+    const normalized =
+      normalizeExerciseName(exercise.name);
+
+    const exerciseId = exercise.id;
+    const result = [];
+
+    workouts.forEach((workout) => {
+      (workout.exercises || []).forEach(
+        (historicalExercise) => {
+          const sameId =
+            exerciseId !== undefined &&
+            exerciseId !== null &&
+            historicalExercise.id !== undefined &&
+            historicalExercise.id !== null &&
+            historicalExercise.id === exerciseId;
+
+          const sameName =
+            normalizeExerciseName(
+              historicalExercise.name
+            ) === normalized;
+
+          const currentVariant = String(
+            exercise.variant ||
+            exercise.equipment ||
+            ''
+          )
+            .trim()
+            .toLowerCase();
+
+          const historicalVariant = String(
+            historicalExercise.variant ||
+            historicalExercise.equipment ||
+            ''
+          )
+            .trim()
+            .toLowerCase();
+
+          const sameVariant =
+            currentVariant === historicalVariant;
+
+          if (
+            (!sameId && !sameName) ||
+            !sameVariant
+          ) {
+            return;
+          }
+
+          (historicalExercise.sets || []).forEach(
+            (set) => {
+              if (set.completed === false) {
+                return;
+              }
+
+              const duration =
+                parseNumber(set.duration);
+
+              const distance =
+                parseNumber(set.distance);
+
+              if (
+                duration !== null &&
+                duration > 0 &&
+                distance !== null &&
+                distance > 0
+              ) {
+                result.push({
+                  duration,
+                  distance,
+                });
+              }
+            }
+          );
+        }
+      );
+    });
+
+    return result;
+  };
+
+  const formatCardioDuration = (minutes) => {
+    const totalSeconds = Math.round(
+      Number(minutes) * 60
+    );
+
+    const hours = Math.floor(
+      totalSeconds / 3600
+    );
+
+    const mins = Math.floor(
+      (totalSeconds % 3600) / 60
+    );
+
+    const secs = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${String(mins).padStart(
+        2,
+        '0'
+      )}:${String(secs).padStart(2, '0')}`;
+    }
+
+    return `${mins}:${String(secs).padStart(
+      2,
+      '0'
+    )}`;
+  };
+
+  const formatCardioPace = (
+    duration,
+    distance
+  ) => {
+    if (
+      !duration ||
+      !distance ||
+      distance <= 0
+    ) {
+      return null;
+    }
+
+    const secondsPerKm =
+      Math.round(
+        (duration * 60) / distance
+      );
+
+    const mins = Math.floor(
+      secondsPerKm / 60
+    );
+
+    const secs =
+      secondsPerKm % 60;
+
+    return `${mins}:${String(secs).padStart(
+      2,
+      '0'
+    )}/km`;
+  };
+
+  const detectCardioPR = (
+    exercise,
+    targetSet
+  ) => {
+    const duration =
+      parseNumber(targetSet.duration);
+
+    const distance =
+      parseNumber(targetSet.distance);
+
+    if (
+      duration === null ||
+      duration <= 0 ||
+      distance === null ||
+      distance <= 0
+    ) {
+      return null;
+    }
+
+    const historical =
+      getHistoricalCardioSets(exercise);
+
+    /*
+     * Igual que fuerza:
+     * la primera sesión crea referencia,
+     * pero NO da +3.
+     */
+    if (historical.length === 0) {
+      return null;
+    }
+
+    const currentCompleted =
+      (exercise.sets || [])
+        .filter(
+          (set) =>
+            set.id !== targetSet.id &&
+            set.completed
+        )
+        .map((set) => ({
+          duration:
+            parseNumber(set.duration),
+          distance:
+            parseNumber(set.distance),
+        }))
+        .filter(
+          (set) =>
+            set.duration !== null &&
+            set.duration > 0 &&
+            set.distance !== null &&
+            set.distance > 0
+        );
+
+    const comparison = [
+      ...historical,
+      ...currentCompleted,
+    ];
+
+    /*
+     * Tolerancia de distancia:
+     * evita que 5 km y 5.01 km dejen de ser
+     * comparables por pequeñas diferencias.
+     *
+     * 1% con mínimo de 0.05 km.
+     */
+    const distanceTolerance =
+      Math.max(
+        0.05,
+        distance * 0.01
+      );
+
+    // --------------------------------------------------
+    // PR 1:
+    // MISMA DISTANCIA EN MENOS TIEMPO
+    // --------------------------------------------------
+
+    const sameDistance =
+      comparison.filter(
+        (old) =>
+          Math.abs(
+            old.distance - distance
+          ) <= distanceTolerance
+      );
+
+    if (sameDistance.length > 0) {
+      const previousBest =
+        Math.min(
+          ...sameDistance.map(
+            (old) => old.duration
+          )
+        );
+
+      if (
+        duration <
+        previousBest - 0.01
+      ) {
+        const previousPace =
+          formatCardioPace(
+            previousBest,
+            distance
+          );
+
+        const newPace =
+          formatCardioPace(
+            duration,
+            distance
+          );
+
+        return {
+          type: 'cardio_time',
+          distance,
+          previousDuration:
+            previousBest,
+          newDuration: duration,
+          previousPace,
+          newPace,
+          text:
+            `${distance} km · ` +
+            `${formatCardioDuration(
+              previousBest
+            )} → ` +
+            `${formatCardioDuration(
+              duration
+            )}` +
+            (newPace
+              ? ` · ${newPace}`
+              : ''),
+        };
+      }
+    }
+
+    // --------------------------------------------------
+    // PR 2:
+    // MISMO TIEMPO, MÁS DISTANCIA
+    // --------------------------------------------------
+
+    const durationTolerance =
+      Math.max(
+        0.1,
+        duration * 0.01
+      );
+
+    const sameDuration =
+      comparison.filter(
+        (old) =>
+          Math.abs(
+            old.duration - duration
+          ) <= durationTolerance
+      );
+
+    if (sameDuration.length > 0) {
+      const previousDistance =
+        Math.max(
+          ...sameDuration.map(
+            (old) => old.distance
+          )
+        );
+
+      if (
+        distance >
+        previousDistance + 0.01
+      ) {
+        const newPace =
+          formatCardioPace(
+            duration,
+            distance
+          );
+
+        return {
+          type: 'cardio_distance',
+          duration,
+          previousDistance,
+          newDistance: distance,
+          newPace,
+          text:
+            `${formatCardioDuration(
+              duration
+            )} · ` +
+            `${previousDistance} → ` +
+            `${distance} km` +
+            (newPace
+              ? ` · ${newPace}`
+              : ''),
+        };
+      }
+    }
+
+    return null;
+  };
+
   const detectPR = (exercise, targetSet) => {
     const weight = parseNumber(targetSet.weight);
     const reps = parseNumber(targetSet.reps);
@@ -5274,6 +7130,12 @@ const loginWithGoogle = async () => {
         }))
   );
 
+  const [expandedHistoryWorkoutId, setExpandedHistoryWorkoutId] =
+    useState(null);
+
+  const [expandedRoutineCardId, setExpandedRoutineCardId] =
+    useState(null);
+
   /* =====================================================
      NAVEGACIÓN
   ===================================================== */
@@ -5296,6 +7158,10 @@ const startWorkout = async () => {
     setScreen('profile');
   };
 
+  const openPrivateLeagues = () => {
+    setScreen('league');
+  };
+
   const openTab = (tab) => {
     setSelectedTab(tab);
 
@@ -5304,38 +7170,9 @@ const startWorkout = async () => {
     }
 
 if (tab === 'Liga') {
-  const now = Date.now();
-
-  const canShowLeagueAd =
-    now - lastLeagueAdShownAt >= LEAGUE_AD_COOLDOWN_MS;
-
-  if (canShowLeagueAd && leagueInterstitial.loaded) {
-    lastLeagueAdShownAt = now;
-
-    const unsubscribe = leagueInterstitial.addAdEventListener(
-      AdEventType.CLOSED,
-      () => {
-        unsubscribe();
-        setScreen('league');
-        leagueInterstitial.load();
-      }
-    );
-
-    leagueInterstitial.show().catch(() => {
-      unsubscribe();
-      setScreen('league');
-      leagueInterstitial.load();
-    });
-  } else {
-    setScreen('league');
-
-    if (!leagueInterstitial.loaded) {
-      leagueInterstitial.load();
-    }
-  }
-
-  return;
-}    if (tab === 'Historial') {
+    setScreen('globalLeague');
+    return;
+  }    if (tab === 'Historial') {
       setScreen('history');
     }
 
@@ -5644,6 +7481,8 @@ if (tab === 'Liga') {
       'duration',
       'distance',
       'heartRate',
+      'cardioEnvironment',
+      'cardioActivity',
     ];
 
     setDraftExercises((items) =>
@@ -5770,6 +7609,8 @@ const toggleExerciseMuscle = async (
         duration: '',
         distance: '',
         heartRate: '',
+        cardioEnvironment: '',
+        cardioActivity: '',
       };
     })
   );
@@ -5806,6 +7647,8 @@ const toggleExerciseMuscle = async (
     duration: (item.duration || '').trim(),
     distance: (item.distance || '').trim(),
     heartRate: (item.heartRate || '').trim(),
+    cardioEnvironment: item.cardioEnvironment || '',
+    cardioActivity: item.cardioActivity || '',
     muscles: getExerciseMuscles(item),
   }))
   .filter(
@@ -6251,8 +8094,14 @@ if (isCardio) {
   }
 }
 const pr = isCardio
-  ? null
-  : detectPR(exercise, targetSet);
+  ? detectCardioPR(
+      exercise,
+      targetSet
+    )
+  : detectPR(
+      exercise,
+      targetSet
+    );
     const next = workoutExercises.map((item) =>
       item.id !== exerciseId
         ? item
@@ -6346,10 +8195,12 @@ const pr = isCardio
 
   const recordWorkout = async () => {
     if (workoutSaved.current) {
-      return;
+      return 0;
     }
 
     workoutSaved.current = true;
+
+    let awardedLeaguePoints = 0;
 
     const finishedAt =
       new Date().toISOString();
@@ -6393,12 +8244,74 @@ const pr = isCardio
         WEEK_CHECKS_KEY,
         JSON.stringify(nextChecks)
       );
-   } if (currentLeagueId) {
-  try {
-    const workoutKey = `${finishedAt}-${activeRoutine?.id || 'quick'}`;
-    const recordPoints = totalCurrentPRs * 3;
+   }
 
-    const { error: scoreError } = await supabase.rpc(
+    /*
+     * ==========================================
+     * RIVALSET · GLOBAL LEAGUE
+     * ==========================================
+     *
+     * Se ejecuta SIEMPRE al terminar un entreno,
+     * aunque el usuario no pertenezca a una
+     * liga privada.
+     *
+     * El servidor controla:
+     * - 1 entrenamiento puntuable al día
+     * - máximo 7 por semana
+     * - duplicados
+     * - +10 entrenamiento
+     * - +3 por récord
+     */
+
+    const workoutKey =
+      `${finishedAt}-${activeRoutine?.id || 'quick'}`;
+
+    const recordPoints =
+      totalCurrentPRs * 3;
+
+    try {
+      const {
+        data: globalPointsAwarded,
+        error: globalScoreError,
+      } = await supabase.rpc(
+        'score_global_workout',
+        {
+          target_workout_key: workoutKey,
+          target_record_points: recordPoints,
+        }
+      );
+
+      if (globalScoreError) {
+        throw globalScoreError;
+      }
+
+      console.log(
+        'RIVALSET · GLOBAL:',
+        Number(globalPointsAwarded) || 0,
+        'PTS'
+      );
+
+    } catch (error) {
+      console.log(
+        'ERROR PUNTUANDO GLOBAL:',
+        error
+      );
+    }
+
+
+    /*
+     * ==========================================
+     * RIVALSET · LIGA DE AMIGOS
+     * ==========================================
+     *
+     * Conservamos la lógica existente.
+     * El servidor sigue controlando el máximo
+     * de 4 entrenamientos puntuables/semana.
+     */
+
+    if (currentLeagueId) {
+  try {
+    const { data: pointsAwarded, error: scoreError } = await supabase.rpc(
       'score_league_workout',
       {
         target_league_id: currentLeagueId,
@@ -6411,11 +8324,41 @@ const pr = isCardio
       throw scoreError;
     }
 
+    awardedLeaguePoints =
+      Number(pointsAwarded) || 0;
+
+    console.log(
+      'RIVALSET · PUNTOS ENTRENAMIENTO:',
+      awardedLeaguePoints
+    );
+
+    // RIVALSET: avisar al resto de la liga solo si este entreno ha puntuado.
+    if (awardedLeaguePoints > 0) {
+      const { error: pushError } = await supabase.functions.invoke(
+        'notify-league-workout',
+        {
+          body: {
+            league_id: currentLeagueId,
+            workout_key: workoutKey,
+          },
+        }
+      );
+
+      if (pushError) {
+        console.log(
+          'ERROR ENVIANDO NOTIFICACIÓN DE LIGA:',
+          pushError
+        );
+      }
+    }
+
     await loadRealLeaguePlayers();
   } catch (error) {
     console.log('ERROR PUNTUANDO ENTRENAMIENTO:', error);
   }
 }
+
+    return awardedLeaguePoints;
   };
 
   const finishWorkout = () => {
@@ -6428,61 +8371,247 @@ const pr = isCardio
     ).length;
 
     const finish = async () => {
-      await updateRoutineFromWorkout(
-        workoutExercises
-      );
-      await recordWorkout();
-      await AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
-      setActiveRoutine(null);
-setWorkoutExercises([]);
+      /*
+       * IMPORTANTE:
+       * capturamos todo ANTES de vaciar workoutExercises.
+       */
+      const exerciseSnapshot =
+        workoutExercises.map((exercise) => ({
+          ...exercise,
+          sets: (exercise.sets || []).map(
+            (set) => ({ ...set })
+          ),
+        }));
 
-      await notificationHaptic();
+      const routineSnapshot = activeRoutine
+        ? { ...activeRoutine }
+        : null;
 
-      const returnToLeague =
-        workoutOrigin === 'league';
+      const originSnapshot = workoutOrigin;
 
-      if (totalCurrentPRs > 0) {
-        const names = currentPRList
-          .slice(0, 3)
-          .map(
-            (pr) =>
-              `• ${pr.exercise}: ${pr.text}`
-          )
-          .join('\n');
-
-        Alert.alert(
-          `🏅 ${totalCurrentPRs} ${
-            totalCurrentPRs === 1
-              ? 'nuevo récord'
-              : 'nuevos récords'
-          }`,
-          names,
-          [
-            {
-              text: 'Genial',
-              onPress: () => {
-                if (returnToLeague) {
-                  setSelectedTab('Liga');
-                  setScreen('league');
-                } else {
-                  setSelectedTab('Inicio');
-                  setScreen('home');
-                }
-              },
-            },
-          ]
+      const prListSnapshot =
+        exerciseSnapshot.flatMap((exercise) =>
+          (exercise.sets || [])
+            .filter((set) => !!set.prType)
+            .map((set) => ({
+              id: set.id,
+              exercise: exercise.name,
+              type: set.prType,
+              text: set.prText || '',
+            }))
         );
 
-        return;
+      const completedSets =
+        exerciseSnapshot.flatMap(
+          (exercise) => exercise.sets || []
+        ).filter((set) => set.completed).length;
+
+      await updateRoutineFromWorkout(
+        exerciseSnapshot
+      );
+
+      /*
+       * Aquí obtenemos EXACTAMENTE lo que Supabase
+       * haya concedido: 0, 10, 13, 16...
+       */
+      const pointsAwarded =
+        await recordWorkout();
+
+      const cardioExercises =
+        exerciseSnapshot.filter(
+          (exercise) =>
+            isCardioExercise(exercise)
+        );
+
+      const isCardioWorkout =
+        cardioExercises.length > 0;
+
+      let cardioSummary = null;
+
+      if (isCardioWorkout) {
+        /*
+         * Si hay varios ejercicios de cardio,
+         * acumulamos tiempo y distancia.
+         */
+        let totalDuration = 0;
+        let totalDistance = 0;
+        let heartRateTotal = 0;
+        let heartRateCount = 0;
+
+        cardioExercises.forEach((exercise) => {
+          (exercise.sets || []).forEach(
+            (set) => {
+              if (!set.completed) return;
+
+              const duration =
+                parseNumber(set.duration);
+
+              const distance =
+                parseNumber(set.distance);
+
+              const heartRate =
+                parseNumber(set.heartRate);
+
+              if (
+                duration !== null &&
+                duration > 0
+              ) {
+                totalDuration += duration;
+              }
+
+              if (
+                distance !== null &&
+                distance > 0
+              ) {
+                totalDistance += distance;
+              }
+
+              if (
+                heartRate !== null &&
+                heartRate > 0
+              ) {
+                heartRateTotal += heartRate;
+                heartRateCount += 1;
+              }
+            }
+          );
+        });
+
+        const paceSeconds =
+          totalDuration > 0 &&
+          totalDistance > 0
+            ? Math.round(
+                (totalDuration * 60) /
+                  totalDistance
+              )
+            : null;
+
+        const paceText =
+          paceSeconds !== null
+            ? `${Math.floor(
+                paceSeconds / 60
+              )}:${String(
+                paceSeconds % 60
+              ).padStart(2, '0')}/km`
+            : '—';
+
+        const durationSeconds =
+          Math.round(totalDuration * 60);
+
+        const durationText =
+          durationSeconds >= 3600
+            ? `${Math.floor(
+                durationSeconds / 3600
+              )}:${String(
+                Math.floor(
+                  (durationSeconds % 3600) /
+                    60
+                )
+              ).padStart(2, '0')}:${String(
+                durationSeconds % 60
+              ).padStart(2, '0')}`
+            : `${Math.floor(
+                durationSeconds / 60
+              )}:${String(
+                durationSeconds % 60
+              ).padStart(2, '0')}`;
+
+        cardioSummary = {
+          distance:
+            totalDistance > 0
+              ? Number(
+                  totalDistance.toFixed(2)
+                )
+              : null,
+
+          duration:
+            totalDuration > 0
+              ? durationText
+              : '—',
+
+          pace: paceText,
+
+          heartRate:
+            heartRateCount > 0
+              ? Math.round(
+                  heartRateTotal /
+                    heartRateCount
+                )
+              : null,
+        };
       }
 
-      if (returnToLeague) {
-        setSelectedTab('Liga');
-        setScreen('league');
-      } else {
-        setSelectedTab('Inicio');
-        setScreen('home');
-      }
+      const recordPoints =
+        prListSnapshot.length * 3;
+
+      /*
+       * Los puntos reales son los que manda Supabase.
+       * Calculamos qué parte corresponde al entrenamiento
+       * sin asumir que siempre sean 10.
+       */
+      const realPoints =
+        Number(pointsAwarded) || 0;
+
+      const realRecordPoints =
+        Math.min(
+          recordPoints,
+          realPoints
+        );
+
+      const basePoints =
+        Math.max(
+          0,
+          realPoints - realRecordPoints
+        );
+
+      setWorkoutSummary({
+        routineName:
+          routineSnapshot?.name ||
+          'Entrenamiento',
+
+        origin: originSnapshot,
+
+        exercises: exerciseSnapshot,
+
+        exerciseCount:
+          exerciseSnapshot.length,
+
+        completedSets,
+
+        prList: prListSnapshot,
+
+        prCount:
+          prListSnapshot.length,
+
+        cardio:
+          cardioSummary,
+
+        isCardio:
+          isCardioWorkout,
+
+        points: {
+          total: realPoints,
+          base: basePoints,
+          records: realRecordPoints,
+        },
+      });
+
+      await AsyncStorage.removeItem(
+        ACTIVE_WORKOUT_KEY
+      );
+
+      setActiveRoutine(null);
+      setWorkoutExercises([]);
+
+      await notificationHaptic(
+        Haptics.NotificationFeedbackType.Success
+      );
+
+      /*
+       * Ya no mostramos el Alert antiguo de PR.
+       * Toda la información aparece en el resumen.
+       */
+      setScreen('workoutSummary');
     };
 
     if (pending > 0) {
@@ -6575,7 +8704,7 @@ setWorkoutExercises([]);
               color={
                 selectedTab === tab
                   ? accentColor
-                  : '#5C5D61'
+                  : '#A8ABB2'
               }
               style={styles.navVectorIcon}
             />
@@ -6586,7 +8715,7 @@ setWorkoutExercises([]);
     color={
       selectedTab === tab
         ? accentColor
-        : '#5C5D61'
+        : '#A8ABB2'
     }
     style={styles.navVectorIcon}
   />
@@ -6599,7 +8728,7 @@ setWorkoutExercises([]);
       color:
         selectedTab === tab
           ? accentColor
-          : ('#5C5D61'),
+          : ('#A8ABB2'),
       marginBottom: 1,
     }}
   >
@@ -6625,7 +8754,7 @@ setWorkoutExercises([]);
           backgroundColor:
             selectedTab === tab
               ? accentColor
-              : ('#5C5D61'),
+              : ('#A8ABB2'),
         }}
       />
     ))}
@@ -6637,7 +8766,7 @@ setWorkoutExercises([]);
   color={
     selectedTab === tab
       ? accentColor
-      : '#5C5D61'
+      : '#A8ABB2'
   }
   style={styles.navVectorIcon}
 />
@@ -6714,129 +8843,539 @@ setWorkoutExercises([]);
       <View style={styles.homeScreen}>
         
 
-        <View style={styles.container}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.homeScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.header}>
             <View>
-              <Text style={styles.hello}>
-                Hola, {profileName || ''}
+              <Text
+                style={[
+                  styles.hello,
+                  {
+                    color: COLORS.orange,
+                    fontStyle: 'italic',
+                    fontWeight: '900',
+                    letterSpacing: -1.2,
+                  },
+                  {
+                    fontSize: 30,
+                    fontWeight: '900',
+                    letterSpacing: -1.25,
+                    lineHeight: 32,
+                  },
+                ]}
+              >
+                RivalSet
               </Text>
 
-              <Text style={[styles.subtitle, lightTextStyle]}>
-                ¡Sigue Así, Hazlo posible!
+              <Text
+                style={[
+                  styles.subtitle,
+                  lightTextStyle,
+                  {
+                    fontSize: 10,
+                    fontWeight: '800',
+                    letterSpacing: 1.65,
+                    marginTop: 5,
+                  },
+                ]}
+              >
+                SUPÉRATE DÍA A DÍA
               </Text>
             </View>
 
-            <ProfileButton
+            <View style={{
+    flexDirection: 'row', alignItems: 'center', gap: 10
+  }}>
+<RivalSetSideMenu
+              photoUri={profilePhoto}
+              profileName={profileName}
               onPress={openProfile}
-              letter={profileInitial}
+              onLeaguesPress={openPrivateLeagues}
               vibrationEnabled={vibrationEnabled}
-            />
+              isLightTheme={isLightTheme}
+              accentColor={accentColor}
+            /></View>
           </View>
 
-          <View style={styles.pointsCard}>
           
+            {/* RIVALSET_HOME_GLOBAL_CARD */}
+            <HomeGlobalLeagueCard />
 
-            <Text style={styles.pointsLabel}>
-              PRÓXIMO LOGRO
-            </Text>
+<View style={styles.gameLevelCard}>
 
-            <View style={styles.nextAchievementRow}>
-              <Medal
-                tier={nextAchievement.tier}
-                size="large"
-              />
+            <View style={styles.gameLevelMain}>
 
-              <View style={styles.flex}>
-                <Text style={styles.nextAchievementTitle}>
-                  {nextAchievement.title}
+              <View style={styles.gameMedalZone}>
+                <View style={styles.gameMedalRing}>
+                  <View style={styles.gameMedalScale}>
+                    <Medal
+                      tier={levelTier}
+                      size="large"
+                      unlocked
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.gameRankPill}>
+                  <Text style={styles.gameRankPillText}>
+                    {levelTierName}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.gameLevelData}>
+
+                <View style={styles.gameLevelHeader}>
+                  <View>
+                    <Text style={styles.gameLevelOverline}>
+                      TU NIVEL
+                    </Text>
+
+                    <View style={styles.gameLevelNumberRow}>
+                      <Text style={styles.gameLevelNumber}>
+                        {rivalSetLevel.level}
+                      </Text>
+
+                      <Text style={styles.gameLevelMax}>
+                        /80
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    onPress={() => setScreen('achievements')}
+                    style={styles.gameTrophyButton}
+                  >
+                    <MaterialCommunityIcons
+                      name="trophy-outline"
+                      size={17}
+                      color={COLORS.orange}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.gameXPTop}>
+                  <Text style={styles.gameXPText}>
+                    {rivalSetLevel.level >= 80
+                      ? `${achievementXP} XP`
+                      : `${rivalSetLevel.currentXP} XP`}
+                  </Text>
+
+                  <Text style={styles.gameXPPercent}>
+                    {Math.round(rivalSetLevel.percent)}%
+                  </Text>
+                </View>
+
+                <View style={styles.gameXPTrack}>
+                  <View
+                    style={[
+                      styles.gameXPFill,
+                      {
+                        width: `${rivalSetLevel.percent}%`,
+                      },
+                    ]}
+                  />
+                </View>
+
+                <Text style={styles.gameXPRemaining}>
+                  {rivalSetLevel.level >= 80
+                    ? 'NIVEL MÁXIMO'
+                    : `${Math.max(
+                        0,
+                        rivalSetLevel.neededXP -
+                          rivalSetLevel.currentXP
+                      )} XP PARA NIVEL ${rivalSetLevel.level + 1}`}
                 </Text>
 
-                <Text style={[styles.pointsMessage, lightTextStyle]}>
-                  {nextAchievement.description}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.78}
+              onPress={() => setScreen('achievements')}
+              style={styles.gameMission}
+            >
+              <View style={styles.gameMissionIcon}>
+                <MaterialCommunityIcons
+                  name="target"
+                  size={16}
+                  color={COLORS.orange}
+                />
+              </View>
+
+              <View style={styles.gameMissionContent}>
+                <Text style={styles.gameMissionLabel}>
+                  PRÓXIMO RETO
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  style={styles.gameMissionTitle}
+                >
+                  {nextAchievement.title}
+                </Text>
+              </View>
+
+              <View style={styles.gameMissionProgress}>
+                <Text style={styles.gameMissionValue}>
+                  {nextValue}/{nextAchievement.target}
+                </Text>
+
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={16}
+                  color="#6D727A"
+                />
+              </View>
+            </TouchableOpacity>
+
+          </View>
+
+          {/* RIVALSET_HOME_WEEK_RING */}
+          <View
+            style={{
+              borderRadius: 22,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.11)',
+              backgroundColor: 'rgba(13,15,20,0.76)',
+              paddingHorizontal: 17,
+              paddingTop: 18,
+              paddingBottom: 16,
+              marginBottom: 18,
+              overflow: 'hidden',
+              shadowColor: '#000000',
+              shadowOffset: {
+                width: 0,
+                height: 10,
+              },
+              shadowOpacity: 0.20,
+              shadowRadius: 18,
+              elevation: 8,
+            }}
+          >
+            {/* BRILLO SUPERIOR */}
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 24,
+                right: 24,
+                height: 1,
+                backgroundColor:
+                  'rgba(255,255,255,0.14)',
+              }}
+            />
+
+            {/* CABECERA */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+              }}
+            >
+              <View
+                style={{
+                  flex: 1,
+                  paddingRight: 14,
+                }}
+              >
+                {/* TITULAR */}
+                <Text
+                  style={{
+                    color: accentColor,
+                    fontSize: 22,
+                    lineHeight: 27,
+                    fontWeight: '900',
+                    letterSpacing: -0.45,
+                    marginBottom: 7,
+                  }}
+                >
+                  Esta semana
+                </Text>
+
+                <Text
+                  style={{
+                    color: 'rgba(255,255,255,0.56)',
+                    fontSize: 11,
+                    lineHeight: 16,
+                    fontWeight: '600',
+                  }}
+                >
+                  {activeWeekDays === 0
+                    ? 'Empieza a construir tu semana'
+                    : activeWeekDays === 1
+                    ? '1 día de entrenamiento registrado'
+                    : `${activeWeekDays} días de entrenamiento registrados`}
+                </Text>
+              </View>
+
+              {/* CONTADOR X/7 */}
+              <View
+                style={{
+                  minWidth: 64,
+                  height: 54,
+                  borderRadius: 15,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor:
+                    `${accentColor}12`,
+                  borderWidth: 1,
+                  borderColor:
+                    `${accentColor}30`,
+                }}
+              >
+                <Text
+                  style={{
+                    color: accentColor,
+                    fontSize: 22,
+                    lineHeight: 24,
+                    fontWeight: '900',
+                    letterSpacing: -0.6,
+                  }}
+                >
+                  {activeWeekDays}
+                  <Text
+                    style={{
+                      color:
+                        'rgba(255,255,255,0.40)',
+                      fontSize: 13,
+                      fontWeight: '800',
+                    }}
+                  >
+                    /7
+                  </Text>
+                </Text>
+
+                <Text
+                  style={{
+                    color:
+                      'rgba(255,255,255,0.38)',
+                    fontSize: 7,
+                    fontWeight: '900',
+                    letterSpacing: 0.8,
+                    marginTop: 2,
+                  }}
+                >
+                  DÍAS
                 </Text>
               </View>
             </View>
 
-            <View style={styles.progressBackground}>
+            {/* DÍAS DE LA SEMANA */}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginTop: 21,
+              }}
+            >
+              {weekDays.map((day) => {
+                const done =
+                  checkedDays.includes(day.key);
+
+                return (
+                  <TouchableOpacity
+                    key={day.key}
+                    activeOpacity={0.72}
+                    onPress={() =>
+                      toggleWeekDay(day.key)
+                    }
+                    style={{
+                      alignItems: 'center',
+                      width: 34,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: done
+                          ? accentColor
+                          : 'rgba(255,255,255,0.34)',
+                        fontSize: 10.5,
+                        fontWeight: '900',
+                        marginBottom: 7,
+                      }}
+                    >
+                      {day.label}
+                    </Text>
+
+                    <View
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 14,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: done
+                          ? accentColor
+                          : 'rgba(255,255,255,0.035)',
+                        borderWidth: 1,
+                        borderColor: done
+                          ? accentColor
+                          : 'rgba(255,255,255,0.09)',
+                      }}
+                    >
+                      {done ? (
+                        <MaterialCommunityIcons
+                          name="check"
+                          size={15}
+                          color="#16110A"
+                        />
+                      ) : (
+                        <View
+                          style={{
+                            width: 4,
+                            height: 4,
+                            borderRadius: 2,
+                            backgroundColor:
+                              'rgba(255,255,255,0.22)',
+                          }}
+                        />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* BARRA DE PROGRESO */}
+            <View
+              style={{
+                marginTop: 19,
+              }}
+            >
               <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${nextPercent}%`,
-                  },
-                ]}
-              />
+                style={{
+                  height: 5,
+                  borderRadius: 999,
+                  overflow: 'hidden',
+                  backgroundColor:
+                    'rgba(255,255,255,0.07)',
+                }}
+              >
+                <View
+                  style={{
+                    height: '100%',
+                    width: `${Math.min(
+                      (activeWeekDays / 7) * 100,
+                      100
+                    )}%`,
+                    borderRadius: 999,
+                    backgroundColor: accentColor,
+                  }}
+                />
+              </View>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color:
+                      'rgba(255,255,255,0.34)',
+                    fontSize: 10.5,
+                    fontWeight: '800',
+                    letterSpacing: 0.35,
+                  }}
+                >
+                  PROGRESO SEMANAL
+                </Text>
+
+                <Text
+                  style={{
+                    color: accentColor,
+                    fontSize: 9,
+                    fontWeight: '900',
+                  }}
+                >
+                  {Math.min(
+                    Math.round(
+                      (activeWeekDays / 7) * 100
+                    ),
+                    100
+                  )}%
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.positionRow}>
-              <Text style={styles.positionText}>
-                Tu progreso
-              </Text>
+            {/* CONSTANCIA */}
+            {activeWeekDays > 0 && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginTop: 14,
+                  paddingTop: 13,
+                  borderTopWidth: 1,
+                  borderTopColor:
+                    'rgba(255,255,255,0.065)',
+                }}
+              >
+                <View
+                  style={{
+                    width: 27,
+                    height: 27,
+                    borderRadius: 9,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor:
+                      `${accentColor}12`,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="fire"
+                    size={15}
+                    color={accentColor}
+                  />
+                </View>
 
-              <Text style={styles.positionNumber}>
-                {nextValue}/{nextAchievement.target}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.sectionTitle}>
-            Esta semana
-          </Text>
-
-          <View style={styles.weekCard}>
-            <View style={styles.flex}>
-              <Text style={styles.weekNumber}>
-                {activeWeekDays}{' '}
-                {activeWeekDays === 1
-                  ? 'día entrenado'
-                  : 'días entrenados'}
-              </Text>
-
-              <Text style={styles.weekLabel}>
-                Tu registro personal de esta semana
-              </Text>
-            </View>
-
-            <View style={styles.weekBadge}>
-              <Text style={styles.weekBadgeText}>
-                {activeWeekDays}/7
-              </Text>
-
-              <Text style={styles.weekBadgeLabel}>
-                esta semana
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.trainingDots}>
-            {weekDays.map((day) => {
-              const done = checkedDays.includes(day.key);
-
-              return (
-                <TouchableOpacity
-                  key={day.key}
-                  activeOpacity={0.72}
-                  onPress={() =>
-                    toggleWeekDay(day.key)
-                  }
-                  style={
-                    done
-                      ? styles.completedDot
-                      : styles.pendingDot
-                  }
+                <View
+                  style={{
+                    marginLeft: 9,
+                    flex: 1,
+                  }}
                 >
                   <Text
-                    style={
-                      done
-                        ? styles.activeDayText
-                        : styles.pendingText
-                    }
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 13,
+                      lineHeight: 17,
+                      fontWeight: '800',
+                    }}
                   >
-                    {done ? '✓' : day.label}
+                    Sigue construyendo constancia
                   </Text>
-                </TouchableOpacity>
-              );
-            })}
+
+                  <Text
+                    style={{
+                      color:
+                        'rgba(255,255,255,0.38)',
+                      fontSize: 11,
+                      lineHeight: 15,
+                      marginTop: 3,
+                    }}
+                  >
+                    Cada día entrenado suma a tu semana
+                  </Text>
+                </View>
+
+                <MaterialCommunityIcons
+                  name="trending-up"
+                  size={17}
+                  color={accentColor}
+                />
+              </View>
+            )}
           </View>
 
           <TouchableOpacity
@@ -6884,7 +9423,7 @@ setWorkoutExercises([]);
 
             <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
 <View
   style={{
@@ -6908,6 +9447,1743 @@ setWorkoutExercises([]);
   /* =====================================================
      LIGA
   ===================================================== */
+
+
+  
+  const HomeGlobalLeagueCard = () => {
+
+    const [rank, setRank] = useState(null);
+    const [points, setPoints] = useState(0);
+
+    /*
+      Movimiento preparado para la siguiente fase.
+      No mostramos datos falsos hasta tener snapshot real.
+    */
+    const [movement, setMovement] = useState(null);
+
+
+    const loadGlobalHomeData = async () => {
+
+      try {
+
+        const { data, error } = await supabase.rpc(
+          'get_global_league'
+        );
+
+        if (error) {
+
+          console.log(
+            'HomeGlobalLeagueCard:',
+            error
+          );
+
+          return;
+        }
+
+        if (!Array.isArray(data)) {
+          return;
+        }
+
+        const me = data.find(
+          (row) => row?.is_me === true
+        );
+
+        if (!me) {
+
+          setRank(null);
+          setPoints(0);
+
+          return;
+        }
+
+        setRank(
+          Number(me.rank_position || 0)
+        );
+
+        setPoints(
+          Number(me.points || 0)
+        );
+
+        setMovement(null);
+
+      } catch (error) {
+
+        console.log(
+          'HomeGlobalLeagueCard exception:',
+          error
+        );
+
+      }
+
+    };
+
+
+    useEffect(() => {
+
+      loadGlobalHomeData();
+
+    }, []);
+
+
+    return (
+
+      <TouchableOpacity
+        activeOpacity={0.80}
+
+        onPress={() =>
+          setScreen('globalLeague')
+        }
+
+        style={{
+
+          marginBottom: 12,
+
+          borderRadius: 18,
+
+          paddingHorizontal: 16,
+          paddingVertical: 13,
+
+          backgroundColor: isLightTheme
+            ? 'rgba(255,255,255,0.20)'
+            : 'rgba(13,15,20,0.72)',
+
+          borderWidth: 1,
+
+          borderColor: isLightTheme
+            ? 'rgba(255,255,255,0.44)'
+            : 'rgba(255,255,255,0.10)',
+
+          overflow: 'hidden',
+
+        }}
+      >
+
+        {/* BRILLO CRISTAL */}
+
+        <View
+          pointerEvents="none"
+
+          style={{
+
+            position: 'absolute',
+
+            top: 0,
+            left: 22,
+            right: 22,
+
+            height: 1,
+
+            backgroundColor:
+              'rgba(255,255,255,0.26)',
+
+          }}
+        />
+
+
+        {/* CABECERA */}
+
+        <View
+          style={{
+
+            flexDirection: 'row',
+
+            alignItems: 'center',
+
+            justifyContent: 'space-between',
+
+          }}
+        >
+
+          <View
+            style={{
+
+              flexDirection: 'row',
+
+              alignItems: 'center',
+
+            }}
+          >
+
+            <MaterialCommunityIcons
+              name="earth"
+
+              size={17}
+
+              color={COLORS.orange}
+            />
+
+
+            <Text
+              style={{
+
+                marginLeft: 7,
+
+                color: isLightTheme
+                  ? '#FFFFFF'
+                  : '#F4F4F5',
+
+                fontSize: 10,
+
+                fontWeight: '900',
+
+                letterSpacing: 1.15,
+
+              }}
+            >
+              LIGA GLOBAL
+            </Text>
+
+          </View>
+
+
+          <MaterialCommunityIcons
+            name="chevron-right"
+
+            size={19}
+
+            color={
+              isLightTheme
+                ? 'rgba(255,255,255,0.78)'
+                : '#777A82'
+            }
+          />
+
+        </View>
+
+
+        {/* INFORMACIÓN */}
+
+        <View
+          style={{
+
+            marginTop: 9,
+
+            flexDirection: 'row',
+
+            alignItems: 'flex-end',
+
+            justifyContent: 'space-between',
+
+          }}
+        >
+
+
+          {/* PUESTO */}
+
+          <View>
+
+            <Text
+              style={{
+
+                color: '#FFFFFF',
+
+                fontSize: 28,
+
+                lineHeight: 30,
+
+                fontWeight: '900',
+
+                fontStyle: 'italic',
+
+                letterSpacing: -1,
+
+              }}
+            >
+
+              {rank
+                ? `#${rank}`
+                : '—'}
+
+            </Text>
+
+
+            <Text
+              style={{
+
+                marginTop: 2,
+
+                color: isLightTheme
+                  ? 'rgba(255,255,255,0.72)'
+                  : 'rgba(255,255,255,0.48)',
+
+                fontSize: 9,
+
+                fontWeight: '800',
+
+                letterSpacing: 0.8,
+
+              }}
+            >
+              TU PUESTO GLOBAL
+            </Text>
+
+          </View>
+
+
+          {/* PUNTOS */}
+
+          <View
+            style={{
+
+              alignItems: 'flex-end',
+
+            }}
+          >
+
+            <Text
+              style={{
+
+                color: COLORS.orange,
+
+                fontSize: 18,
+
+                lineHeight: 21,
+
+                fontWeight: '900',
+
+              }}
+            >
+
+              {points} PTS
+
+            </Text>
+
+
+            {movement !== null ? (
+
+              <View
+                style={{
+
+                  marginTop: 3,
+
+                  flexDirection: 'row',
+
+                  alignItems: 'center',
+
+                }}
+              >
+
+                <MaterialCommunityIcons
+                  name={
+                    movement > 0
+                      ? 'arrow-up'
+                      : movement < 0
+                      ? 'arrow-down'
+                      : 'minus'
+                  }
+
+                  size={12}
+
+                  color={
+                    movement > 0
+                      ? '#37C978'
+                      : movement < 0
+                      ? '#FF5B62'
+                      : '#858890'
+                  }
+                />
+
+
+                <Text
+                  style={{
+
+                    marginLeft: 3,
+
+                    color:
+                      movement > 0
+                        ? '#37C978'
+                        : movement < 0
+                        ? '#FF5B62'
+                        : '#858890',
+
+                    fontSize: 10,
+
+                    fontWeight: '800',
+
+                  }}
+                >
+
+                  {movement === 0
+                    ? 'Sin cambios'
+                    : `${Math.abs(
+                        movement
+                      )} puestos`}
+
+                </Text>
+
+              </View>
+
+            ) : (
+
+              <Text
+                style={{
+
+                  marginTop: 3,
+
+                  color: isLightTheme
+                    ? 'rgba(255,255,255,0.62)'
+                    : '#696C73',
+
+                  fontSize: 9,
+
+                  fontWeight: '700',
+
+                }}
+              >
+                Clasificación global
+              </Text>
+
+            )}
+
+          </View>
+
+        </View>
+
+      </TouchableOpacity>
+
+    );
+
+  };
+
+
+const GlobalLeague = () => {
+    const [globalRanking, setGlobalRanking] = useState([]);
+    const [globalLoading, setGlobalLoading] = useState(true);
+    const [globalError, setGlobalError] = useState('');
+    const [globalPhotos, setGlobalPhotos] = useState({});
+    const [globalInfoVisible, setGlobalInfoVisible] = useState(false);
+
+    // GLOBAL LEAGUE · colores adaptados al tema
+    const globalLight = isLightTheme;
+
+    const globalText = globalLight
+      ? '#202126'
+      : '#FFFFFF';
+
+    const globalSecondaryText = globalLight
+      ? '#686B72'
+      : '#777A82';
+
+    const globalMutedText = globalLight
+      ? '#777A82'
+      : '#666971';
+
+    const globalTableBackground = globalLight
+      ? 'rgba(255,255,255,0.20)'
+      : 'rgba(255,255,255,0.025)';
+
+    const globalTableHeader = globalLight
+      ? 'rgba(255,255,255,0.14)'
+      : 'rgba(255,255,255,0.04)';
+
+    const globalBorder = globalLight
+      ? 'rgba(255,255,255,0.48)'
+      : 'rgba(255,255,255,0.075)';
+
+    const globalSeparator = globalLight
+      ? 'rgba(45,47,52,0.10)'
+      : 'rgba(255,255,255,0.055)';
+
+    const globalAvatarBackground = globalLight
+      ? 'rgba(255,255,255,0.22)'
+      : 'rgba(255,255,255,0.075)';
+
+    const now = new Date();
+
+    const monthNames = [
+      'ENERO',
+      'FEBRERO',
+      'MARZO',
+      'ABRIL',
+      'MAYO',
+      'JUNIO',
+      'JULIO',
+      'AGOSTO',
+      'SEPTIEMBRE',
+      'OCTUBRE',
+      'NOVIEMBRE',
+      'DICIEMBRE',
+    ];
+
+    const seasonName = monthNames[now.getMonth()];
+
+    const loadGlobalPhotos = async (ranking) => {
+      try {
+        const userIds = [
+          ...new Set(
+            (ranking || [])
+              .map(item => item.user_id)
+              .filter(Boolean)
+          ),
+        ];
+
+        if (!userIds.length) {
+          setGlobalPhotos({});
+          return;
+        }
+
+        const results = await Promise.all(
+          userIds.map(async userId => {
+            try {
+              const { data, error } =
+                await supabase.storage
+                  .from('profile-photos')
+                  .createSignedUrl(
+                    `${userId}/avatar.jpg`,
+                    604800
+                  );
+
+              if (error || !data?.signedUrl) {
+                return [userId, null];
+              }
+
+              return [
+                userId,
+                `${data.signedUrl}&v=${Date.now()}`,
+              ];
+
+            } catch (error) {
+              return [userId, null];
+            }
+          })
+        );
+
+        const nextPhotos = {};
+
+        results.forEach(([userId, uri]) => {
+          if (uri) {
+            nextPhotos[userId] = uri;
+          }
+        });
+
+        setGlobalPhotos(nextPhotos);
+
+      } catch (error) {
+        console.log(
+          'ERROR FOTOS GLOBAL:',
+          error
+        );
+      }
+    };
+
+
+    const loadGlobalRanking = async () => {
+      try {
+        setGlobalLoading(true);
+        setGlobalError('');
+
+        const { data, error } = await supabase.rpc(
+          'get_global_league'
+        );
+
+        if (error) {
+          console.log('Error Liga Global:', error);
+          setGlobalError(
+            'No se ha podido cargar la clasificación.'
+          );
+          return;
+        }
+
+        const ranking =
+          Array.isArray(data) ? data : [];
+
+        setGlobalRanking(ranking);
+
+        await loadGlobalPhotos(ranking);
+      } catch (error) {
+        console.log('Error Liga Global:', error);
+
+        setGlobalError(
+          'No se ha podido cargar la clasificación.'
+        );
+      } finally {
+        setGlobalLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      loadGlobalRanking();
+    }, []);
+
+    const top20 = globalRanking.filter(
+      item => Number(item.rank_position) <= 20
+    );
+
+    const myPosition = globalRanking.find(
+      item => item.is_me
+    );
+
+    const meOutsideTop20 =
+      myPosition &&
+      Number(myPosition.rank_position) > 20;
+
+    const getRankColor = position => {
+      if (position === 1) return '#E8BD4D';
+      if (position === 2) return '#B8BDC6';
+      if (position === 3) return '#B97A45';
+
+      return globalLight
+        ? '#303238'
+        : '#F2F3F5';
+    };
+
+    const getRankBackground = position => {
+      if (position === 1)
+        return globalLight
+          ? 'rgba(232,189,77,0.11)'
+          : 'rgba(232,189,77,0.055)';
+
+      if (position === 2)
+        return globalLight
+          ? 'rgba(184,189,198,0.10)'
+          : 'rgba(184,189,198,0.04)';
+
+      if (position === 3)
+        return globalLight
+          ? 'rgba(185,122,69,0.09)'
+          : 'rgba(185,122,69,0.045)';
+
+      return 'transparent';
+    };
+
+    const getInitial = name =>
+      String(name || 'R')
+        .trim()
+        .charAt(0)
+        .toUpperCase();
+
+    const RankingRow = ({ item }) => {
+      const position =
+        Number(item.rank_position) || 0;
+
+      const isMe = !!item.is_me;
+
+      return (
+        <View
+          style={{
+            minHeight: 61,
+            flexDirection: 'row',
+            alignItems: 'center',
+
+            paddingHorizontal: 14,
+
+            backgroundColor: isMe
+              ? globalLight
+                ? 'rgba(255,132,0,0.12)'
+                : 'rgba(255,132,0,0.09)'
+              : getRankBackground(position),
+
+            borderBottomWidth: 1,
+
+            borderBottomColor:
+              globalSeparator,
+          }}
+        >
+
+          {/* POSICIÓN */}
+
+          <View
+            style={{
+              width: 42,
+              alignItems: 'flex-start',
+            }}
+          >
+            <Text
+              style={{
+                fontSize:
+                  position <= 3 ? 20 : 16,
+
+                fontWeight: '900',
+
+                fontStyle:
+                  position <= 3
+                    ? 'italic'
+                    : 'normal',
+
+                color: getRankColor(position),
+
+                letterSpacing: -0.5,
+              }}
+            >
+              {position}
+            </Text>
+          </View>
+
+
+          {/* FOTO / AVATAR */}
+
+          <View
+            style={{
+              width: 38,
+              height: 38,
+
+              borderRadius: 19,
+
+              alignItems: 'center',
+              justifyContent: 'center',
+
+              marginRight: 12,
+
+              backgroundColor:
+                globalAvatarBackground,
+
+              borderWidth: 1.2,
+
+              borderColor:
+                position === 1
+                  ? '#E8BD4D'
+                  : position === 2
+                  ? '#B8BDC6'
+                  : position === 3
+                  ? '#B97A45'
+                  : isMe
+                  ? COLORS.orange
+                  : globalLight
+                  ? 'rgba(32,33,38,0.14)'
+                  : 'rgba(255,255,255,0.10)',
+            }}
+          >
+            {globalPhotos[item.user_id] ? (
+              <Image
+                source={{
+                  uri: globalPhotos[item.user_id],
+                }}
+                resizeMode="cover"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: 999,
+                }}
+              />
+            ) : (
+              <Text
+                style={{
+                  color: isMe
+                    ? COLORS.orange
+                    : '#FFFFFF',
+
+                  fontSize: 14,
+                  fontWeight: '900',
+                }}
+              >
+                {getInitial(item.username)}
+              </Text>
+            )}
+          </View>
+
+
+          {/* NOMBRE */}
+
+          <View
+            style={{
+              flex: 1,
+              justifyContent: 'center',
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                color: globalText,
+
+                fontSize: 15,
+
+                fontWeight:
+                  isMe ? '900' : '700',
+              }}
+            >
+              {item.username || 'Rival'}
+            </Text>
+
+            {isMe && (
+              <Text
+                style={{
+                  marginTop: 2,
+
+                  color: COLORS.orange,
+
+                  fontSize: 8,
+                  fontWeight: '900',
+
+                  letterSpacing: 1.2,
+                }}
+              >
+                TÚ
+              </Text>
+            )}
+          </View>
+
+
+          {/* PUNTOS */}
+
+          <View
+            style={{
+              width: 72,
+              alignItems: 'flex-end',
+            }}
+          >
+            <Text
+              style={{
+                color: isMe
+                  ? COLORS.orange
+                  : '#FFFFFF',
+
+                fontSize: 16,
+                fontWeight: '900',
+
+                letterSpacing: -0.4,
+              }}
+            >
+              {Number(item.points || 0)}
+            </Text>
+          </View>
+
+        </View>
+      );
+    };
+
+
+    return (
+      <View style={{ flex: 1 }}>
+
+        <ScrollView
+          style={{ flex: 1 }}
+
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingTop: 16,
+            paddingBottom: 35,
+          }}
+
+          showsVerticalScrollIndicator={false}
+
+          refreshControl={
+            <RefreshControl
+              refreshing={globalLoading}
+              onRefresh={loadGlobalRanking}
+              tintColor={COLORS.orange}
+            />
+          }
+        >
+
+          {/* =========================
+              CABECERA
+          ========================= */}
+
+          <View
+            style={{
+              marginBottom: 20,
+            }}
+          >
+
+            <Text
+              style={{
+                color: globalText,
+
+                fontSize: 32,
+                lineHeight: 36,
+
+                fontWeight: '900',
+                fontStyle: 'italic',
+
+                letterSpacing: -1.5,
+                textAlign: 'center',
+              }}
+            >
+              GLOBAL LEAGUE
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 7,
+
+                color: globalLight
+                  ? '#FFFFFF'
+                  : COLORS.orange,
+
+                fontSize: 11,
+                fontWeight: '900',
+
+                letterSpacing: 1.15,
+                textAlign: 'center',
+
+                textShadowColor: globalLight
+                  ? 'rgba(0,0,0,0.16)'
+                  : 'transparent',
+
+                textShadowOffset: {
+                  width: 0,
+                  height: 1,
+                },
+
+                textShadowRadius: 2,
+              }}
+            >
+              ENTRENA. PROGRESA. DOMINA EL PODIO.
+            </Text>
+
+
+            {/* TEMPORADA */}
+
+            <View
+              style={{
+                alignSelf: 'center',
+
+                marginTop: 15,
+
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+
+                borderRadius: 100,
+
+                backgroundColor: globalLight
+                  ? 'rgba(35,37,42,0.20)'
+                  : 'rgba(255,132,0,0.10)',
+
+                borderWidth: 1,
+
+                borderColor: globalLight
+                  ? 'rgba(255,255,255,0.42)'
+                  : 'rgba(255,132,0,0.25)',
+              }}
+            >
+              <Text
+                style={{
+                  color: globalLight
+                    ? '#FFFFFF'
+                    : COLORS.orange,
+
+                  fontSize: 9,
+                  fontWeight: '900',
+
+                  letterSpacing: 1.4,
+                }}
+              >
+                TEMPORADA {seasonName}
+              </Text>
+            </View>
+
+          </View>
+
+
+          {/* =========================
+              TÍTULO CLASIFICACIÓN
+          ========================= */}
+
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+
+              marginBottom: 10,
+              paddingHorizontal: 2,
+            }}
+          >
+
+            <Text
+              style={{
+                color: globalText,
+
+                fontSize: 18,
+                fontWeight: '900',
+
+                fontStyle: 'italic',
+
+                letterSpacing: -0.5,
+              }}
+            >
+              CLASIFICACIÓN GLOBAL
+            </Text>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 9,
+              }}
+            >
+              <MaterialCommunityIcons
+                name="earth"
+                size={19}
+                color={COLORS.orange}
+              />
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() =>
+                  setGlobalInfoVisible(true)
+                }
+                hitSlop={{
+                  top: 10,
+                  bottom: 10,
+                  left: 10,
+                  right: 10,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="information-outline"
+                  size={20}
+                  color={
+                    globalLight
+                      ? '#FFFFFF'
+                      : '#A8ABB2'
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+
+          </View>
+
+
+          {/* =========================
+              TABLA
+          ========================= */}
+
+          <View
+            style={{
+              overflow: 'hidden',
+
+              borderRadius: 16,
+
+              backgroundColor:
+                globalTableBackground,
+
+              borderWidth: 1,
+
+              borderColor:
+                globalBorder,
+            }}
+          >
+
+            {/* CABECERA */}
+
+            <View
+              style={{
+                height: 38,
+
+                flexDirection: 'row',
+                alignItems: 'center',
+
+                paddingHorizontal: 14,
+
+                backgroundColor:
+                  globalTableHeader,
+
+                borderBottomWidth: 1,
+
+                borderBottomColor:
+                  globalBorder,
+              }}
+            >
+
+              <Text
+                style={{
+                  width: 42,
+
+                  color: globalMutedText,
+
+                  fontSize: 9,
+                  fontWeight: '900',
+
+                  letterSpacing: 1.1,
+                }}
+              >
+                POS
+              </Text>
+
+              <Text
+                style={{
+                  flex: 1,
+
+                  marginLeft: 50,
+
+                  color: globalMutedText,
+
+                  fontSize: 9,
+                  fontWeight: '900',
+
+                  letterSpacing: 1.1,
+                }}
+              >
+                RIVAL
+              </Text>
+
+              <Text
+                style={{
+                  width: 72,
+
+                  textAlign: 'right',
+
+                  color: globalMutedText,
+
+                  fontSize: 9,
+                  fontWeight: '900',
+
+                  letterSpacing: 1.1,
+                }}
+              >
+                PTS
+              </Text>
+
+            </View>
+
+
+            {/* CONTENIDO */}
+
+            {globalLoading &&
+            globalRanking.length === 0 ? (
+
+              <View
+                style={{
+                  height: 150,
+
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+
+                <ActivityIndicator
+                  color={COLORS.orange}
+                />
+
+                <Text
+                  style={{
+                    marginTop: 10,
+
+                    color: '#6D7077',
+
+                    fontSize: 11,
+                    fontWeight: '700',
+                  }}
+                >
+                  ACTUALIZANDO CLASIFICACIÓN
+                </Text>
+
+              </View>
+
+            ) : globalError ? (
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+
+                onPress={loadGlobalRanking}
+
+                style={{
+                  minHeight: 140,
+
+                  alignItems: 'center',
+                  justifyContent: 'center',
+
+                  paddingHorizontal: 20,
+                }}
+              >
+
+                <Text
+                  style={{
+                    color: globalText,
+
+                    fontSize: 13,
+                    fontWeight: '700',
+
+                    textAlign: 'center',
+                  }}
+                >
+                  {globalError}
+                </Text>
+
+                <Text
+                  style={{
+                    marginTop: 8,
+
+                    color: COLORS.orange,
+
+                    fontSize: 10,
+                    fontWeight: '900',
+
+                    letterSpacing: 1,
+                  }}
+                >
+                  REINTENTAR
+                </Text>
+
+              </TouchableOpacity>
+
+            ) : (
+
+              <>
+                {top20.map(item => (
+                  <RankingRow
+                    key={item.user_id}
+                    item={item}
+                  />
+                ))}
+              </>
+
+            )}
+
+          </View>
+
+
+          {/* =========================
+              TU POSICIÓN
+              SI ESTÁS FUERA TOP 20
+          ========================= */}
+
+          {meOutsideTop20 && (
+
+            <View
+              style={{
+                marginTop: 22,
+              }}
+            >
+
+              <Text
+                style={{
+                  marginBottom: 8,
+                  marginLeft: 3,
+
+                  color: COLORS.orange,
+
+                  fontSize: 9,
+                  fontWeight: '900',
+
+                  letterSpacing: 1.5,
+                }}
+              >
+                TU POSICIÓN
+              </Text>
+
+              <View
+                style={{
+                  overflow: 'hidden',
+
+                  borderRadius: 15,
+
+                  backgroundColor:
+                    globalLight
+                      ? 'rgba(255,255,255,0.20)'
+                      : 'rgba(255,132,0,0.055)',
+
+                  borderWidth: 1,
+
+                  borderColor:
+                    'rgba(255,132,0,0.30)',
+                }}
+              >
+
+                <RankingRow
+                  item={myPosition}
+                />
+
+              </View>
+
+            </View>
+
+          )}
+
+
+          {/* =========================
+              REGLAS
+          ========================= */}
+
+          <View
+            style={{
+              marginTop: 19,
+
+              paddingTop: 15,
+
+              borderTopWidth: 1,
+
+              borderTopColor:
+                globalSeparator,
+
+              alignItems: 'center',
+            }}
+          >
+
+            <Text
+              style={{
+                color: '#62656C',
+
+                fontSize: 10,
+                fontWeight: '700',
+              }}
+            >
+              +10 entrenamiento · +3 récord
+            </Text>
+
+            <Text
+              style={{
+                marginTop: 4,
+
+                color: '#53565D',
+
+                fontSize: 10,
+                fontWeight: '700',
+              }}
+            >
+              1 entrenamiento al día · Máximo 7 por semana
+            </Text>
+
+          </View>
+
+        </ScrollView>
+
+        <Modal
+          visible={globalInfoVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() =>
+            setGlobalInfoVisible(false)
+          }
+        >
+          <View
+            style={{
+              flex: 1,
+
+              backgroundColor:
+                'rgba(0,0,0,0.58)',
+
+              alignItems: 'center',
+              justifyContent: 'center',
+
+              paddingHorizontal: 22,
+            }}
+          >
+
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() =>
+                setGlobalInfoVisible(false)
+              }
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+              }}
+            />
+
+            <View
+              style={{
+                width: '100%',
+                maxWidth: 420,
+
+                borderRadius: 24,
+
+                paddingHorizontal: 22,
+                paddingTop: 23,
+                paddingBottom: 22,
+
+                backgroundColor: globalLight
+                  ? 'rgba(245,245,247,0.96)'
+                  : 'rgba(25,26,30,0.97)',
+
+                borderWidth: 1,
+
+                borderColor: globalLight
+                  ? 'rgba(255,255,255,0.65)'
+                  : 'rgba(255,255,255,0.10)',
+              }}
+            >
+
+              {/* CABECERA */}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+
+                  marginBottom: 20,
+                }}
+              >
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    flex: 1,
+                  }}
+                >
+
+                  <View
+                    style={{
+                      width: 38,
+                      height: 38,
+
+                      borderRadius: 19,
+
+                      alignItems: 'center',
+                      justifyContent: 'center',
+
+                      marginRight: 12,
+
+                      backgroundColor:
+                        'rgba(255,132,0,0.12)',
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="earth"
+                      size={21}
+                      color={COLORS.orange}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        color: globalText,
+
+                        fontSize: 19,
+                        fontWeight: '900',
+
+                        fontStyle: 'italic',
+                        letterSpacing: -0.5,
+                      }}
+                    >
+                      GLOBAL LEAGUE
+                    </Text>
+
+                    <Text
+                      style={{
+                        marginTop: 2,
+
+                        color: COLORS.orange,
+
+                        fontSize: 9,
+                        fontWeight: '900',
+
+                        letterSpacing: 1.1,
+                      }}
+                    >
+                      REGLAS DE COMPETICIÓN
+                    </Text>
+                  </View>
+
+                </View>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    setGlobalInfoVisible(false)
+                  }
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={23}
+                    color={globalSecondaryText}
+                  />
+                </TouchableOpacity>
+
+              </View>
+
+
+              {/* +10 */}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  marginBottom: 15,
+                }}
+              >
+
+                <View
+                  style={{
+                    width: 43,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: COLORS.orange,
+                      fontSize: 16,
+                      fontWeight: '900',
+                    }}
+                  >
+                    +10
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: globalText,
+                      fontSize: 14,
+                      fontWeight: '800',
+                    }}
+                  >
+                    Completa un entrenamiento
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: globalSecondaryText,
+                      fontSize: 11,
+                      lineHeight: 16,
+                      marginTop: 2,
+                    }}
+                  >
+                    Cada entrenamiento puntuable suma
+                    10 puntos a tu clasificación global.
+                  </Text>
+                </View>
+
+              </View>
+
+
+              {/* +3 */}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  marginBottom: 15,
+                }}
+              >
+
+                <View
+                  style={{
+                    width: 43,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: COLORS.orange,
+                      fontSize: 16,
+                      fontWeight: '900',
+                    }}
+                  >
+                    +3
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: globalText,
+                      fontSize: 14,
+                      fontWeight: '800',
+                    }}
+                  >
+                    Supera un récord
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: globalSecondaryText,
+                      fontSize: 11,
+                      lineHeight: 16,
+                      marginTop: 2,
+                    }}
+                  >
+                    Cada nueva mejor marca conseguida
+                    durante el entrenamiento suma
+                    3 puntos adicionales.
+                  </Text>
+                </View>
+
+              </View>
+
+
+              {/* 1 AL DÍA */}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  marginBottom: 15,
+                }}
+              >
+
+                <View
+                  style={{
+                    width: 43,
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="calendar-check-outline"
+                    size={20}
+                    color={COLORS.orange}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: globalText,
+                      fontSize: 14,
+                      fontWeight: '800',
+                    }}
+                  >
+                    Solo 1 entrenamiento al día
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: globalSecondaryText,
+                      fontSize: 11,
+                      lineHeight: 16,
+                      marginTop: 2,
+                    }}
+                  >
+                    Puedes entrenar más veces, pero solo
+                    el primer entrenamiento puntuable
+                    del día suma en la Global League.
+                  </Text>
+                </View>
+
+              </View>
+
+
+              {/* 7 SEMANA */}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                }}
+              >
+
+                <View
+                  style={{
+                    width: 43,
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="calendar-week"
+                    size={20}
+                    color={COLORS.orange}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: globalText,
+                      fontSize: 14,
+                      fontWeight: '800',
+                    }}
+                  >
+                    Máximo 7 por semana
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: globalSecondaryText,
+                      fontSize: 11,
+                      lineHeight: 16,
+                      marginTop: 2,
+                    }}
+                  >
+                    La Global League premia la
+                    constancia: puedes puntuar una vez
+                    cada día de la semana.
+                  </Text>
+                </View>
+
+              </View>
+
+
+              {/* FILOSOFÍA */}
+
+              <View
+                style={{
+                  marginTop: 20,
+
+                  paddingTop: 17,
+
+                  borderTopWidth: 1,
+
+                  borderTopColor: globalLight
+                    ? 'rgba(30,31,35,0.10)'
+                    : 'rgba(255,255,255,0.08)',
+                }}
+              >
+
+                <Text
+                  style={{
+                    color: globalText,
+
+                    fontSize: 13,
+                    fontWeight: '900',
+
+                    marginBottom: 5,
+                  }}
+                >
+                  ¿Por qué 7 y no 4?
+                </Text>
+
+                <Text
+                  style={{
+                    color: globalSecondaryText,
+
+                    fontSize: 11,
+                    lineHeight: 17,
+                  }}
+                >
+                  La Global League enfrenta a toda la
+                  comunidad y premia la constancia
+                  diaria. Por eso puedes conseguir
+                  puntos los 7 días de la semana.
+                  {'\n\n'}
+                  Las ligas de amigos mantienen un
+                  máximo de 4 entrenamientos semanales
+                  para que la competición entre grupos
+                  sea más equilibrada.
+                </Text>
+
+              </View>
+
+
+              {/* CIERRE */}
+
+              <View
+                style={{
+                  marginTop: 19,
+
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+
+                  borderRadius: 13,
+
+                  backgroundColor:
+                    'rgba(255,132,0,0.09)',
+
+                  borderWidth: 1,
+
+                  borderColor:
+                    'rgba(255,132,0,0.18)',
+                }}
+              >
+                <Text
+                  style={{
+                    color: COLORS.orange,
+
+                    textAlign: 'center',
+
+                    fontSize: 10,
+                    lineHeight: 15,
+
+                    fontWeight: '900',
+
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  ENTRENA. PROGRESA. DOMINA EL PODIO.
+                </Text>
+              </View>
+
+            </View>
+
+          </View>
+        </Modal>
+
+        <BottomNavigation />
+
+      </View>
+    );
+  };
+
 
   const League = () => {
     const now = new Date();
@@ -7071,44 +11347,42 @@ isMonthlyMvp: monthlyAwards.some(
     </Text>
   </TouchableOpacity>
 </View>
-            <View style={styles.leagueHero}>
-              <Text style={styles.leagueHeroSmall}>
-                AQUÍ NO VALEN LAS EXCUSAS
+            {/* RIVALSET_LEAGUE_PRO_V2 */}
+            <View
+              style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 18,
+                paddingTop: 4,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 28,
+                  lineHeight: 33,
+                  fontWeight: '900',
+                  fontStyle: 'italic',
+                  letterSpacing: -1.2,
+                  textAlign: 'center',
+                }}
+              >
+                RIVALSET LEAGUE
               </Text>
 
-              <Text style={styles.leagueHeroBig}>
-                QUE GANE EL MEJOR
+              <Text
+                style={{
+                  color: COLORS.orange,
+                  fontSize: 11,
+                  lineHeight: 15,
+                  fontWeight: '800',
+                  letterSpacing: 1.05,
+                  textAlign: 'center',
+                  marginTop: 5,
+                }}
+              >
+                DEMUESTRA DE QUÉ ERES CAPAZ
               </Text>
-
-              <View style={styles.leagueVsRow}>
-                <LinearGradient
-                  colors={[
-                    'rgba(255,176,0,0.02)',
-                    'rgba(255,176,0,0.14)',
-                    'rgba(255,176,0,0.46)',
-                  ]}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={styles.leagueVsLine}
-                />
-
-                <View style={styles.leagueVsCenter}>
-                  <Text style={styles.leagueVsText}>
-                    VS
-                  </Text>
-                </View>
-
-                <LinearGradient
-                  colors={[
-                    'rgba(255,176,0,0.46)',
-                    'rgba(255,176,0,0.14)',
-                    'rgba(255,176,0,0.02)',
-                  ]}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={styles.leagueVsLine}
-                />
-              </View>
             </View>
 
             <View style={styles.leagueMainCard}>
@@ -7160,23 +11434,14 @@ isMonthlyMvp: monthlyAwards.some(
                       </TouchableOpacity>
                     </View>
 
-                <View
-  style={{
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  }}
->
-  <Text style={styles.leagueMetaText}>
-    {leaguePlayers.length} miembros · Ranking mensual
-  </Text>
 
-  
-</View>
                   </>
                 )}
               </View>
 
+
+          
+            
               <View style={styles.leaguePositionDivider} />
 
               <View style={styles.leaguePositionBox}>
@@ -7187,13 +11452,9 @@ isMonthlyMvp: monthlyAwards.some(
                 <Text style={styles.leaguePositionNumber}>
                   #{myPosition}
                 </Text>
-
-                <Text style={styles.leaguePositionPoints}>
-                  {myPlayer.points} PTS
-                </Text>
               </View>
-          
-            </View>
+
+</View>
 
             <TouchableOpacity
               activeOpacity={0.8}
@@ -7216,65 +11477,6 @@ isMonthlyMvp: monthlyAwards.some(
               />
             </TouchableOpacity>
 
-            <View style={styles.leagueChaseCard}>
-              <View style={styles.leagueChaseTop}>
-                <View>
-                  <Text style={styles.leagueChaseEyebrow}>
-                    {myPosition === 1
-                      ? 'LIDERATO'
-                      : 'OBJETIVO INMEDIATO'}
-                  </Text>
-
-                  <Text style={styles.leagueChaseTitle}>
-                    {myPosition === 1
-                      ? `+${pointsGap} pts sobre el #2`
-                      : `A ${pointsGap} pts del #${
-                          myPosition - 1
-                        }`}
-                  </Text>
-                </View>
-
-                <MaterialCommunityIcons
-                  name={
-                    myPosition === 1
-                      ? 'crown'
-                      : 'arrow-up-bold'
-                  }
-                  size={20}
-                  color={COLORS.orange}
-                />
-              </View>
-
-              <View style={styles.leagueChaseBar}>
-                <View
-                  style={[
-                    styles.leagueChaseFill,
-                    {
-                      width: `${chaseProgress}%`,
-                    },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.leagueChaseBottom}>
-                <Text style={styles.leagueChaseValue}>
-                  {myPlayer.points} pts
-                </Text>
-
-                <Text style={styles.leagueChaseTarget}>
-                  {myPosition === 1
-                    ? `#2 · ${
-                        playerBehind?.points || 0
-                      } pts`
-                    : `#${
-                        myPosition - 1
-                      } · ${
-                        playerAhead?.points || 0
-                      } pts`}
-                </Text>
-              </View>
-            </View>
-
             <View style={styles.leagueTrainingCard}>
               <View style={styles.leagueTrainingHeader}>
                 <View style={styles.flex}>
@@ -7283,7 +11485,7 @@ isMonthlyMvp: monthlyAwards.some(
                   </Text>
 
                   <Text style={styles.leagueTrainingExplanation}>
-                    Se puntúan hasta 4 entrenamientos semanales para mantener la competición equilibrada.
+                    Hasta 4 entrenamientos por semana pueden sumar puntos.
                   </Text>
                 </View>
 
@@ -7363,9 +11565,7 @@ isMonthlyMvp: monthlyAwards.some(
                           styles.leagueAddWorkoutTextLimit,
                       ]}
                     >
-                      {leagueWeeklyLimitReached
-                        ? 'ENTRENAR'
-                        : 'AÑADIR ENTRENAMIENTO'}
+                      ENTRENAR
                     </Text>
 
                     <Text
@@ -7377,7 +11577,7 @@ isMonthlyMvp: monthlyAwards.some(
                     >
                       {leagueWeeklyLimitReached
                         ? 'Se guardará, pero ya no sumará puntos'
-                        : 'Elige una rutina y registra tu sesión'}
+                        : `+10 pts base · ${remainingLeagueWorkouts} disponibles`}
                     </Text>
                   </View>
 
@@ -7396,27 +11596,9 @@ isMonthlyMvp: monthlyAwards.some(
 
 
 
-<TouchableOpacity
-  activeOpacity={0.7}
-  onPress={() => setScreen('leagueHistory')}
-  style={{
-    alignSelf: 'flex-end',
-    marginBottom: 10,
-  }}
->
-  <Text
-    style={{
-      color: COLORS.orange,
-      fontSize: 12,
-      fontWeight: '800',
-      letterSpacing: 0.4,
-    }}
-  >
-    HISTORIAL DE LIGA ›
-  </Text>
-</TouchableOpacity>
 
-            <View style={styles.leagueRankingCard}>
+
+<View style={styles.leagueRankingCard}>
               <View style={styles.leagueSectionHeader}>
                 <View style={styles.leagueSectionHeading}>
                   <MaterialCommunityIcons
@@ -7436,10 +11618,40 @@ isMonthlyMvp: monthlyAwards.some(
                   </View>
                 </View>
 
-              <Text style={styles.leagueMonthBadge}>
-  {leagueDaysRemaining}{' '}
-  {leagueDaysRemaining === 1 ? 'DÍA' : 'DÍAS'}
-</Text>
+              <View
+  style={{
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  }}
+>
+  <TouchableOpacity
+    onPress={() => setShowLeagueInfo(true)}
+    activeOpacity={0.7}
+    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+    style={{
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,176,0,0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,176,0,0.28)',
+    }}
+  >
+    <MaterialCommunityIcons
+      name="information-outline"
+      size={18}
+      color={COLORS.orange}
+    />
+  </TouchableOpacity>
+
+  <Text style={styles.leagueMonthBadge}>
+    {leagueDaysRemaining}{' '}
+    {leagueDaysRemaining === 1 ? 'DÍA' : 'DÍAS'}
+  </Text>
+</View>
               </View>
 
               <View style={styles.leagueRankingLabels}>
@@ -7470,6 +11682,9 @@ isMonthlyMvp: monthlyAwards.some(
                         styles.leaguePlayerRowSecond,
                       position === 3 &&
                         styles.leaguePlayerRowThird,
+
+                      player.me &&
+                        styles.leaguePlayerRowMe,
                     ]}
                   >
                     <View style={styles.leaguePlayerPosition}>
@@ -7493,29 +11708,38 @@ isMonthlyMvp: monthlyAwards.some(
                     </View>
 
                     <View style={styles.leaguePlayerInfo}>
-                      <Text
-                        style={[
-                          styles.leaguePlayerName,
-                          player.me &&
-                            styles.leaguePlayerNameMe,
-                        ]}
-                      >
-                        {player.name}
-                      </Text>
+                      <View style={styles.leaguePlayerNameLine}>
+                        <Text
+                          style={[
+                            styles.leaguePlayerName,
+                            player.me &&
+                              styles.leaguePlayerNameMe,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {player.name}
+                        </Text>
 
-                  <View style={styles.leaguePlayerAwardBox}>
-  {player.isMonthlyMvp && (
-    <Text style={styles.leaguePlayerAward}>
-     MVP DEL MES
-    </Text>
-  )}
+                        {player.me && (
+                          <Text style={styles.leaguePlayerMeBadge}>
+                            TÚ
+                          </Text>
+                        )}
+                      </View>
+                    </View>
 
-  {player.isRevengeMode && (
-    <Text style={styles.leaguePlayerAward}>
-    ÚLTIMO DEL MES
-    </Text>
-  )}
-</View>
+                    <View style={styles.leaguePlayerAwardColumn}>
+                      {player.isMonthlyMvp && (
+                        <Text style={styles.leaguePlayerAward}>
+                          MVP DEL MES
+                        </Text>
+                      )}
+
+                      {player.isRevengeMode && (
+                        <Text style={styles.leaguePlayerAward}>
+                          ÚLTIMO DEL MES
+                        </Text>
+                      )}
                     </View>
 
                     <View style={styles.leaguePlayerPointsBox}>
@@ -7539,6 +11763,682 @@ isMonthlyMvp: monthlyAwards.some(
             </View>
 
 
+
+
+
+
+
+<TouchableOpacity
+  activeOpacity={0.7}
+  onPress={() => setScreen('leagueHistory')}
+  style={{
+    alignSelf: 'flex-end',
+    marginBottom: 10,
+  }}
+>
+  <Text
+    style={{
+      color: COLORS.orange,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.4,
+    }}
+  >
+    HISTORIAL DE LIGA ›
+  </Text>
+</TouchableOpacity>
+
+            
+            {/* RIVALSET_LEAGUE_INFO_PRO */}
+            <Modal
+              visible={showLeagueInfo}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowLeagueInfo(false)}
+            >
+              <View
+                style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(3,4,7,0.76)',
+                  justifyContent: 'center',
+                  paddingHorizontal: 18,
+                  paddingVertical: 45,
+                }}
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    maxHeight: 690,
+                    backgroundColor: 'rgba(10,12,17,0.72)',
+                    borderRadius: 24,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.18)',
+                    overflow: 'hidden',
+                    shadowColor: '#000000',
+                    shadowOffset: {
+                      width: 0,
+                      height: 14,
+                    },
+                    shadowOpacity: 0.42,
+                    shadowRadius: 26,
+                    elevation: 16,
+                    shadowColor: '#000000',
+                    shadowOffset: {
+                      width: 0,
+                      height: 14,
+                    },
+                    shadowOpacity: 0.42,
+                    shadowRadius: 26,
+                    elevation: 16,
+                  }}
+                >
+
+                  {/* RIVALSET_LEAGUE_GLASS_REAL */}
+                  <BlurView
+                    intensity={60}
+                    tint="dark"
+                    pointerEvents="none"
+                    style={StyleSheet.absoluteFillObject}
+                  />
+
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      {
+                        backgroundColor:
+                          'rgba(8,10,15,0.84)',
+                      },
+                    ]}
+                  />
+
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={[
+                      'rgba(255,255,255,0.10)',
+                      'rgba(255,255,255,0.025)',
+                      'rgba(255,255,255,0.00)',
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 20,
+                      right: 20,
+                      height: 1,
+                      backgroundColor:
+                        'rgba(255,255,255,0.24)',
+                    }}
+                  />
+
+
+                  {/* CABECERA */}
+                  <View
+                    style={{
+                      paddingHorizontal: 20,
+                      paddingTop: 20,
+                      paddingBottom: 17,
+                      borderBottomWidth: 1,
+                      borderBottomColor: 'rgba(255,255,255,0.08)',
+                      backgroundColor: 'rgba(255,255,255,0.018)',
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                      }}
+                    >
+                      <View style={{ flex: 1, paddingRight: 15 }}>
+                        <Text
+                          style={{
+                            color: COLORS.orange,
+                            fontSize: 11,
+                            fontWeight: '900',
+                            letterSpacing: 1.3,
+                            marginBottom: 7,
+                          }}
+                        >
+                          RIVALSET LEAGUE
+                        </Text>
+
+                        <Text
+                          style={{
+                            color: '#FFFFFF',
+                            fontSize: 22,
+                            lineHeight: 27,
+                            fontWeight: '900',
+                          }}
+                        >
+                          Una liga donde gana la constancia
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => setShowLeagueInfo(false)}
+                        activeOpacity={0.7}
+                        style={{
+                          width: 35,
+                          height: 35,
+                          borderRadius: 18,
+                          backgroundColor: 'rgba(255,255,255,0.11)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="close"
+                          size={20}
+                          color="#FFFFFF"
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.84)',
+                        fontSize: 13,
+                        lineHeight: 20,
+                        marginTop: 13,
+                      }}
+                    >
+                      RivalSet no premia a quien levanta más peso. Cada persona
+                      parte de un nivel diferente.
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.94)',
+                        fontSize: 13,
+                        lineHeight: 20,
+                        marginTop: 8,
+                      }}
+                    >
+                      La Liga premia entrenar, progresar y mantener la disciplina.
+                      Compites contra tus propias marcas mientras luchas por subir
+                      en la clasificación.
+                    </Text>
+                  </View>
+
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{
+                      paddingHorizontal: 20,
+                      paddingTop: 19,
+                      paddingBottom: 22,
+                    }}
+                  >
+
+                    {/* DISCIPLINA */}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginBottom: 12,
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="calendar-check-outline"
+                        size={17}
+                        color={COLORS.orange}
+                      />
+
+                      <Text
+                        style={{
+                          color: COLORS.orange,
+                          fontSize: 11,
+                          fontWeight: '900',
+                          letterSpacing: 1.1,
+                          marginLeft: 7,
+                        }}
+                      >
+                        DISCIPLINA
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{
+                        backgroundColor: 'rgba(255,255,255,0.055)',
+                        borderRadius: 15,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.10)',
+                        padding: 14,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#FFFFFF',
+                          fontSize: 15,
+                          fontWeight: '800',
+                        }}
+                      >
+                        +10 pts · Entrenamiento
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: 'rgba(255,255,255,0.82)',
+                          fontSize: 12,
+                          lineHeight: 18,
+                          marginTop: 5,
+                        }}
+                      >
+                        Cada entrenamiento puntuable suma 10 puntos. La constancia
+                        es la base de la competición.
+                      </Text>
+
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: 'rgba(255,255,255,0.08)',
+                          marginVertical: 13,
+                        }}
+                      />
+
+                      <Text
+                        style={{
+                          color: '#D7D9DD',
+                          fontSize: 12,
+                          fontWeight: '800',
+                        }}
+                      >
+                        Máximo 4 entrenamientos puntuables por semana
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: 'rgba(255,255,255,0.72)',
+                          fontSize: 11,
+                          lineHeight: 17,
+                          marginTop: 5,
+                        }}
+                      >
+                        Así alguien que entrena 4 días puede competir en igualdad
+                        con alguien que entrena 5 o 6. Puedes seguir entrenando:
+                        simplemente no sumará más puntos base esa semana.
+                      </Text>
+                    </View>
+
+
+                    {/* PROGRESO */}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginTop: 22,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="trending-up"
+                        size={18}
+                        color={COLORS.orange}
+                      />
+
+                      <Text
+                        style={{
+                          color: COLORS.orange,
+                          fontSize: 11,
+                          fontWeight: '900',
+                          letterSpacing: 1.1,
+                          marginLeft: 7,
+                        }}
+                      >
+                        PROGRESO
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{
+                        backgroundColor: 'rgba(255,255,255,0.055)',
+                        borderRadius: 15,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.10)',
+                        overflow: 'hidden',
+                      }}
+                    >
+
+                      <View style={{ padding: 14 }}>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 35,
+                              height: 35,
+                              borderRadius: 11,
+                              backgroundColor: 'rgba(255,176,0,0.10)',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginRight: 11,
+                            }}
+                          >
+                            <MaterialCommunityIcons
+                              name="trophy-outline"
+                              size={18}
+                              color={COLORS.orange}
+                            />
+                          </View>
+
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                color: '#FFFFFF',
+                                fontSize: 14,
+                                fontWeight: '800',
+                              }}
+                            >
+                              +3 pts · Nuevo peso
+                            </Text>
+
+                            <Text
+                              style={{
+                                color: 'rgba(255,255,255,0.80)',
+                                fontSize: 11,
+                                lineHeight: 16,
+                                marginTop: 3,
+                              }}
+                            >
+                              Supera tu mejor peso anterior.
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: 'rgba(255,255,255,0.08)',
+                          marginHorizontal: 14,
+                        }}
+                      />
+
+                      <View style={{ padding: 14 }}>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 35,
+                              height: 35,
+                              borderRadius: 11,
+                              backgroundColor: 'rgba(255,176,0,0.10)',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginRight: 11,
+                            }}
+                          >
+                            <MaterialCommunityIcons
+                              name="lightning-bolt-outline"
+                              size={19}
+                              color={COLORS.orange}
+                            />
+                          </View>
+
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                color: '#FFFFFF',
+                                fontSize: 14,
+                                fontWeight: '800',
+                              }}
+                            >
+                              +3 pts · Más repeticiones
+                            </Text>
+
+                            <Text
+                              style={{
+                                color: 'rgba(255,255,255,0.80)',
+                                fontSize: 11,
+                                lineHeight: 16,
+                                marginTop: 3,
+                              }}
+                            >
+                              Mantén el peso y supera tu mejor número de repeticiones.
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+
+
+                    {/* COMPETICIÓN */}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginTop: 22,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="podium"
+                        size={18}
+                        color={COLORS.orange}
+                      />
+
+                      <Text
+                        style={{
+                          color: COLORS.orange,
+                          fontSize: 11,
+                          fontWeight: '900',
+                          letterSpacing: 1.1,
+                          marginLeft: 7,
+                        }}
+                      >
+                        COMPETICIÓN MENSUAL
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={{
+                        color: 'rgba(255,255,255,0.82)',
+                        fontSize: 12,
+                        lineHeight: 19,
+                      }}
+                    >
+                      Cada mes empieza una nueva competición. Al finalizar el mes
+                      se cierra la clasificación, se determinan los resultados y
+                      todos comienzan una nueva oportunidad por el primer puesto.
+                    </Text>
+
+
+                    {/* RECONOCIMIENTOS */}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginTop: 22,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="medal-outline"
+                        size={18}
+                        color={COLORS.orange}
+                      />
+
+                      <Text
+                        style={{
+                          color: COLORS.orange,
+                          fontSize: 11,
+                          fontWeight: '900',
+                          letterSpacing: 1.1,
+                          marginLeft: 7,
+                        }}
+                      >
+                        RECONOCIMIENTOS
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{
+                        backgroundColor: 'rgba(255,255,255,0.055)',
+                        borderRadius: 15,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.10)',
+                        padding: 14,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#FFFFFF',
+                          fontSize: 14,
+                          fontWeight: '800',
+                        }}
+                      >
+                        👑 MVP DEL MES
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: 'rgba(255,255,255,0.80)',
+                          fontSize: 11,
+                          lineHeight: 17,
+                          marginTop: 4,
+                        }}
+                      >
+                        Se otorga al jugador que terminó primero en el último
+                        mes cerrado.
+                      </Text>
+
+                      <View
+                        style={{
+                          height: 1,
+                          backgroundColor: 'rgba(255,255,255,0.08)',
+                          marginVertical: 13,
+                        }}
+                      />
+
+                      <Text
+                        style={{
+                          color: '#FFFFFF',
+                          fontSize: 14,
+                          fontWeight: '800',
+                        }}
+                      >
+                        🔥 ÚLTIMO DEL MES
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: 'rgba(255,255,255,0.80)',
+                          fontSize: 11,
+                          lineHeight: 17,
+                          marginTop: 4,
+                        }}
+                      >
+                        Identifica a quien terminó último en el mes anterior.
+                        El nuevo mes es su oportunidad de revancha.
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: 'rgba(255,255,255,0.64)',
+                          fontSize: 10,
+                          lineHeight: 15,
+                          marginTop: 12,
+                        }}
+                      >
+                        Las etiquetas solo se asignan cuando termina el mes.
+                        No cambian según la posición provisional actual.
+                      </Text>
+                    </View>
+
+
+                    {/* MENSAJE FINAL */}
+                    <View
+                      style={{
+                        marginTop: 22,
+                        paddingVertical: 18,
+                        paddingHorizontal: 16,
+                        borderRadius: 16,
+                        backgroundColor: 'rgba(255,176,0,0.075)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,176,0,0.24)',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="arm-flex-outline"
+                        size={25}
+                        color={COLORS.orange}
+                      />
+
+                      <Text
+                        style={{
+                          color: '#FFFFFF',
+                          fontSize: 15,
+                          fontWeight: '900',
+                          textAlign: 'center',
+                          marginTop: 9,
+                        }}
+                      >
+                        No importa cuánto levantas.
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: COLORS.orange,
+                          fontSize: 15,
+                          fontWeight: '900',
+                          textAlign: 'center',
+                          marginTop: 2,
+                        }}
+                      >
+                        Importa cuánto avanzas.
+                      </Text>
+                    </View>
+
+                  </ScrollView>
+
+                  <View
+                    style={{
+                      padding: 15,
+                      borderTopWidth: 1,
+                      borderTopColor: 'rgba(255,255,255,0.06)',
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => setShowLeagueInfo(false)}
+                      activeOpacity={0.85}
+                      style={{
+                        height: 48,
+                        borderRadius: 14,
+                        backgroundColor: COLORS.orange,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: COLORS.darkText,
+                          fontSize: 13,
+                          fontWeight: '900',
+                          letterSpacing: 0.4,
+                        }}
+                      >
+                        ENTENDIDO
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                </View>
+              </View>
+            </Modal>
 
             <View style={styles.leagueActivityCard}>
               <View style={styles.leagueSectionHeader}>
@@ -7567,8 +12467,8 @@ const isJoined = activity.event_type === 'joined';
 const activityText = isJoined
   ? 'se ha unido a la liga'
   : hasRecord
-    ? `ha completado un entrenamiento y conseguido récords · +${activity.total_points} pts`
-    : `ha completado un entrenamiento · +${activity.total_points} pts`;
+    ? 'ha completado un entrenamiento y conseguido récords'
+    : 'ha completado un entrenamiento';
 
 const activityDate = new Date(activity.event_at);
     const diffMs = Date.now() - activityDate.getTime();
@@ -7592,7 +12492,19 @@ const activityDate = new Date(activity.event_at);
             styles.leagueActivityRowLast,
         ]}
       >
-        <View style={styles.leagueActivityDot} />
+        <View style={styles.leagueActivityIcon}>
+          <MaterialCommunityIcons
+            name={
+              isJoined
+                ? 'account-plus-outline'
+                : hasRecord
+                ? 'trophy-outline'
+                : 'dumbbell'
+            }
+            size={16}
+            color={COLORS.orange}
+          />
+        </View>
 
         <View style={styles.leagueActivityInfo}>
           <Text style={styles.leagueActivityText}>
@@ -7604,9 +12516,22 @@ const activityDate = new Date(activity.event_at);
           </Text>
         </View>
 
-        <Text style={[styles.leagueActivityTime, lightTextStyle]}>
-          {timeText}
-        </Text>
+        <View style={styles.leagueActivitySide}>
+          {!isJoined && (
+            <Text style={styles.leagueActivityPoints}>
+              +{activity.total_points} PTS
+            </Text>
+          )}
+
+          <Text
+            style={[
+              styles.leagueActivityTime,
+              lightTextStyle,
+            ]}
+          >
+            {timeText}
+          </Text>
+        </View>
       </View>
     );
   })
@@ -7636,6 +12561,8 @@ const logoutUser = async () => {
     }
 
     setCurrentUserId(null);
+    setLeagueName('');
+    await AsyncStorage.removeItem(LEAGUE_KEY);
     setRealLeaguePlayers([]);
     setLeagueActivity([]);
     setCurrentLeagueId(null);
@@ -7655,6 +12582,81 @@ const logoutUser = async () => {
     );
   }
 };
+
+const deleteAccount = () => {
+  Alert.alert(
+    'Eliminar cuenta',
+    '¿Seguro que quieres eliminar tu cuenta? Esta acción es permanente y eliminará tus datos de RivalSet.',
+    [
+      {
+        text: 'Cancelar',
+        style: 'cancel',
+      },
+      {
+        text: 'Eliminar cuenta',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await clearProfilePhoto();
+const { data, error } = await supabase.functions.invoke(
+              'delete-account',
+              {
+                body: { confirm: true },
+              }
+            );
+
+            if (error) throw error;
+
+            if (!data?.ok) {
+              throw new Error(
+                data?.error || 'No se pudo eliminar la cuenta.'
+              );
+            }
+
+            await AsyncStorage.multiRemove([
+              ROUTINES_KEY,
+              WORKOUTS_KEY,
+              WEEK_CHECKS_KEY,
+              PROFILE_KEY,
+              SETTINGS_KEY,
+              APPEARANCE_KEY,
+              ACCENT_COLOR_KEY,
+              LEAGUE_KEY,
+              NUTRITION_KEY,
+              NUTRITION_GOALS_KEY,
+              ACTIVE_WORKOUT_KEY,
+            ]);
+
+            setCurrentUserId(null);
+            setLeagueName('');
+            setRealLeaguePlayers([]);
+            setLeagueActivity([]);
+            setCurrentLeagueId(null);
+            setInviteCode('');
+            setWeeklyScoredWorkouts(0);
+
+            try {
+              await supabase.auth.signOut({ scope: 'local' });
+            } catch (_) {}
+
+            Alert.alert(
+              'Cuenta eliminada',
+              'Tu cuenta de RivalSet se ha eliminado correctamente.'
+            );
+          } catch (error) {
+            console.log('ERROR ELIMINANDO CUENTA:', error);
+
+            Alert.alert(
+              'No se pudo eliminar la cuenta',
+              error?.message || 'Inténtalo de nuevo.'
+            );
+          }
+        },
+      },
+    ]
+  );
+};
+
 const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -7696,7 +12698,7 @@ const AuthScreen = () => {
     <SafeAreaView style={styles.screen}>
       <StatusBar
         barStyle={isLightTheme ? "dark-content" : "light-content"}
-        backgroundColor={isLightTheme ? "#FFB300" : "#08090C"}
+        backgroundColor={isLightTheme ? "#FF9D00" : "#08090C"}
       />
 
       <View
@@ -8015,13 +13017,19 @@ const ProfileLogin = () => (
         
 
         <View style={styles.profileIdentity}>
-          <View style={styles.profileAvatarDepth}>
-            <View style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>
-                {profileInitial}
-              </Text>
-            </View>
-          </View>
+          <View style={{alignItems:'center',marginBottom:12}}>
+    
+<RivalSetPhoto
+  uri={profilePhoto}
+  busy={photoBusy}
+  size={78}
+  color={accentColor}
+  onPress={session?.user ? editProfilePhoto : openProfile}
+/>
+    <Text style={{color:accentColor,fontSize:12,marginTop:8}}>
+      Toca para cambiar tu foto
+    </Text>
+  </View>
 
           <Text style={styles.profileNameLabel}>
             TU NOMBRE
@@ -8042,8 +13050,8 @@ const ProfileLogin = () => (
 
             <MaterialCommunityIcons
               name="pencil-outline"
-              size={15}
-              color="#A6AAB2"
+              size={18}
+              color="#FFFFFF"
             />
           </View>
         </View>
@@ -8239,40 +13247,28 @@ const ProfileLogin = () => (
               Alert.alert(
                 'Color de la app',
                 'Elige el color principal de RivalSet.',
-                [
-                  {
-                    text: 'Naranja RivalSet',
-                    onPress: () => changeAccentColor('#FFB000'),
-                  },
-                  {
-                    text: 'Azul cyan',
-                    onPress: () => changeAccentColor('#00CFFF'),
-                  },
-                  {
-                    text: 'Verde eléctrico',
-                    onPress: () => changeAccentColor('#39FF88'),
-                  },
-                  {
-                    text: 'Rojo',
-                    onPress: () => changeAccentColor('#FF3B3B'),
-                  },
-                  {
-                    text: 'Amarillo',
-                    onPress: () => changeAccentColor('#FFD60A'),
-                  },
-                  {
-                    text: 'Salmón',
-                    onPress: () => changeAccentColor('#FF7A70'),
-                  },
-                  {
-                    text: 'Violeta',
-                    onPress: () => changeAccentColor('#A855F7'),
-                  },
-                  {
-                    text: 'Cancelar',
-                    style: 'cancel',
-                  },
-                ]
+            [
+              {
+                text: 'RivalSet',
+                onPress: () => changeAccentColor('#FF9D00'),
+              },
+              {
+                text: 'Rosa',
+                onPress: () => changeAccentColor('#FF8FB8'),
+              },
+              {
+                text: 'Azul',
+                onPress: () => changeAccentColor('#35C8FF'),
+              },
+              {
+                text: 'Plata',
+                onPress: () => changeAccentColor('#C4C6CA'),
+              },
+              {
+                text: 'Cancelar',
+                style: 'cancel',
+              },
+            ]
               )
             }
           >
@@ -8289,7 +13285,18 @@ const ProfileLogin = () => (
                 Color de la app
               </Text>
 
-              <Text style={styles.settingDescription}>
+              <Text
+                style={[
+                  styles.settingDescription,
+                  {
+                    fontSize: 11,
+                    fontWeight: '600',
+                  },
+                  isLightTheme && {
+                    color: '#FFFFFF',
+                  },
+                ]}
+              >
                 Personaliza el color de RivalSet
               </Text>
             </View>
@@ -8455,6 +13462,30 @@ const ProfileLogin = () => (
     CERRAR SESIÓN
   </Text>
 </TouchableOpacity>
+
+<TouchableOpacity
+  activeOpacity={0.85}
+  onPress={deleteAccount}
+  style={{
+    marginTop: 10,
+    marginBottom: 10,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,90,95,0.35)',
+    alignItems: 'center',
+  }}
+>
+  <Text
+    style={{
+      color: '#FF5A5F',
+      fontSize: 13,
+      fontWeight: '800',
+    }}
+  >
+    ELIMINAR CUENTA
+  </Text>
+</TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -8462,6 +13493,198 @@ const ProfileLogin = () => (
   /* =====================================================
      RUTINAS
   ===================================================== */
+
+  // RIVALSET_NUTRITION_COMING_SOON
+  const NutritionComingSoon = () => (
+    <View style={styles.page}>
+      <AppGradient />
+
+      <PageHeader
+        title="Nutrición"
+        subtitle="El siguiente paso de tu progreso"
+        showBack={false}
+      />
+
+      <View
+        style={{
+          flex: 1,
+          paddingHorizontal: 22,
+          justifyContent: 'center',
+          paddingBottom: 95,
+        }}
+      >
+        <View
+          style={{
+            alignSelf: 'center',
+            width: 78,
+            height: 78,
+            borderRadius: 24,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: isLightTheme
+              ? 'rgba(24,20,14,0.34)'
+              : `${accentColor}22`,
+            borderWidth: 1,
+            borderColor: isLightTheme
+              ? 'rgba(255,255,255,0.55)'
+              : `${accentColor}70`,
+            marginBottom: 24,
+          }}
+        >
+          <MaterialCommunityIcons
+            name="silverware-fork-knife"
+            size={38}
+            color="#FFFFFF"
+          />
+        </View>
+
+        <View
+          style={{
+            alignSelf: 'center',
+            paddingHorizontal: 13,
+            paddingVertical: 6,
+            borderRadius: 20,
+            backgroundColor: `${accentColor}22`,
+            borderWidth: 1,
+            borderColor: `${accentColor}60`,
+            marginBottom: 15,
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 12,
+              fontWeight: '900',
+              letterSpacing: 1.1,
+            }}
+          >
+            PRÓXIMAMENTE
+          </Text>
+        </View>
+
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 28,
+            lineHeight: 34,
+            fontWeight: '900',
+            textAlign: 'center',
+            letterSpacing: -0.8,
+          }}
+        >
+          Tu nutrición, integrada en RivalSet
+        </Text>
+
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 15,
+            lineHeight: 22,
+            fontWeight: '600',
+            textAlign: 'center',
+            marginTop: 13,
+            paddingHorizontal: 8,
+          }}
+        >
+          Estamos preparando una nueva experiencia para controlar tus calorías,
+          macros y objetivos de forma rápida, precisa y conectada con tu progreso.
+        </Text>
+
+        <View
+          style={{
+            marginTop: 28,
+            padding: 18,
+            borderRadius: 20,
+            backgroundColor: isLightTheme
+              ? 'rgba(24,20,14,0.14)'
+              : 'rgba(255,255,255,0.055)',
+            borderWidth: 1,
+            borderColor: isLightTheme
+              ? 'rgba(255,255,255,0.38)'
+              : 'rgba(255,255,255,0.10)',
+          }}
+        >
+          {[
+            ['target', 'Objetivos personalizados'],
+            ['chart-donut', 'Calorías y macros de un vistazo'],
+            ['camera-outline', 'Registro inteligente de alimentos'],
+          ].map(([icon, label], index) => (
+            <View
+              key={label}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginBottom: index === 2 ? 0 : 16,
+              }}
+            >
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 11,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 13,
+                  backgroundColor: isLightTheme
+                    ? 'rgba(24,20,14,0.28)'
+                    : `${accentColor}18`,
+                  borderWidth: 1,
+                  borderColor: isLightTheme
+                    ? 'rgba(255,255,255,0.40)'
+                    : `${accentColor}30`,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={icon}
+                  size={20}
+                  color={isLightTheme ? '#FFFFFF' : accentColor}
+                />
+              </View>
+
+              <Text
+                style={{
+                  color: '#F2F2F3',
+                  fontSize: 14,
+                  fontWeight: '700',
+                }}
+              >
+                {label}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginTop: 22,
+          }}
+        >
+          <MaterialCommunityIcons
+            name="bell-outline"
+            size={15}
+            color={isLightTheme ? '#FFFFFF' : '#A8ABB2'}
+          />
+
+          <Text
+            style={{
+              color: isLightTheme ? '#FFFFFF' : '#A8ABB2',
+              fontSize: 12,
+              fontWeight: '600',
+              marginLeft: 6,
+            }}
+          >
+            Te avisaremos cuando esté disponible
+          </Text>
+        </View>
+      </View>
+
+      <BottomNavigation />
+    </View>
+  );
+
   const Nutrition = () => {
 
   // Estado local del buscador.
@@ -9882,9 +15105,7 @@ const ProfileLogin = () => (
                     color: '#FFFFFF',
                     fontWeight: '900',
                   }}
-                >
-                  {nutritionSetupStep === 0 ? 'SALIR' : 'ATRÁS'}
-                </Text>
+                >{nutritionSetupStep === 0 ? 'SALIR' : 'ATRÁS'}</Text>
               </TouchableOpacity>
             )}
 
@@ -12056,8 +17277,9 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
 
     <Text
       style={{
-        color: '#858A95',
-        fontSize: 10,
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '600',
         marginTop: 3,
       }}
     >
@@ -12118,8 +17340,9 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
 
     <Text
       style={{
-        color: '#858A95',
-        fontSize: 10,
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '600',
         marginTop: 3,
       }}
     >
@@ -12140,7 +17363,7 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                 <MaterialCommunityIcons
                   name="dumbbell"
                   size={28}
-                  color={COLORS.orange}
+                  color={accentColor}
                 />
               </View>
 
@@ -12149,97 +17372,639 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
               </Text>
 
               <Text style={styles.emptyText}>
-                Agrupa tus ejercicios y define series, repeticiones, kilos y grupos musculares.
+                Agrupa tus ejercicios y define series,
+                repeticiones, kilos y grupos musculares.
               </Text>
             </View>
           ) : (
-            routines.map((routine) => (
+            <>
+              {/* RESUMEN */}
               <View
-                key={routine.id}
-                style={styles.routineCard}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'flex-end',
+                  justifyContent: 'space-between',
+                  marginBottom: 11,
+                  marginTop: 2,
+                }}
               >
-                <View style={styles.routineTop}>
-                  <View style={styles.routineIcon}>
-                    <MaterialCommunityIcons
-                      name="dumbbell"
-                      size={21}
-                      color={COLORS.orange}
-                    />
-                  </View>
-
-                  <View style={styles.routineInfo}>
-                    <Text style={styles.routineName}>
-                      {routine.name}
-                    </Text>
-
-                    <Text style={styles.routineCount}>
-                      {routine.exercises.length}{' '}
-                      {routine.exercises.length === 1
-                        ? 'ejercicio'
-                        : 'ejercicios'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.routineActions}>
-                    <TouchableOpacity
-                      style={styles.editRoutineButton}
-                      activeOpacity={0.7}
-                      onPress={() =>
-                        beginEditRoutine(routine)
-                      }
-                    >
-                      <MaterialCommunityIcons
-                        name="pencil-outline"
-                        size={17}
-                        color="#A7ABB3"
-                      />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      activeOpacity={0.7}
-                      onPress={() =>
-                        deleteRoutine(
-                          routine.id,
-                          routine.name
-                        )
-                      }
-                    >
-                      <MaterialCommunityIcons
-                        name="trash-can-outline"
-                        size={17}
-                        color="#D97069"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {routine.exercises.map((exercise) => (
-                  <View
-                    key={exercise.id}
-                    style={styles.savedExercise}
+                <View>
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 18,
+                      fontWeight: '900',
+                      letterSpacing: -0.3,
+                    }}
                   >
-                    <View style={styles.flex}>
-                      <Text style={styles.savedExerciseName}>
-                        {exercise.name}
-                      </Text>
+                    Tus rutinas
+                  </Text>
 
-                      <Text style={styles.savedExerciseMuscle}>
-                        {muscleText(exercise)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.planBadge}>
-                      <Text style={styles.planBadgeText}>
-                        {exercisePlan(exercise)}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
+                  <Text
+                    style={{
+                      color: 'rgba(255,255,255,0.48)',
+                      fontSize: 12,
+                      fontWeight: '600',
+                      marginTop: 3,
+                    }}
+                  >
+                    {routines.length}{' '}
+                    {routines.length === 1
+                      ? 'rutina'
+                      : 'rutinas'}
+                    {'  ·  '}
+                    {routines.reduce(
+                      (total, routine) =>
+                        total +
+                        (routine.exercises || []).length,
+                      0
+                    )}{' '}
+                    ejercicios
+                  </Text>
+                </View>
               </View>
-            ))
-          )}
-        </ScrollView>
+
+              {routines.map((routine) => {
+                const expanded =
+                  expandedRoutineCardId === routine.id;
+
+                const muscles = [
+                  ...new Set(
+                    (routine.exercises || [])
+                      .flatMap((exercise) =>
+                        getExerciseMuscles(exercise)
+                      )
+                      .filter(
+                        (muscle) =>
+                          muscle &&
+                          muscle !== 'Otro'
+                      )
+                  ),
+                ];
+
+                const muscleSummary =
+                  muscles.length > 0
+                    ? muscles.slice(0, 3).join(' · ')
+                    : 'Rutina personalizada';
+
+                const totalSeries = (routine.exercises || [])
+                  .reduce((total, exercise) => {
+                    if (isCardioExercise(exercise)) {
+                      return total;
+                    }
+
+                    const series =
+                      Array.isArray(exercise.setsTemplate) &&
+                      exercise.setsTemplate.length > 0
+                        ? exercise.setsTemplate.length
+                        : parseInt(exercise.series, 10) || 0;
+
+                    return total + series;
+                  }, 0);
+
+                return (
+                  <View
+                    key={routine.id}
+                    style={{
+                      marginBottom: 11,
+                      borderRadius: 19,
+                      borderWidth: 1,
+                      borderColor: expanded
+                        ? `${accentColor}38`
+                        : 'rgba(255,255,255,0.10)',
+                      backgroundColor: isLightTheme
+                        ? 'rgba(55,40,44,0.40)'
+                        : 'rgba(22,22,27,0.72)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* CABECERA COMPACTA */}
+                    <TouchableOpacity
+                      activeOpacity={0.78}
+                      onPress={() => {
+                        impact();
+
+                        setExpandedRoutineCardId(
+                          expanded
+                            ? null
+                            : routine.id
+                        );
+                      }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingHorizontal: 14,
+                        paddingVertical: 14,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 14,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginRight: 12,
+                          backgroundColor:
+                            `${accentColor}18`,
+                          borderWidth: 1,
+                          borderColor:
+                            `${accentColor}30`,
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="dumbbell"
+                          size={20}
+                          color={accentColor}
+                        />
+                      </View>
+
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: '#FFFFFF',
+                            fontSize: 15,
+                            fontWeight: '900',
+                            letterSpacing: -0.25,
+                          }}
+                        >
+                          {routine.name}
+                        </Text>
+
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: accentColor,
+                            fontSize: 11,
+                            fontWeight: '800',
+                            marginTop: 3,
+                          }}
+                        >
+                          {muscleSummary}
+                        </Text>
+
+                        <Text
+                          style={{
+                            color:
+                              'rgba(255,255,255,0.34)',
+                            fontSize: 9,
+                            fontWeight: '600',
+                            marginTop: 2,
+                          }}
+                        >
+                          {(routine.exercises || [])
+                            .length}{' '}
+                          {(routine.exercises || [])
+                            .length === 1
+                            ? 'ejercicio'
+                            : 'ejercicios'}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 11,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: expanded
+                            ? `${accentColor}16`
+                            : 'rgba(255,255,255,0.04)',
+                          borderWidth: 1,
+                          borderColor: expanded
+                            ? `${accentColor}30`
+                            : 'rgba(255,255,255,0.07)',
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name={
+                            expanded
+                              ? 'chevron-up'
+                              : 'chevron-down'
+                          }
+                          size={21}
+                          color={
+                            expanded
+                              ? accentColor
+                              : 'rgba(255,255,255,0.52)'
+                          }
+                        />
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* CONTENIDO DESPLEGADO */}
+                    {expanded && (
+                      <View
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingBottom: 14,
+                        }}
+                      >
+                        <View
+                          style={{
+                            height: 1,
+                            backgroundColor:
+                              'rgba(255,255,255,0.08)',
+                            marginBottom: 5,
+                          }}
+                        />
+
+                        {(routine.exercises || []).map(
+                          (exercise, index) => (
+                            <View
+                              key={
+                                exercise.id || index
+                              }
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                minHeight: 52,
+                                borderBottomWidth:
+                                  index ===
+                                  routine.exercises.length -
+                                    1
+                                    ? 0
+                                    : 1,
+                                borderBottomColor:
+                                  'rgba(255,255,255,0.055)',
+                              }}
+                            >
+                              {/* LÍNEA / NÚMERO */}
+                              <View
+                                style={{
+                                  width: 28,
+                                  alignItems: 'center',
+                                  alignSelf: 'stretch',
+                                  justifyContent: 'center',
+                                  position: 'relative',
+                                }}
+                              >
+                                {index > 0 && (
+                                  <View
+                                    style={{
+                                      position: 'absolute',
+                                      top: 0,
+                                      width: 1,
+                                      height: '50%',
+                                      backgroundColor:
+                                        `${accentColor}28`,
+                                    }}
+                                  />
+                                )}
+
+                                {index <
+                                  routine.exercises
+                                    .length -
+                                    1 && (
+                                  <View
+                                    style={{
+                                      position: 'absolute',
+                                      bottom: 0,
+                                      width: 1,
+                                      height: '50%',
+                                      backgroundColor:
+                                        `${accentColor}28`,
+                                    }}
+                                  />
+                                )}
+
+                                <View
+                                  style={{
+                                    width: 18,
+                                    height: 18,
+                                    borderRadius: 9,
+                                    alignItems: 'center',
+                                    justifyContent:
+                                      'center',
+                                    backgroundColor:
+                                      `${accentColor}18`,
+                                    borderWidth: 1,
+                                    borderColor:
+                                      `${accentColor}45`,
+                                    zIndex: 2,
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      color:
+                                        accentColor,
+                                      fontSize: 8,
+                                      fontWeight:
+                                        '900',
+                                    }}
+                                  >
+                                    {index + 1}
+                                  </Text>
+                                </View>
+                              </View>
+
+                              {/* EJERCICIO */}
+                              <View
+                                style={{
+                                  flex: 1,
+                                  paddingLeft: 7,
+                                  paddingRight: 8,
+                                }}
+                              >
+                                <Text
+                                  numberOfLines={1}
+                                  style={{
+                                    color: '#FFFFFF',
+                                    fontSize: 11.5,
+                                    fontWeight: '800',
+                                  }}
+                                >
+                                  {exercise.name}
+                                </Text>
+
+                                <Text
+                                  numberOfLines={1}
+                                  style={{
+                                    color:
+                                      'rgba(255,255,255,0.36)',
+                                    fontSize: 8.5,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {muscleText(
+                                    exercise
+                                  )}
+                                </Text>
+                              </View>
+
+                              {/* PLAN */}
+                              <View
+                                style={{
+                                  maxWidth: '38%',
+                                  paddingHorizontal: 9,
+                                  paddingVertical: 6,
+                                  borderRadius: 9,
+                                  backgroundColor:
+                                    'rgba(255,255,255,0.045)',
+                                  borderWidth: 1,
+                                  borderColor:
+                                    'rgba(255,255,255,0.07)',
+                                }}
+                              >
+                                <Text
+                                  numberOfLines={1}
+                                  style={{
+                                    color:
+                                      'rgba(255,255,255,0.72)',
+                                    fontSize: 9,
+                                    fontWeight: '800',
+                                  }}
+                                >
+                                  {exercisePlan(
+                                    exercise
+                                  )}
+                                </Text>
+                              </View>
+                            </View>
+                          )
+                        )}
+
+                        {/* RESUMEN DE RUTINA */}
+                        <View
+                          style={{
+                            marginTop: 13,
+                            paddingTop: 14,
+                            borderTopWidth: 1,
+                            borderTopColor:
+                              'rgba(255,255,255,0.07)',
+                          }}
+                        >
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                            }}
+                          >
+                            {/* EJERCICIOS */}
+                            <View
+                              style={{
+                                flex: 1,
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: '#FFFFFF',
+                                  fontSize: 18,
+                                  fontWeight: '900',
+                                  letterSpacing: -0.5,
+                                }}
+                              >
+                                {(routine.exercises || []).length}
+                              </Text>
+
+                              <Text
+                                style={{
+                                  color:
+                                    'rgba(255,255,255,0.34)',
+                                  fontSize: 7.5,
+                                  fontWeight: '800',
+                                  letterSpacing: 0.7,
+                                  marginTop: 3,
+                                }}
+                              >
+                                EJERCICIOS
+                              </Text>
+                            </View>
+
+                            <View
+                              style={{
+                                width: 1,
+                                height: 30,
+                                backgroundColor:
+                                  'rgba(255,255,255,0.07)',
+                              }}
+                            />
+
+                            {/* SERIES */}
+                            <View
+                              style={{
+                                flex: 1,
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: '#FFFFFF',
+                                  fontSize: 18,
+                                  fontWeight: '900',
+                                  letterSpacing: -0.5,
+                                }}
+                              >
+                                {totalSeries}
+                              </Text>
+
+                              <Text
+                                style={{
+                                  color:
+                                    'rgba(255,255,255,0.34)',
+                                  fontSize: 7.5,
+                                  fontWeight: '800',
+                                  letterSpacing: 0.7,
+                                  marginTop: 3,
+                                }}
+                              >
+                                SERIES
+                              </Text>
+                            </View>
+
+                            <View
+                              style={{
+                                width: 1,
+                                height: 30,
+                                backgroundColor:
+                                  'rgba(255,255,255,0.07)',
+                              }}
+                            />
+
+                            {/* MÚSCULOS */}
+                            <View
+                              style={{
+                                flex: 1,
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: accentColor,
+                                  fontSize: 18,
+                                  fontWeight: '900',
+                                  letterSpacing: -0.5,
+                                }}
+                              >
+                                {muscles.length}
+                              </Text>
+
+                              <Text
+                                style={{
+                                  color:
+                                    'rgba(255,255,255,0.34)',
+                                  fontSize: 7.5,
+                                  fontWeight: '800',
+                                  letterSpacing: 0.7,
+                                  marginTop: 3,
+                                }}
+                              >
+                                MÚSCULOS
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* ACCIONES SECUNDARIAS */}
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              justifyContent: 'flex-end',
+                              alignItems: 'center',
+                              marginTop: 15,
+                              gap: 8,
+                            }}
+                          >
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() =>
+                                beginEditRoutine(routine)
+                              }
+                              style={{
+                                height: 36,
+                                paddingHorizontal: 13,
+                                borderRadius: 11,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor:
+                                  'rgba(255,255,255,0.035)',
+                                borderWidth: 1,
+                                borderColor:
+                                  'rgba(255,255,255,0.085)',
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="pencil-outline"
+                                size={14}
+                                color="rgba(255,255,255,0.65)"
+                              />
+
+                              <Text
+                                style={{
+                                  color:
+                                    'rgba(255,255,255,0.68)',
+                                  fontSize: 8.5,
+                                  fontWeight: '900',
+                                  letterSpacing: 0.25,
+                                  marginLeft: 6,
+                                }}
+                              >
+                                EDITAR
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => {
+                                Alert.alert(
+                                  routine.name,
+                                  'Opciones de rutina',
+                                  [
+                                    {
+                                      text: 'Editar rutina',
+                                      onPress: () =>
+                                        beginEditRoutine(
+                                          routine
+                                        ),
+                                    },
+                                    {
+                                      text: 'Eliminar rutina',
+                                      style: 'destructive',
+                                      onPress: () =>
+                                        deleteRoutine(
+                                          routine.id,
+                                          routine.name
+                                        ),
+                                    },
+                                    {
+                                      text: 'Cancelar',
+                                      style: 'cancel',
+                                    },
+                                  ]
+                                );
+                              }}
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 11,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor:
+                                  'rgba(255,255,255,0.035)',
+                                borderWidth: 1,
+                                borderColor:
+                                  'rgba(255,255,255,0.085)',
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="dots-horizontal"
+                                size={18}
+                                color="rgba(255,255,255,0.55)"
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+              </>
+            )}
+          </ScrollView>
       </View>
 
       {BottomNavigation()}
@@ -12814,72 +18579,216 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                 </View>
 
                 {/* MÉTRICAS */}
-                <View style={styles.exerciseMetricLabels}>
-                  <Text style={styles.exerciseMetricLabel}>
-                    {cardio ? 'MINUTOS' : 'SERIES'}
-                  </Text>
-
-                  <Text style={styles.exerciseMetricLabel}>
-                    {cardio ? 'KM' : 'REPS'}
-                  </Text>
-
-                  <Text style={styles.exerciseMetricLabel}>
-                    {cardio ? 'PPM' : 'KG'}
-                  </Text>
-                </View>
-
                 {cardio ? (
-                  <View style={styles.exerciseMetricsRow}>
-                    <TextInput
-                      style={styles.metricInput}
-                      placeholder="0"
-                      placeholderTextColor={'#626873'}
-                      keyboardType="number-pad"
-                      value={exercise.duration}
-                      onChangeText={(value) =>
-                        updateExercise(
-                          exercise.id,
-                          'duration',
-                          value
-                        )
-                      }
-                    />
+                  <View style={styles.cardioPanel}>
+                    {(() => {
+                      const metricType =
+                        getCardioMetricType(exercise);
 
-                    <TextInput
-                      style={styles.metricInput}
-                      placeholder="0"
-                      placeholderTextColor={'#626873'}
-                      keyboardType="decimal-pad"
-                      value={exercise.distance}
-                      onChangeText={(value) =>
-                        updateExercise(
-                          exercise.id,
-                          'distance',
-                          value
-                        )
-                      }
-                    />
+                      const calculatedMetric =
+                        getCardioCalculatedMetric(exercise);
 
-                    <TextInput
-                      style={[
-                        styles.metricInput,
-                        styles.lastMetricInput,
-                      ]}
-                      placeholder="0"
-                      placeholderTextColor={'#626873'}
-                      keyboardType="number-pad"
-                      value={exercise.heartRate}
-                      onChangeText={(value) =>
-                        updateExercise(
-                          exercise.id,
-                          'heartRate',
-                          value
-                        )
-                      }
-                    />
+                      const usesDistance =
+                        metricType === 'pace' ||
+                        metricType === 'speed';
+
+                      return (
+                        <>
+                          <View style={styles.cardioMainMetrics}>
+                            {/* DURACIÓN */}
+                            <View style={styles.cardioMetricCard}>
+                              <View style={styles.cardioMetricHeader}>
+                                <MaterialCommunityIcons
+                                  name="clock-outline"
+                                  size={15}
+                                  color={COLORS.orange}
+                                />
+
+                                <Text style={styles.cardioMetricLabel}>
+                                  DURACIÓN
+                                </Text>
+                              </View>
+
+                              <View style={styles.cardioValueRow}>
+                                <TextInput
+                                  style={styles.cardioMetricInput}
+                                  placeholder="0"
+                                  placeholderTextColor="#555B65"
+                                  keyboardType="number-pad"
+                                  value={exercise.duration}
+                                  onChangeText={(value) =>
+                                    updateExercise(
+                                      exercise.id,
+                                      'duration',
+                                      value
+                                    )
+                                  }
+                                />
+
+                                <Text style={styles.cardioMetricUnit}>
+                                  min
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* DISTANCIA:
+                                solo donde tiene sentido */}
+                            {usesDistance && (
+                              <View style={styles.cardioMetricCard}>
+                                <View style={styles.cardioMetricHeader}>
+                                  <MaterialCommunityIcons
+                                    name="map-marker-distance"
+                                    size={15}
+                                    color={COLORS.orange}
+                                  />
+
+                                  <Text style={styles.cardioMetricLabel}>
+                                    DISTANCIA
+                                  </Text>
+                                </View>
+
+                                <View style={styles.cardioValueRow}>
+                                  <TextInput
+                                    style={styles.cardioMetricInput}
+                                    placeholder="0"
+                                    placeholderTextColor="#555B65"
+                                    keyboardType="decimal-pad"
+                                    value={exercise.distance}
+                                    onChangeText={(value) =>
+                                      updateExercise(
+                                        exercise.id,
+                                        'distance',
+                                        value
+                                      )
+                                    }
+                                  />
+
+                                  <Text style={styles.cardioMetricUnit}>
+                                    km
+                                  </Text>
+                                </View>
+                              </View>
+                            )}
+                          </View>
+
+                          {/* MÉTRICA CALCULADA */}
+                          {usesDistance && (
+                            <View style={styles.cardioPaceCard}>
+                              <View>
+                                <Text style={styles.cardioPaceLabel}>
+                                  {metricType === 'speed'
+                                    ? 'VELOCIDAD MEDIA'
+                                    : 'RITMO MEDIO'}
+                                </Text>
+
+                                <Text style={styles.cardioPaceHint}>
+                                  Calculado automáticamente
+                                </Text>
+                              </View>
+
+                              <View style={styles.cardioPaceValueWrap}>
+                                <MaterialCommunityIcons
+                                  name={
+                                    metricType === 'speed'
+                                      ? 'speedometer'
+                                      : 'run-fast'
+                                  }
+                                  size={18}
+                                  color={
+                                    calculatedMetric
+                                      ? COLORS.orange
+                                      : '#5F646D'
+                                  }
+                                />
+
+                                <Text
+                                  style={[
+                                    styles.cardioPaceValue,
+                                    !calculatedMetric && {
+                                      color: '#686D76',
+                                    },
+                                  ]}
+                                >
+                                  {calculatedMetric
+                                    ? calculatedMetric.value
+                                    : metricType === 'speed'
+                                    ? '--.-'
+                                    : '--:--'}
+                                </Text>
+
+                                <Text style={styles.cardioPaceUnit}>
+                                  {metricType === 'speed'
+                                    ? 'km/h'
+                                    : 'min/km'}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+
+                          {/* FRECUENCIA CARDÍACA OPCIONAL */}
+                          <View style={styles.cardioHeartCard}>
+                            <View style={styles.cardioHeartInfo}>
+                              <View style={styles.cardioHeartIcon}>
+                                <MaterialCommunityIcons
+                                  name="heart-pulse"
+                                  size={18}
+                                  color={COLORS.orange}
+                                />
+                              </View>
+
+                              <View>
+                                <Text style={styles.cardioHeartLabel}>
+                                  FRECUENCIA CARDÍACA
+                                </Text>
+
+                                <Text style={styles.cardioHeartHint}>
+                                  Opcional · media del entrenamiento
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.cardioHeartInputWrap}>
+                              <TextInput
+                                style={styles.cardioHeartInput}
+                                placeholder="---"
+                                placeholderTextColor="#555B65"
+                                keyboardType="number-pad"
+                                value={exercise.heartRate}
+                                onChangeText={(value) =>
+                                  updateExercise(
+                                    exercise.id,
+                                    'heartRate',
+                                    value
+                                  )
+                                }
+                              />
+
+                              <Text style={styles.cardioHeartUnit}>
+                                ppm
+                              </Text>
+                            </View>
+                          </View>
+                        </>
+                      );
+                    })()}
                   </View>
                 ) : (
-                  <View style={styles.exerciseMetricsRow}>
+                  <>
+                    <View style={styles.exerciseMetricLabels}>
+                      <Text style={styles.exerciseMetricLabel}>
+                        SERIES
+                      </Text>
+
+                      <Text style={styles.exerciseMetricLabel}>
+                        REPS
+                      </Text>
+
+                      <Text style={styles.exerciseMetricLabel}>
+                        KG
+                      </Text>
+                    </View>
+
+                    <View style={styles.exerciseMetricsRow}>
                     <TextInput
                       style={styles.metricInput}
                       placeholder="0"
@@ -12929,6 +18838,7 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                       }
                     />
                   </View>
+                  </>
                 )}
 
                 {/* SOLO EJERCICIOS MANUALES:
@@ -12987,6 +18897,7 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
             setExercisePickerZone(null);
             setExercisePickerMuscle(null);
             setExercisePickerName(null);
+            setExercisePickerCardioType(null);
           }}
         >
           <Text style={styles.addExerciseIcon}>
@@ -13005,6 +18916,11 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                 <Text style={styles.exercisePickerTitle}>
                   {exercisePickerName
                     ? exercisePickerName
+                    : exercisePickerZone?.id === 'cardio' &&
+                      exercisePickerCardioType
+                    ? exercisePickerCardioType === 'gym'
+                      ? 'Gimnasio'
+                      : 'Aire libre'
                     : exercisePickerMuscle
                     ? exercisePickerMuscle
                     : exercisePickerZone
@@ -13018,7 +18934,9 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                     : exercisePickerMuscle
                     ? 'Elige un ejercicio'
                     : exercisePickerZone?.id === 'cardio'
-                    ? 'Elige una actividad'
+                    ? exercisePickerCardioType
+                      ? 'Elige un ejercicio'
+                      : '¿Dónde vas a hacer cardio?'
                     : exercisePickerZone
                     ? 'Elige el grupo muscular'
                     : 'Primero selecciona una zona'}
@@ -13030,8 +18948,15 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                   if (exercisePickerName) {
                     setExercisePickerName(null);
                   } else if (exercisePickerMuscle) {
-                    setExercisePickerMuscle(null);
-                  } else if (exercisePickerZone) {
+       setExercisePickerMuscle(null);
+
+       if (exercisePickerZone?.id === 'cardio') {
+         setExercisePickerCardioType(null);
+       } else if (exercisePickerZone?.id === 'chest') {
+         setExercisePickerZone(null);
+       }
+     } else if (exercisePickerZone) {
+                    setExercisePickerCardioType(null);
                     setExercisePickerZone(null);
                   } else {
                     setExercisePickerOpen(false);
@@ -13060,10 +18985,12 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                     style={styles.exercisePickerOption}
                     onPress={() => {
                       setExercisePickerZone(zone);
-
-                      if (zone.id === 'cardio') {
-                        setExercisePickerMuscle('Cardio');
-                      }
+     if (zone.id === 'cardio') {
+       setExercisePickerMuscle(null);
+       setExercisePickerCardioType(null);
+     } else if (zone.id === 'chest') {
+       setExercisePickerMuscle('Pecho');
+     }
                     }}
                   >
                     <View
@@ -13111,6 +19038,73 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                 ))}
               </View>
             )}
+
+            {/* NIVEL 2 · TIPO DE CARDIO */}
+            {exercisePickerZone?.id === 'cardio' &&
+              !exercisePickerCardioType &&
+              !exercisePickerMuscle && (
+                <View style={styles.exercisePickerGrid}>
+                  {[
+                    {
+                      id: 'gym',
+                      name: 'Gimnasio',
+                      icon: 'dumbbell',
+                    },
+                    {
+                      id: 'outdoor',
+                      name: 'Aire libre',
+                      icon: 'run',
+                    },
+                  ].map((type) => (
+                    <TouchableOpacity
+                      key={type.id}
+                      activeOpacity={0.75}
+                      style={styles.exercisePickerOption}
+                      onPress={async () => {
+                        await impact();
+                        setExercisePickerCardioType(type.id);
+                        setExercisePickerMuscle('Cardio');
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          flex: 1,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 28,
+                            height: 28,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: 10,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={type.icon}
+                            size={21}
+                            color={COLORS.orange}
+                          />
+                        </View>
+
+                        <Text
+                          style={styles.exercisePickerOptionText}
+                        >
+                          {type.name}
+                        </Text>
+                      </View>
+
+                      <MaterialCommunityIcons
+                        name="chevron-right"
+                        size={18}
+                        color={COLORS.orange}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
 
             {/* NIVEL 2 · MÚSCULO */}
             {exercisePickerZone &&
@@ -13175,11 +19169,41 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
 
                 {[...new Set(
                   EXERCISE_LIBRARY
-                    .filter((item) =>
-                      (item.primaryMuscles || []).includes(
-                        exercisePickerMuscle
-                      )
-                    )
+                    .filter((item) => {
+                      if (
+                        !(item.primaryMuscles || []).includes(
+                          exercisePickerMuscle
+                        )
+                      ) {
+                        return false;
+                      }
+
+                      if (
+                        exercisePickerMuscle !== 'Cardio'
+                      ) {
+                        return true;
+                      }
+
+                      const gymCardio = [
+                        'Cinta',
+                        'Bicicleta estática',
+                        'Elíptica',
+                        'Remo',
+                        'Escaladora',
+                      ];
+
+                      const outdoorCardio = [
+                        'Correr',
+                        'Caminar',
+                        'Bicicleta',
+                        'Senderismo',
+                      ];
+
+                      return exercisePickerCardioType ===
+                        'outdoor'
+                        ? outdoorCardio.includes(item.name)
+                        : gymCardio.includes(item.name);
+                    })
                     .map((item) => item.name)
                 )].map((name) => {
                   const cardio =
@@ -13228,7 +19252,29 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
                               )
                           );
 
-                        if (variants.length === 1) {
+                        if (cardio) {
+                          const cardioVariant =
+                            variants.find((item) => {
+                              if (
+                                exercisePickerCardioType ===
+                                'outdoor'
+                              ) {
+                                return (
+                                  item.variant === 'Aire libre' ||
+                                  item.equipment === 'outdoor'
+                                );
+                              }
+
+                              return (
+                                item.variant === 'Gimnasio' ||
+                                item.equipment !== 'outdoor'
+                              );
+                            }) || variants[0];
+
+                          if (cardioVariant) {
+                            addLibraryExercise(cardioVariant);
+                          }
+                        } else if (variants.length === 1) {
                           addLibraryExercise(variants[0]);
                         } else {
                           setExercisePickerName(name);
@@ -13366,14 +19412,26 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
         contentContainerStyle={styles.pageContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.achievementSummary}>
-          <Text style={styles.achievementSummaryNumber}>
-            {unlockedAchievements}
-          </Text>
+        <View style={styles.achievementCompactHeader}>
+          <View>
+            <Text style={styles.achievementCompactEyebrow}>
+              NIVEL {rivalSetLevel.level} · {levelTierName}
+            </Text>
 
-          <Text style={styles.achievementSummaryText}>
-            de {ACHIEVEMENTS.length} logros desbloqueados
-          </Text>
+            <Text style={styles.achievementCompactTitle}>
+              Tus desafíos
+            </Text>
+          </View>
+
+          <View style={styles.achievementCompactXP}>
+            <Text style={styles.achievementCompactXPNumber}>
+              {achievementXP}
+            </Text>
+
+            <Text style={styles.achievementCompactXPLabel}>
+              XP TOTAL
+            </Text>
+          </View>
         </View>
 
         {ACHIEVEMENTS.map((item) => {
@@ -13457,55 +19515,344 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
   ===================================================== */
 
   const QuickStart = () => {
-    const latestWorkout = [...workouts].sort(
+    const orderedQuickWorkouts = [...workouts].sort(
       (a, b) =>
-        new Date(b.finishedAt) -
-        new Date(a.finishedAt)
-    )[0];
+        new Date(b.finishedAt || 0).getTime() -
+        new Date(a.finishedAt || 0).getTime()
+    );
+
+    const latestWorkout = orderedQuickWorkouts[0];
 
     const preferredRoutine =
       routines.find(
         (routine) =>
-          routine.id === latestWorkout?.routineId
-      ) || routines[0];
+          String(routine.id) ===
+          String(latestWorkout?.routineId)
+      ) ||
+      routines[0] ||
+      null;
 
     const otherRoutines = routines.filter(
       (routine) =>
-        routine.id !== preferredRoutine?.id
+        String(routine.id) !==
+        String(preferredRoutine?.id)
     );
+
+    /* =====================================================
+       QUICK START · DATOS
+    ===================================================== */
+
+    const getQuickRoutineMuscles = (routine) => {
+      return [
+        ...new Set(
+          (routine?.exercises || [])
+            .flatMap((exercise) =>
+              getExerciseMuscles(exercise)
+            )
+            .filter(
+              (muscle) =>
+                muscle &&
+                muscle !== 'Otro' &&
+                muscle !== 'Cardio'
+            )
+        ),
+      ];
+    };
+
+    const getQuickRoutineSeries = (routine) =>
+      (routine?.exercises || []).reduce(
+        (total, exercise) => {
+          const series =
+            Array.isArray(exercise.setsTemplate) &&
+            exercise.setsTemplate.length > 0
+              ? exercise.setsTemplate.length
+              : parseInt(exercise.series, 10) || 0;
+
+          return total + series;
+        },
+        0
+      );
+
+    const getQuickLastWorkout = (routine) =>
+      orderedQuickWorkouts.find(
+        (workout) =>
+          String(workout.routineId) ===
+          String(routine?.id)
+      );
+
+    const getQuickLastUsedText = (routine) => {
+      const workout = getQuickLastWorkout(routine);
+
+      if (!workout?.finishedAt) {
+        return 'Aún no estrenada';
+      }
+
+      const date = new Date(workout.finishedAt);
+
+      return `Última vez · ${date.toLocaleDateString(
+        'es-ES',
+        {
+          day: '2-digit',
+          month: 'short',
+        }
+      )}`;
+    };
+
+    const getQuickLastUsedShort = (routine) => {
+      const workout = getQuickLastWorkout(routine);
+
+      if (!workout?.finishedAt) {
+        return '—';
+      }
+
+      return new Date(
+        workout.finishedAt
+      ).toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+      });
+    };
+
+    /* =====================================================
+       RECOMENDACIÓN INTELIGENTE
+       Prioriza músculos que llevan más tiempo sin entrenarse
+    ===================================================== */
+
+    const getLastMuscleWorkoutTime = (muscle) => {
+      let latest = 0;
+
+      orderedQuickWorkouts.forEach((workout) => {
+        const workoutMuscles = new Set(
+          (workout.exercises || [])
+            .flatMap((exercise) =>
+              getExerciseMuscles(exercise)
+            )
+            .filter(Boolean)
+        );
+
+        if (!workoutMuscles.has(muscle)) {
+          return;
+        }
+
+        const time = new Date(
+          workout.finishedAt || 0
+        ).getTime();
+
+        if (
+          Number.isFinite(time) &&
+          time > latest
+        ) {
+          latest = time;
+        }
+      });
+
+      return latest;
+    };
+
+    const getRoutineRecoveryScore = (routine) => {
+      const muscles =
+        getQuickRoutineMuscles(routine);
+
+      if (!muscles.length) {
+        return -1;
+      }
+
+      const now = Date.now();
+
+      const scores = muscles.map((muscle) => {
+        const last =
+          getLastMuscleWorkoutTime(muscle);
+
+        // Si nunca se ha trabajado,
+        // recibe prioridad alta.
+        if (!last) {
+          return 30;
+        }
+
+        const days =
+          (now - last) /
+          (1000 * 60 * 60 * 24);
+
+        return Math.min(
+          30,
+          Math.max(0, days)
+        );
+      });
+
+      return (
+        scores.reduce(
+          (total, value) => total + value,
+          0
+        ) / scores.length
+      );
+    };
+
+    const rankedRecommendations = routines
+      .map((routine) => ({
+        routine,
+        score:
+          getRoutineRecoveryScore(routine),
+      }))
+      .filter((item) => item.score >= 0)
+      .sort(
+        (a, b) =>
+          b.score - a.score
+      );
+
+    const recommendedRoutine =
+      rankedRecommendations[0]?.routine ||
+      null;
+
+    const isRecommended = (routine) =>
+      recommendedRoutine &&
+      String(recommendedRoutine.id) ===
+        String(routine?.id);
+
+    const getRecommendationReason = (
+      routine
+    ) => {
+      const muscles =
+        getQuickRoutineMuscles(routine);
+
+      if (!muscles.length) {
+        return '';
+      }
+
+      const ranked = muscles
+        .map((muscle) => {
+          const last =
+            getLastMuscleWorkoutTime(muscle);
+
+          return {
+            muscle,
+            last,
+            days: last
+              ? Math.max(
+                  0,
+                  Math.floor(
+                    (Date.now() - last) /
+                      (1000 * 60 * 60 * 24)
+                  )
+                )
+              : 999,
+          };
+        })
+        .sort(
+          (a, b) =>
+            b.days - a.days
+        );
+
+      const top = ranked[0];
+
+      if (!top) {
+        return '';
+      }
+
+      if (top.days === 999) {
+        return `${top.muscle} sin registro reciente`;
+      }
+
+      if (top.days === 0) {
+        return `${top.muscle} trabajado hoy`;
+      }
+
+      return `${top.muscle} lleva ${
+        top.days
+      } ${
+        top.days === 1 ? 'día' : 'días'
+      } sin entrenar`;
+    };
+
+    const featuredMuscles =
+      getQuickRoutineMuscles(
+        preferredRoutine
+      );
+
+    const featuredMuscleText =
+      featuredMuscles.length > 0
+        ? featuredMuscles
+            .slice(0, 4)
+            .join(' · ')
+        : 'Rutina personalizada';
 
     return (
       <View style={styles.page}>
-        
+        <AppGradient />
 
         <PageHeader
-          title="Entrena ahora"
+          title="¿Qué entrenamos hoy?"
           subtitle={
             workoutOrigin === 'league'
               ? 'Elige una rutina y compite'
-              : 'Elige una rutina y pasa a la acción'
+              : 'Elige tu sesión y empieza'
           }
         />
 
         <ScrollView
-          contentContainerStyle={styles.quickContent}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: 18,
+            paddingTop: 12,
+            paddingBottom: 42,
+          }}
         >
+
+          {/* ===============================================
+              AVISO LIGA
+          =============================================== */}
+
           {workoutOrigin === 'league' && (
-            <View style={styles.quickLeagueBanner}>
+            <View
+              style={{
+                minHeight: 58,
+                borderRadius: 17,
+                borderWidth: 1,
+                borderColor:
+                  `${accentColor}45`,
+                backgroundColor:
+                  isLightTheme
+                    ? 'rgba(20,17,12,0.24)'
+                    : 'rgba(20,20,24,0.60)',
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 14,
+                marginBottom: 18,
+              }}
+            >
               <MaterialCommunityIcons
                 name="crown-outline"
-                size={18}
-                color={COLORS.orange}
+                size={20}
+                color={accentColor}
               />
 
-              <View style={styles.flex}>
-                <Text style={styles.quickLeagueBannerTitle}>
+              <View
+                style={{
+                  flex: 1,
+                  marginLeft: 11,
+                }}
+              >
+                <Text
+                  style={{
+                    color: accentColor,
+                    fontSize: 10,
+                    fontWeight: '900',
+                    letterSpacing: 0.8,
+                  }}
+                >
                   LIGA
                 </Text>
 
-                <Text style={[styles.quickLeagueBannerText, lightTextStyle]}>
+                <Text
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 10,
+                    lineHeight: 14,
+                    fontWeight: '600',
+                    marginTop: 2,
+                  }}
+                >
                   {leagueWeeklyLimitReached
-                    ? 'Tu límite puntuable ya está completo. Esta sesión seguirá guardándose normalmente.'
+                    ? 'Tus 4 sesiones puntuables ya están completas. Este entrenamiento se guardará igualmente.'
                     : `Esta será tu sesión ${
                         leagueScoringCount + 1
                       } de 4 puntuables.`}
@@ -13514,128 +19861,862 @@ style={[styles.buttonShadow, { marginBottom: 18 }]}
             </View>
           )}
 
-          <View style={styles.quickHero}>
-            <View style={styles.quickHeroIcon}>
-              <MaterialCommunityIcons
-                name="dumbbell"
-                size={46}
-                color={COLORS.darkText}
-              />
-            </View>
-
-            <Text style={styles.quickEyebrow}>
-              MODO ENTRENAMIENTO
-            </Text>
-
-            <Text style={styles.quickHeroTitle}>
-              Hoy también cuenta
-            </Text>
-
-            <Text style={[styles.quickHeroText, lightTextStyle]}>
-              Elige una rutina y registra cada serie de verdad.
-            </Text>
-          </View>
-
           {preferredRoutine ? (
             <>
+
+              {/* ===========================================
+                  CABECERA ÚLTIMA RUTINA
+              =========================================== */}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent:
+                    'space-between',
+                  marginBottom: 10,
+                  paddingHorizontal: 2,
+                }}
+              >
+                <Text
+                  style={{
+                    color:
+                      'rgba(255,255,255,0.90)',
+                    fontSize: 13,
+                    fontWeight: '900',
+                    letterSpacing: 1.15,
+                  }}
+                >
+                  ÚLTIMA RUTINA
+                </Text>
+
+                {isRecommended(
+                  preferredRoutine
+                ) && (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 20,
+                      backgroundColor:
+                        `${accentColor}20`,
+                      borderWidth: 1,
+                      borderColor:
+                        `${accentColor}65`,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="star-four-points"
+                      size={11}
+                      color={accentColor}
+                    />
+
+                    <Text
+                      style={{
+                        color: accentColor,
+                        fontSize: 9,
+                        fontWeight: '900',
+                        marginLeft: 5,
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      RECOMENDADA HOY
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* ===========================================
+                  TARJETA PRINCIPAL
+              =========================================== */}
+
               <TouchableOpacity
-                style={styles.quickFeaturedCard}
+                activeOpacity={0.84}
                 onPress={() =>
                   openWorkout(
                     preferredRoutine,
                     workoutOrigin
                   )
                 }
+                style={{
+                  borderRadius: 25,
+                  borderWidth: 1,
+                  borderColor:
+                    isRecommended(
+                      preferredRoutine
+                    )
+                      ? `${accentColor}75`
+                      : 'rgba(255,255,255,0.16)',
+                  backgroundColor:
+                    isLightTheme
+                      ? 'rgba(22,18,13,0.42)'
+                      : 'rgba(18,18,23,0.78)',
+                  padding: 18,
+                  marginBottom: 27,
+                  overflow: 'hidden',
+                }}
               >
-                <View style={styles.quickFeaturedTop}>
-                  <View style={styles.quickRoutineIcon}>
+
+                {/* NOMBRE */}
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 17,
+                      alignItems: 'center',
+                      justifyContent:
+                        'center',
+                      backgroundColor:
+                        `${accentColor}18`,
+                      borderWidth: 1,
+                      borderColor:
+                        `${accentColor}40`,
+                      marginRight: 13,
+                    }}
+                  >
                     <MaterialCommunityIcons
                       name="dumbbell"
-                      size={25}
-                      color={COLORS.orange}
+                      size={26}
+                      color={accentColor}
                     />
                   </View>
 
-                  <View style={styles.flex}>
-                    <Text style={styles.quickRoutineName}>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: '#FFFFFF',
+                        fontSize: 23,
+                        fontWeight: '900',
+                        letterSpacing: -0.6,
+                      }}
+                    >
                       {preferredRoutine.name}
                     </Text>
 
-                    <Text style={[styles.quickRoutineMeta, lightTextStyle]}>
-                      {preferredRoutine.exercises.length}{' '}
-                      ejercicios
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: accentColor,
+                        fontSize: 11,
+                        fontWeight: '800',
+                        marginTop: 4,
+                      }}
+                    >
+                      {featuredMuscleText}
                     </Text>
                   </View>
 
-                  <Text style={styles.quickFeaturedArrow}>
-                    ›
-                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={28}
+                    color="#FFFFFF"
+                  />
                 </View>
 
-                <View style={styles.quickStartButton}>
-                  <Text style={styles.quickStartText}>
-                    EMPEZAR ENTRENAMIENTO
-                  </Text>
+                {/* MOTIVO RECOMENDACIÓN */}
+
+                {isRecommended(
+                  preferredRoutine
+                ) && (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginTop: 13,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="lightbulb-outline"
+                      size={14}
+                      color={accentColor}
+                    />
+
+                    <Text
+                      style={{
+                        color:
+                          'rgba(255,255,255,0.72)',
+                        fontSize: 10,
+                        fontWeight: '600',
+                        marginLeft: 6,
+                      }}
+                    >
+                      {getRecommendationReason(
+                        preferredRoutine
+                      )}
+                    </Text>
+                  </View>
+                )}
+
+                {/* =========================================
+                    MÉTRICAS VISUALES
+                ========================================= */}
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'stretch',
+                    marginTop: 18,
+                    paddingVertical: 14,
+                    borderTopWidth: 1,
+                    borderBottomWidth: 1,
+                    borderColor:
+                      'rgba(255,255,255,0.10)',
+                  }}
+                >
+
+                  {/* EJERCICIOS */}
+
+                  <View
+                    style={{
+                      flex: 1,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="format-list-numbered"
+                      size={17}
+                      color={accentColor}
+                    />
+
+                    <Text
+                      style={{
+                        color: '#FFFFFF',
+                        fontSize: 19,
+                        fontWeight: '900',
+                        marginTop: 4,
+                      }}
+                    >
+                      {
+                        (
+                          preferredRoutine.exercises ||
+                          []
+                        ).length
+                      }
+                    </Text>
+
+                    <Text
+                      style={{
+                        color:
+                          'rgba(255,255,255,0.58)',
+                        fontSize: 8.5,
+                        fontWeight: '800',
+                        marginTop: 1,
+                      }}
+                    >
+                      EJERCICIOS
+                    </Text>
+                  </View>
+
+                  <View
+                    style={{
+                      width: 1,
+                      backgroundColor:
+                        'rgba(255,255,255,0.10)',
+                    }}
+                  />
+
+                  {/* SERIES */}
+
+                  <View
+                    style={{
+                      flex: 1,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="repeat"
+                      size={17}
+                      color={accentColor}
+                    />
+
+                    <Text
+                      style={{
+                        color: '#FFFFFF',
+                        fontSize: 19,
+                        fontWeight: '900',
+                        marginTop: 4,
+                      }}
+                    >
+                      {getQuickRoutineSeries(
+                        preferredRoutine
+                      )}
+                    </Text>
+
+                    <Text
+                      style={{
+                        color:
+                          'rgba(255,255,255,0.58)',
+                        fontSize: 8.5,
+                        fontWeight: '800',
+                        marginTop: 1,
+                      }}
+                    >
+                      SERIES
+                    </Text>
+                  </View>
+
+                  <View
+                    style={{
+                      width: 1,
+                      backgroundColor:
+                        'rgba(255,255,255,0.10)',
+                    }}
+                  />
+
+                  {/* ÚLTIMA VEZ */}
+
+                  <View
+                    style={{
+                      flex: 1,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="history"
+                      size={17}
+                      color={accentColor}
+                    />
+
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: '#FFFFFF',
+                        fontSize: 14,
+                        fontWeight: '900',
+                        marginTop: 6,
+                      }}
+                    >
+                      {getQuickLastUsedShort(
+                        preferredRoutine
+                      )}
+                    </Text>
+
+                    <Text
+                      style={{
+                        color:
+                          'rgba(255,255,255,0.58)',
+                        fontSize: 8.5,
+                        fontWeight: '800',
+                        marginTop: 2,
+                      }}
+                    >
+                      ÚLTIMA VEZ
+                    </Text>
+                  </View>
+                </View>
+
+                {/* BOTÓN */}
+
+                <View
+                  style={{
+                    height: 52,
+                    borderRadius: 16,
+                    backgroundColor:
+                      accentColor,
+                    marginTop: 16,
+                    paddingHorizontal: 17,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent:
+                      'space-between',
+                  }}
+                >
+                  <View>
+                    <Text
+                      style={{
+                        color: '#17120A',
+                        fontSize: 12,
+                        fontWeight: '900',
+                      }}
+                    >
+                      INICIAR ENTRENAMIENTO
+                    </Text>
+
+                    <Text
+                      style={{
+                        color:
+                          'rgba(23,18,10,0.68)',
+                        fontSize: 9,
+                        fontWeight: '700',
+                        marginTop: 1,
+                      }}
+                    >
+                      Continuar con esta rutina
+                    </Text>
+                  </View>
 
                   <MaterialCommunityIcons
                     name="arrow-right"
-                    size={19}
-                    color={COLORS.darkText}
+                    size={22}
+                    color="#17120A"
                   />
                 </View>
               </TouchableOpacity>
 
-              {otherRoutines.map((routine) => (
+              {/* ===========================================
+                  OTRAS RUTINAS
+              =========================================== */}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent:
+                    'space-between',
+                  marginBottom: 12,
+                }}
+              >
+                <View>
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 18,
+                      fontWeight: '900',
+                    }}
+                  >
+                    Otras rutinas
+                  </Text>
+
+                  <Text
+                    style={{
+                      color:
+                        'rgba(255,255,255,0.62)',
+                      fontSize: 10,
+                      fontWeight: '600',
+                      marginTop: 2,
+                    }}
+                  >
+                    Desliza para elegir otra
+                  </Text>
+                </View>
+
                 <TouchableOpacity
-                  key={routine.id}
-                  style={styles.quickListCard}
-                  onPress={() =>
-                    openWorkout(
-                      routine,
-                      workoutOrigin
-                    )
-                  }
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    setSelectedTab(
+                      'Rutinas'
+                    );
+                    setScreen('routines');
+                  }}
+                  style={{
+                    paddingHorizontal: 11,
+                    paddingVertical: 7,
+                    borderRadius: 11,
+                    backgroundColor:
+                      'rgba(255,255,255,0.07)',
+                    borderWidth: 1,
+                    borderColor:
+                      'rgba(255,255,255,0.12)',
+                  }}
                 >
-                  <View style={styles.quickListIcon}>
-                    <MaterialCommunityIcons
-                      name="dumbbell"
-                      size={20}
-                      color={COLORS.orange}
-                    />
-                  </View>
-
-                  <View style={styles.flex}>
-                    <Text style={styles.quickListName}>
-                      {routine.name}
-                    </Text>
-
-                    <Text style={[styles.quickRoutineMeta, lightTextStyle]}>
-                      {routine.exercises.length}{' '}
-                      ejercicios
-                    </Text>
-                  </View>
-
-                  <Text style={styles.quickListArrow}>
-                    ›
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 9,
+                      fontWeight: '900',
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    GESTIONAR
                   </Text>
                 </TouchableOpacity>
-              ))}
+              </View>
+
+              {/* ===========================================
+                  CARRUSEL CON PEEK
+              =========================================== */}
+
+              {otherRoutines.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={
+                    false
+                  }
+                  decelerationRate="fast"
+                  snapToInterval={321}
+                  snapToAlignment="start"
+                  contentContainerStyle={{
+                    paddingRight: 40,
+                    paddingBottom: 5,
+                  }}
+                >
+                  {otherRoutines.map(
+                    (routine) => {
+                      const muscles =
+                        getQuickRoutineMuscles(
+                          routine
+                        );
+
+                      const muscleText =
+                        muscles.length > 0
+                          ? muscles
+                              .slice(0, 3)
+                              .join(' · ')
+                          : 'Rutina personalizada';
+
+                      const recommended =
+                        isRecommended(
+                          routine
+                        );
+
+                      return (
+                        <TouchableOpacity
+                          key={routine.id}
+                          activeOpacity={0.84}
+                          onPress={() =>
+                            openWorkout(
+                              routine,
+                              workoutOrigin
+                            )
+                          }
+                          style={{
+                            width: 310,
+                            minHeight: 178,
+                            marginRight: 11,
+                            borderRadius: 21,
+                            borderWidth: 1,
+                            borderColor:
+                              recommended
+                                ? `${accentColor}75`
+                                : 'rgba(255,255,255,0.14)',
+                            backgroundColor:
+                              isLightTheme
+                                ? 'rgba(22,18,13,0.34)'
+                                : 'rgba(18,18,23,0.70)',
+                            padding: 15,
+                          }}
+                        >
+
+                          {/* BADGE */}
+
+                          {recommended && (
+                            <View
+                              style={{
+                                alignSelf:
+                                  'flex-start',
+                                flexDirection:
+                                  'row',
+                                alignItems:
+                                  'center',
+                                paddingHorizontal: 9,
+                                paddingVertical: 4,
+                                borderRadius: 20,
+                                backgroundColor:
+                                  `${accentColor}20`,
+                                borderWidth: 1,
+                                borderColor:
+                                  `${accentColor}60`,
+                                marginBottom: 11,
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="star-four-points"
+                                size={10}
+                                color={
+                                  accentColor
+                                }
+                              />
+
+                              <Text
+                                style={{
+                                  color:
+                                    accentColor,
+                                  fontSize: 8.5,
+                                  fontWeight:
+                                    '900',
+                                  marginLeft: 4,
+                                }}
+                              >
+                                RECOMENDADA HOY
+                              </Text>
+                            </View>
+                          )}
+
+                          <View
+                            style={{
+                              flexDirection:
+                                'row',
+                              alignItems:
+                                'center',
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 13,
+                                backgroundColor:
+                                  `${accentColor}16`,
+                                borderWidth: 1,
+                                borderColor:
+                                  `${accentColor}35`,
+                                alignItems:
+                                  'center',
+                                justifyContent:
+                                  'center',
+                                marginRight: 10,
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="dumbbell"
+                                size={20}
+                                color={
+                                  accentColor
+                                }
+                              />
+                            </View>
+
+                            <View
+                              style={{
+                                flex: 1,
+                              }}
+                            >
+                              <Text
+                                numberOfLines={1}
+                                style={{
+                                  color:
+                                    '#FFFFFF',
+                                  fontSize: 16,
+                                  fontWeight:
+                                    '900',
+                                }}
+                              >
+                                {routine.name}
+                              </Text>
+
+                              <Text
+                                numberOfLines={1}
+                                style={{
+                                  color:
+                                    accentColor,
+                                  fontSize: 10,
+                                  fontWeight:
+                                    '800',
+                                  marginTop: 3,
+                                }}
+                              >
+                                {muscleText}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {recommended && (
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                color:
+                                  'rgba(255,255,255,0.62)',
+                                fontSize: 9,
+                                fontWeight:
+                                  '600',
+                                marginTop: 10,
+                              }}
+                            >
+                              {getRecommendationReason(
+                                routine
+                              )}
+                            </Text>
+                          )}
+
+                          <View
+                            style={{
+                              flexDirection:
+                                'row',
+                              alignItems:
+                                'center',
+                              marginTop:
+                                recommended
+                                  ? 10
+                                  : 16,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color:
+                                  'rgba(255,255,255,0.76)',
+                                fontSize: 10,
+                                fontWeight:
+                                  '700',
+                              }}
+                            >
+                              {
+                                (
+                                  routine.exercises ||
+                                  []
+                                ).length
+                              }{' '}
+                              ejercicios
+                              {'   ·   '}
+                              {getQuickRoutineSeries(
+                                routine
+                              )}{' '}
+                              series
+                            </Text>
+                          </View>
+
+                          <View
+                            style={{
+                              flexDirection:
+                                'row',
+                              alignItems:
+                                'center',
+                              justifyContent:
+                                'space-between',
+                              marginTop: 'auto',
+                              paddingTop: 14,
+                            }}
+                          >
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                color:
+                                  'rgba(255,255,255,0.54)',
+                                fontSize: 9,
+                                fontWeight:
+                                  '600',
+                              }}
+                            >
+                              {getQuickLastUsedText(
+                                routine
+                              )}
+                            </Text>
+
+                            <View
+                              style={{
+                                width: 31,
+                                height: 31,
+                                borderRadius: 10,
+                                alignItems:
+                                  'center',
+                                justifyContent:
+                                  'center',
+                                backgroundColor:
+                                  `${accentColor}16`,
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="arrow-right"
+                                size={17}
+                                color={
+                                  accentColor
+                                }
+                              />
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    }
+                  )}
+                </ScrollView>
+              ) : (
+                <View
+                  style={{
+                    minHeight: 72,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 17,
+                    borderWidth: 1,
+                    borderColor:
+                      'rgba(255,255,255,0.12)',
+                    backgroundColor:
+                      'rgba(255,255,255,0.04)',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color:
+                        'rgba(255,255,255,0.72)',
+                      fontSize: 11,
+                      fontWeight: '700',
+                    }}
+                  >
+                    No tienes más rutinas todavía
+                  </Text>
+                </View>
+              )}
             </>
           ) : (
-            <View style={styles.quickEmptyCard}>
+            <View
+              style={{
+                borderRadius: 22,
+                borderWidth: 1,
+                borderColor:
+                  'rgba(255,255,255,0.14)',
+                backgroundColor:
+                  'rgba(18,18,23,0.72)',
+                padding: 26,
+                alignItems: 'center',
+              }}
+            >
               <MaterialCommunityIcons
                 name="dumbbell"
-                size={38}
-                color={COLORS.orange}
+                size={40}
+                color={accentColor}
               />
 
-              <Text style={styles.quickEmptyTitle}>
-                Prepara tu primera rutina
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 19,
+                  fontWeight: '900',
+                  marginTop: 14,
+                }}
+              >
+                Crea tu primera rutina
               </Text>
 
-              <Text style={styles.quickEmptyText}>
-                Cuando la tengas creada aparecerá aquí.
+              <Text
+                style={{
+                  color:
+                    'rgba(255,255,255,0.68)',
+                  fontSize: 11,
+                  textAlign: 'center',
+                  marginTop: 6,
+                }}
+              >
+                Cuando tengas una rutina aparecerá aquí.
               </Text>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  setSelectedTab(
+                    'Rutinas'
+                  );
+                  setScreen('routines');
+                }}
+                style={{
+                  height: 46,
+                  paddingHorizontal: 20,
+                  borderRadius: 14,
+                  backgroundColor:
+                    accentColor,
+                  alignItems: 'center',
+                  justifyContent:
+                    'center',
+                  marginTop: 17,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#17120A',
+                    fontSize: 11,
+                    fontWeight: '900',
+                  }}
+                >
+                  CREAR RUTINA
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
         </ScrollView>
@@ -13845,6 +20926,26 @@ const selectedMuscleStats =
             showBack={selectedTab !== 'Historial'}
           />
 
+        {/* RIVALSET_HISTORY_AD_BANNER */}
+        <View
+          style={{
+            width: '100%',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginTop: 4,
+            marginBottom: 12,
+          }}
+        >
+          <BannerAd
+    unitId={TestIds.BANNER}
+    size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+    requestOptions={{
+      requestNonPersonalizedAdsOnly: true,
+    }}
+  />
+        </View>
+
+
           <ScrollView
             contentContainerStyle={styles.pageContent}
             showsVerticalScrollIndicator={false}
@@ -13874,7 +20975,7 @@ const selectedMuscleStats =
 
     <Text
       style={{
-        color: '#858A95',
+        color: '#FFFFFF',
         fontSize: 13,
         fontWeight: '700',
       }}
@@ -13916,15 +21017,11 @@ const selectedMuscleStats =
         >
           <Text
             style={{
-              color: isCurrentMonth
-                ? '#FFFFFF'
-                : ('#858A95'),
+              color: '#FFFFFF',
               fontSize: 10,
               fontWeight: '800',
               marginBottom: 5,
-              opacity: item.monthIndex > currentMonthIndex
-                ? 0.3
-                : 1,
+              opacity: 1,
             }}
           >
             {item.count}
@@ -13946,15 +21043,11 @@ const selectedMuscleStats =
 
           <Text
             style={{
-              color: isCurrentMonth
-                ? COLORS.orange
-                : ('#858A95'),
+              color: '#FFFFFF',
               fontSize: 11,
               fontWeight: isCurrentMonth ? '900' : '700',
               marginTop: 7,
-              opacity: item.monthIndex > currentMonthIndex
-                ? 0.35
-                : 1,
+              opacity: 1,
             }}
           >
             {item.label}
@@ -13970,9 +21063,9 @@ const selectedMuscleStats =
   onPress={() => setScreen('personalRecords')}
   style={{
     height: 50,
-    backgroundColor: '#111318',
+    backgroundColor: 'rgba(16,17,21,0.54)',
     borderWidth: 1,
-    borderColor: 'rgba(255,176,0,0.22)',
+    borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 14,
     paddingHorizontal: 16,
     marginBottom: 20,
@@ -14050,9 +21143,7 @@ const selectedMuscleStats =
         >
           <Text
             style={{
-              color: active
-                ? '#17120A'
-                : ('#777D88'),
+              color: '#FFFFFF',
               fontSize: 12,
               fontWeight: '900',
             }}
@@ -14103,7 +21194,7 @@ const selectedMuscleStats =
 
         <Text
           style={{
-            color: COLORS.orange,
+            color: '#FFFFFF',
             fontSize: 12,
             fontWeight: '900',
           }}
@@ -14138,7 +21229,7 @@ const selectedMuscleStats =
 
           <Text
             style={{
-              color: '#777D88',
+              color: '#FFFFFF',
               fontSize: 11,
               marginTop: 3,
             }}
@@ -14174,7 +21265,7 @@ const selectedMuscleStats =
 
           <Text
             style={{
-              color: '#777D88',
+              color: '#FFFFFF',
               fontSize: 11,
               marginTop: 3,
             }}
@@ -14189,7 +21280,7 @@ const selectedMuscleStats =
       {selectedMuscleStats.lastWorkout && (
         <Text
           style={{
-            color: '#666C76',
+            color: '#FFFFFF',
             fontSize: 11,
             marginTop: 12,
           }}
@@ -14204,7 +21295,7 @@ const selectedMuscleStats =
   ) : (
     <Text
       style={{
-        color: '#5E646E',
+        color: '#FFFFFF',
         fontSize: 12,
         textAlign: 'center',
         marginTop: 14,
@@ -14248,7 +21339,7 @@ const selectedMuscleStats =
 
         <Text
           style={{
-            color: '#666C76',
+            color: '#FFFFFF',
             fontSize: 9,
             fontWeight: '700',
           }}
@@ -14268,127 +21359,776 @@ const selectedMuscleStats =
               Entrenamientos
             </Text>
 
-            {orderedWorkouts.map((workout) => (
-              <View
-                key={workout.id}
-                style={styles.historyWorkoutCard}
-              >
-                <View style={styles.historyWorkoutTop}>
-                  <View style={styles.flex}>
-                    <Text style={styles.historyWorkoutName}>
-                      {workout.routineName ||
-                        'Entrenamiento'}
-                    </Text>
+            {orderedWorkouts.map((workout, index) => {
+              const workoutDate = new Date(
+                workout.finishedAt
+              );
 
-                    <Text style={styles.historyWorkoutDate}>
-                      {new Date(
-                        workout.finishedAt
-                      ).toLocaleDateString(
-                        'es-ES',
-                        {
-                          day: '2-digit',
-                          month: 'long',
-                          year: 'numeric',
-                        }
-                      )}
-                    </Text>
+              const exercises =
+                workout.exercises || [];
+
+              const completedSets =
+                exercises.reduce(
+                  (total, exercise) => {
+                    if (
+                      Array.isArray(exercise.sets)
+                    ) {
+                      return (
+                        total +
+                        exercise.sets.filter(
+                          (set) =>
+                            set.completed !== false
+                        ).length
+                      );
+                    }
+
+                    return (
+                      total +
+                      Math.max(
+                        0,
+                        parseInt(
+                          exercise.series,
+                          10
+                        ) || 0
+                      )
+                    );
+                  },
+                  0
+                );
+
+              const prCount =
+                exercises.reduce(
+                  (total, exercise) =>
+                    total +
+                    (
+                      Array.isArray(
+                        exercise.sets
+                      )
+                        ? exercise.sets
+                        : []
+                    ).filter(
+                      (set) => !!set.prType
+                    ).length,
+                  0
+                );
+
+              const cardioWorkout =
+                exercises.length > 0 &&
+                exercises.every(
+                  (exercise) =>
+                    isCardioExercise(exercise)
+                );
+
+              const isToday =
+                localDayKey(
+                  workout.finishedAt
+                ) === localDayKey(new Date());
+
+              const yesterday = new Date();
+              yesterday.setDate(
+                yesterday.getDate() - 1
+              );
+
+              const isYesterday =
+                localDayKey(
+                  workout.finishedAt
+                ) === localDayKey(yesterday);
+
+              const dayLabel = isToday
+                ? 'HOY'
+                : isYesterday
+                ? 'AYER'
+                : workoutDate
+                    .toLocaleDateString(
+                      'es-ES',
+                      {
+                        day: '2-digit',
+                        month: 'short',
+                      }
+                    )
+                    .replace('.', '')
+                    .toUpperCase();
+
+              return (
+                <View
+                  key={workout.id}
+                  style={{
+                    flexDirection: 'row',
+                    position: 'relative',
+                  }}
+                >
+                  {/* TIMELINE */}
+                  <View
+                    style={{
+                      width: 42,
+                      alignItems: 'center',
+                    }}
+                  >
+                    {index !== 0 && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          width: 1,
+                          height: 21,
+                          backgroundColor:
+                            'rgba(255,255,255,0.12)',
+                        }}
+                      />
+                    )}
+
+                    <View
+                      style={{
+                        width: 11,
+                        height: 11,
+                        borderRadius: 6,
+                        marginTop: 21,
+                        backgroundColor:
+                          accentColor,
+                        borderWidth: 3,
+                        borderColor:
+                          isLightTheme
+                            ? 'rgba(255,255,255,0.72)'
+                            : '#111116',
+                        zIndex: 2,
+                      }}
+                    />
+
+                    {index !==
+                      orderedWorkouts.length -
+                        1 && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: 32,
+                          bottom: 0,
+                          width: 1,
+                          backgroundColor:
+                            'rgba(255,255,255,0.12)',
+                        }}
+                      />
+                    )}
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.deleteWorkoutButton}
-                    onPress={() =>
-                      deleteWorkout(workout)
-                    }
+                  {/* CONTENIDO */}
+                  <View
+                    style={{
+                      flex: 1,
+                      paddingBottom: 14,
+                    }}
                   >
-                    <Text style={styles.deleteWorkoutText}>
-                      ×
+                    <Text
+                      style={{
+                        color: isLightTheme
+                          ? 'rgba(255,255,255,0.78)'
+                          : 'rgba(255,255,255,0.48)',
+                        fontSize: 9,
+                        fontWeight: '900',
+                        letterSpacing: 1.15,
+                        marginBottom: 7,
+                      }}
+                    >
+                      {dayLabel}
                     </Text>
-                  </TouchableOpacity>
-                </View>
 
-                {(workout.exercises || []).map((exercise) => {
-                  const sets = Array.isArray(exercise.sets)
-                    ? exercise.sets.filter(
-                        (set) =>
-                          set.completed !== false
-                      )
-                    : [];
-
-                  const prCount = sets.filter(
-                    (set) => !!set.prType
-                  ).length;
-
-                  return (
                     <View
-                      key={exercise.id}
-                      style={styles.historyExerciseBlock}>
-                      <View style={styles.historyExerciseHeader}>
-                        <View style={styles.flex}>
-                          <Text style={styles.historyExerciseName}>
-                            {exercise.name}
+                      style={{
+                        backgroundColor:
+                          isLightTheme
+                            ? 'rgba(60,38,45,0.42)'
+                            : 'rgba(24,24,29,0.72)',
+                        borderWidth: 1,
+                        borderColor:
+                          isLightTheme
+                            ? 'rgba(255,255,255,0.24)'
+                            : 'rgba(255,255,255,0.10)',
+                        borderRadius: 18,
+                        paddingVertical: 14,
+                        paddingHorizontal: 15,
+                      }}
+                    >
+                      {/* CABECERA */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 39,
+                            height: 39,
+                            borderRadius: 13,
+                            alignItems: 'center',
+                            justifyContent:
+                              'center',
+                            marginRight: 12,
+                            backgroundColor:
+                              `${accentColor}20`,
+                            borderWidth: 1,
+                            borderColor:
+                              `${accentColor}38`,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={
+                              cardioWorkout
+                                ? 'run'
+                                : 'dumbbell'
+                            }
+                            size={19}
+                            color={accentColor}
+                          />
+                        </View>
+
+                        <View
+                          style={{
+                            flex: 1,
+                          }}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              color: '#FFFFFF',
+                              fontSize: 15,
+                              fontWeight: '900',
+                              letterSpacing: -0.25,
+                            }}
+                          >
+                            {workout.routineName ||
+                              'Entrenamiento'}
                           </Text>
 
-                          <Text style={styles.historyMuscleText}>
-                            {muscleText(exercise)}
+                          <Text
+                            style={{
+                              color:
+                                'rgba(255,255,255,0.54)',
+                              fontSize: 10,
+                              fontWeight: '600',
+                              marginTop: 3,
+                            }}
+                          >
+                            {workoutDate.toLocaleTimeString(
+                              'es-ES',
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }
+                            )}
                           </Text>
                         </View>
 
+                        <TouchableOpacity
+                          activeOpacity={0.65}
+                          onPress={() =>
+                            setExpandedHistoryWorkoutId(
+                              expandedHistoryWorkoutId ===
+                                workout.id
+                                ? null
+                                : workout.id
+                            )
+                          }
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: 11,
+                            alignItems: 'center',
+                            justifyContent:
+                              'center',
+                            backgroundColor:
+                              expandedHistoryWorkoutId ===
+                              workout.id
+                                ? `${accentColor}18`
+                                : 'rgba(255,255,255,0.045)',
+                            borderWidth: 1,
+                            borderColor:
+                              expandedHistoryWorkoutId ===
+                              workout.id
+                                ? `${accentColor}32`
+                                : 'rgba(255,255,255,0.07)',
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={
+                              expandedHistoryWorkoutId ===
+                              workout.id
+                                ? 'chevron-up'
+                                : 'chevron-down'
+                            }
+                            size={21}
+                            color={
+                              expandedHistoryWorkoutId ===
+                              workout.id
+                                ? accentColor
+                                : 'rgba(255,255,255,0.55)'
+                            }
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* MÉTRICAS */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          marginTop: 13,
+                          paddingTop: 11,
+                          borderTopWidth: 1,
+                          borderTopColor:
+                            'rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              'rgba(255,255,255,0.66)',
+                            fontSize: 10,
+                            fontWeight: '700',
+                          }}
+                        >
+                          {exercises.length}{' '}
+                          {exercises.length === 1
+                            ? 'ejercicio'
+                            : 'ejercicios'}
+                        </Text>
+
+                        {!cardioWorkout && (
+                          <>
+                            <View
+                              style={{
+                                width: 3,
+                                height: 3,
+                                borderRadius: 2,
+                                marginHorizontal: 8,
+                                backgroundColor:
+                                  'rgba(255,255,255,0.28)',
+                              }}
+                            />
+
+                            <Text
+                              style={{
+                                color:
+                                  'rgba(255,255,255,0.66)',
+                                fontSize: 10,
+                                fontWeight: '700',
+                              }}
+                            >
+                              {completedSets}{' '}
+                              {completedSets === 1
+                                ? 'serie'
+                                : 'series'}
+                            </Text>
+                          </>
+                        )}
+
+                        <View
+                          style={{
+                            flex: 1,
+                          }}
+                        />
+
                         {prCount > 0 && (
-                          <View style={styles.historyPRBadge}>
-                            <Text style={styles.historyPRText}>
-                              PR ×{prCount}
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              borderRadius: 20,
+                              backgroundColor:
+                                `${accentColor}1F`,
+                              borderWidth: 1,
+                              borderColor:
+                                `${accentColor}38`,
+                            }}
+                          >
+                            <MaterialCommunityIcons
+                              name="trophy-outline"
+                              size={11}
+                              color={accentColor}
+                            />
+
+                            <Text
+                              style={{
+                                color: accentColor,
+                                fontSize: 9,
+                                fontWeight: '900',
+                                marginLeft: 4,
+                              }}
+                            >
+                              +{prCount} PR
                             </Text>
                           </View>
                         )}
                       </View>
 
-{isCardioExercise(exercise) ? (
-  <Text style={styles.legacyWorkoutText}>
-    {exercisePlan({
-      ...exercise,
-      duration:
-        sets[0]?.duration ?? exercise.duration,
-      distance:
-        sets[0]?.distance ?? exercise.distance,
-      heartRate:
-        sets[0]?.heartRate ?? exercise.heartRate,
-    })}
-  </Text>
-) : sets.length > 0 ? (
-  sets.map((set, index) => (
-    <View
-      key={set.id || index}
-      style={styles.historySetRow}
-    >
-      <Text style={styles.historySetNumber}>
-        {index + 1}
-      </Text>
+                      {/* DESGLOSE EXPANDIBLE */}
+                      {expandedHistoryWorkoutId ===
+                        workout.id && (
+                        <View
+                          style={{
+                            marginTop: 14,
+                            paddingTop: 14,
+                            borderTopWidth: 1,
+                            borderTopColor:
+                              'rgba(255,255,255,0.09)',
+                          }}
+                        >
+                          {(workout.exercises || []).map(
+                            (exercise, exerciseIndex) => {
+                              const exerciseSets =
+                                Array.isArray(
+                                  exercise.sets
+                                )
+                                  ? exercise.sets.filter(
+                                      (set) =>
+                                        set.completed !==
+                                        false
+                                    )
+                                  : [];
 
-      <Text style={styles.historySetValue}>
-        {set.weight} kg
-      </Text>
+                              const exercisePRs =
+                                exerciseSets.filter(
+                                  (set) =>
+                                    !!set.prType
+                                ).length;
 
-      <Text style={styles.historySetValue}>
-        {set.reps} reps
-      </Text>
+                              return (
+                                <View
+                                  key={
+                                    exercise.id ||
+                                    exerciseIndex
+                                  }
+                                  style={{
+                                    marginBottom:
+                                      exerciseIndex ===
+                                      (
+                                        workout.exercises ||
+                                        []
+                                      ).length -
+                                        1
+                                        ? 2
+                                        : 13,
+                                    padding: 11,
+                                    borderRadius: 13,
+                                    backgroundColor:
+                                      isLightTheme
+                                        ? 'rgba(255,255,255,0.08)'
+                                        : 'rgba(255,255,255,0.035)',
+                                    borderWidth: 1,
+                                    borderColor:
+                                      'rgba(255,255,255,0.07)',
+                                  }}
+                                >
+                                  {/* EJERCICIO */}
+                                  <View
+                                    style={{
+                                      flexDirection:
+                                        'row',
+                                      alignItems:
+                                        'center',
+                                      marginBottom: 8,
+                                    }}
+                                  >
+                                    <View
+                                      style={{
+                                        flex: 1,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          color:
+                                            '#FFFFFF',
+                                          fontSize: 12,
+                                          fontWeight:
+                                            '800',
+                                        }}
+                                      >
+                                        {exercise.name}
+                                      </Text>
 
-      {!!set.prType && (
-        <Text style={styles.historySetPR}>
-          PR
-        </Text>
-      )}
-    </View>
-  ))
-) : (
-  <Text style={styles.legacyWorkoutText}>
-    {exercisePlan(exercise)}
-  </Text>
-)}
+                                      <Text
+                                        style={{
+                                          color:
+                                            'rgba(255,255,255,0.42)',
+                                          fontSize: 8.5,
+                                          marginTop: 2,
+                                        }}
+                                      >
+                                        {muscleText(
+                                          exercise
+                                        )}
+                                      </Text>
+                                    </View>
+
+                                    {exercisePRs >
+                                      0 && (
+                                      <View
+                                        style={{
+                                          paddingHorizontal: 7,
+                                          paddingVertical: 3,
+                                          borderRadius: 8,
+                                          backgroundColor:
+                                            `${accentColor}18`,
+                                        }}
+                                      >
+                                        <Text
+                                          style={{
+                                            color:
+                                              accentColor,
+                                            fontSize: 8,
+                                            fontWeight:
+                                              '900',
+                                          }}
+                                        >
+                                          PR ×
+                                          {
+                                            exercisePRs
+                                          }
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </View>
+
+                                  {/* CARDIO */}
+                                  {isCardioExercise(
+                                    exercise
+                                  ) ? (
+                                    <Text
+                                      style={{
+                                        color:
+                                          'rgba(255,255,255,0.68)',
+                                        fontSize: 10,
+                                        fontWeight:
+                                          '600',
+                                      }}
+                                    >
+                                      {exercisePlan({
+                                        ...exercise,
+                                        duration:
+                                          exerciseSets[0]
+                                            ?.duration ??
+                                          exercise.duration,
+                                        distance:
+                                          exerciseSets[0]
+                                            ?.distance ??
+                                          exercise.distance,
+                                        heartRate:
+                                          exerciseSets[0]
+                                            ?.heartRate ??
+                                          exercise.heartRate,
+                                      })}
+                                    </Text>
+                                  ) : exerciseSets.length >
+                                    0 ? (
+                                    <>
+                                      {/* CABECERA SERIES */}
+                                      <View
+                                        style={{
+                                          flexDirection:
+                                            'row',
+                                          alignItems:
+                                            'center',
+                                          paddingBottom: 5,
+                                        }}
+                                      >
+                                        <Text
+                                          style={{
+                                            width: 30,
+                                            color:
+                                              'rgba(255,255,255,0.28)',
+                                            fontSize: 8,
+                                            fontWeight:
+                                              '800',
+                                          }}
+                                        >
+                                          SERIE
+                                        </Text>
+
+                                        <Text
+                                          style={{
+                                            flex: 1,
+                                            color:
+                                              'rgba(255,255,255,0.28)',
+                                            fontSize: 8,
+                                            fontWeight:
+                                              '800',
+                                          }}
+                                        >
+                                          PESO
+                                        </Text>
+
+                                        <Text
+                                          style={{
+                                            flex: 1,
+                                            color:
+                                              'rgba(255,255,255,0.28)',
+                                            fontSize: 8,
+                                            fontWeight:
+                                              '800',
+                                          }}
+                                        >
+                                          REPS
+                                        </Text>
+
+                                        <View
+                                          style={{
+                                            width: 26,
+                                          }}
+                                        />
+                                      </View>
+
+                                      {exerciseSets.map(
+                                        (
+                                          set,
+                                          setIndex
+                                        ) => (
+                                          <View
+                                            key={
+                                              set.id ||
+                                              setIndex
+                                            }
+                                            style={{
+                                              flexDirection:
+                                                'row',
+                                              alignItems:
+                                                'center',
+                                              minHeight: 28,
+                                              borderTopWidth:
+                                                setIndex ===
+                                                0
+                                                  ? 0
+                                                  : 1,
+                                              borderTopColor:
+                                                'rgba(255,255,255,0.055)',
+                                            }}
+                                          >
+                                            <Text
+                                              style={{
+                                                width: 30,
+                                                color:
+                                                  'rgba(255,255,255,0.38)',
+                                                fontSize: 9,
+                                                fontWeight:
+                                                  '700',
+                                              }}
+                                            >
+                                              {setIndex +
+                                                1}
+                                            </Text>
+
+                                            <Text
+                                              style={{
+                                                flex: 1,
+                                                color:
+                                                  'rgba(255,255,255,0.78)',
+                                                fontSize: 10,
+                                                fontWeight:
+                                                  '700',
+                                              }}
+                                            >
+                                              {set.weight ||
+                                                '—'}{' '}
+                                              kg
+                                            </Text>
+
+                                            <Text
+                                              style={{
+                                                flex: 1,
+                                                color:
+                                                  'rgba(255,255,255,0.78)',
+                                                fontSize: 10,
+                                                fontWeight:
+                                                  '700',
+                                              }}
+                                            >
+                                              {set.reps ||
+                                                '—'}{' '}
+                                              reps
+                                            </Text>
+
+                                            <View
+                                              style={{
+                                                width: 26,
+                                                alignItems:
+                                                  'flex-end',
+                                              }}
+                                            >
+                                              {!!set.prType && (
+                                                <MaterialCommunityIcons
+                                                  name="trophy"
+                                                  size={
+                                                    11
+                                                  }
+                                                  color={
+                                                    accentColor
+                                                  }
+                                                />
+                                              )}
+                                            </View>
+                                          </View>
+                                        )
+                                      )}
+                                    </>
+                                  ) : (
+                                    <Text
+                                      style={{
+                                        color:
+                                          'rgba(255,255,255,0.62)',
+                                        fontSize: 10,
+                                      }}
+                                    >
+                                      {exercisePlan(
+                                        exercise
+                                      )}
+                                    </Text>
+                                  )}
+                                </View>
+                              );
+                            }
+                          )}
+
+                          {/* ELIMINAR */}
+                          <TouchableOpacity
+                            activeOpacity={0.65}
+                            onPress={() =>
+                              deleteWorkout(workout)
+                            }
+                            style={{
+                              alignSelf:
+                                'flex-start',
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              marginTop: 5,
+                              paddingVertical: 7,
+                              paddingHorizontal: 9,
+                            }}
+                          >
+                            <MaterialCommunityIcons
+                              name="trash-can-outline"
+                              size={14}
+                              color="rgba(255,110,110,0.72)"
+                            />
+
+                            <Text
+                              style={{
+                                color:
+                                  'rgba(255,110,110,0.72)',
+                                fontSize: 9,
+                                fontWeight: '700',
+                                marginLeft: 5,
+                              }}
+                            >
+                              Eliminar entrenamiento
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
-                  );
-                })}
-              </View>
-            ))}
+                  </View>
+                </View>
+              );
+            })}
 
             {orderedWorkouts.length === 0 && (
               <View style={styles.emptyCard}>
@@ -14458,11 +22198,13 @@ const PersonalRecords = () => {
 
   const personalRecords = Object.values(
     recordsByExercise
-  ).sort((a, b) =>
-    a.name.localeCompare(b.name, 'es', {
-      sensitivity: 'base',
-    })
-  );
+  ).sort((a, b) => {
+    const dateA = new Date(a.finishedAt).getTime() || 0;
+    const dateB = new Date(b.finishedAt).getTime() || 0;
+
+    // Más reciente arriba
+    return dateB - dateA;
+  });
 
   return (
     <View style={styles.page}>
@@ -14723,13 +22465,28 @@ const PersonalRecords = () => {
               exercise.sets.length > 0 &&
               done === exercise.sets.length;
 
+            const previousStrengthSets =
+              !isCardioExercise(exercise)
+                ? getPreviousStrengthExerciseSets(
+                    exercise
+                  )
+                : [];
+
             return (
               <View
                 key={exercise.id}
                 style={[
                   styles.liveExerciseCard,
+
+                  !isCardioExercise(exercise) &&
+                    styles.strengthLiveExerciseCard,
+
                   exerciseComplete &&
                     styles.liveExerciseCardComplete,
+
+                  !isCardioExercise(exercise) &&
+                    exerciseComplete &&
+                    styles.strengthLiveExerciseCardComplete,
                 ]}
               >
                 {exercise.isExtraWorkoutExercise && (
@@ -14768,6 +22525,10 @@ const PersonalRecords = () => {
                   }
                   style={[
                     styles.liveExerciseHeader,
+
+                    !isCardioExercise(exercise) &&
+                      styles.strengthLiveExerciseHeader,
+
                     exercise.isExtraWorkoutExercise && {
                       paddingRight: 38,
                     },
@@ -14924,6 +22685,10 @@ const PersonalRecords = () => {
                   <View
                     style={[
                       styles.exerciseProgressBadge,
+
+                      !isCardioExercise(exercise) &&
+                        styles.strengthExerciseProgressBadge,
+
                       exerciseComplete &&
                         styles.exerciseProgressBadgeComplete,
                     ]}
@@ -14935,7 +22700,9 @@ const PersonalRecords = () => {
                           styles.exerciseProgressTextComplete,
                       ]}
                     >
-                      {done}/{exercise.sets.length}
+                      {isCardioExercise(exercise)
+                        ? `${done}/${exercise.sets.length}`
+                        : `${done}/${exercise.sets.length} SERIES`}
                     </Text>
                   </View>
 
@@ -14953,8 +22720,24 @@ const PersonalRecords = () => {
 
 
                 {Boolean(exercise.expanded) && (
-                  <View style={styles.liveSetsContainer}>
-                    <View style={styles.liveSetsLabels}>
+                  <View
+                    style={[
+                      styles.liveSetsContainer,
+
+                      !isCardioExercise(exercise) &&
+                        styles.strengthLiveSetsContainer,
+
+                      isCardioExercise(exercise) &&
+                        styles.cardioWorkoutMetricsGlass,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.liveSetsLabels,
+                        isCardioExercise(exercise) &&
+                          styles.cardioWorkoutMetricsLabels,
+                      ]}
+                    >
                       <Text
                         style={[
                           styles.liveSetLabel,
@@ -14990,6 +22773,10 @@ const PersonalRecords = () => {
                         const flashing =
                           prFlashId === set.id;
 
+                        const previousSet =
+                          previousStrengthSets[index] ||
+                          null;
+
                         return (
                           <View
                             key={set.id}
@@ -14998,8 +22785,16 @@ const PersonalRecords = () => {
                             <View
                               style={[
                                 styles.liveSetRow,
+
+                                !isCardioExercise(exercise) &&
+                                  styles.strengthLiveSetRow,
+
                                 set.completed &&
                                   styles.liveSetRowDone,
+
+                                !isCardioExercise(exercise) &&
+                                  set.completed &&
+                                  styles.strengthLiveSetRowDone,
                                 !!set.prType &&
                                   styles.liveSetRowPR,
                                 flashing &&
@@ -15046,20 +22841,33 @@ const PersonalRecords = () => {
       keyboardType="number-pad"
       placeholder="0"
       placeholderTextColor="#50545D"
-      style={styles.liveSetInput}
+      style={[
+        styles.liveSetInput,
+        styles.cardioWorkoutMetricInput,
+      ]}
     />
   </View>
 ) : (
   <View style={styles.setNumberColumn}>
-    <Text
-      style={[
-        styles.liveSetNumber,
-        !!set.prType &&
-          styles.liveSetNumberPR,
-      ]}
-    >
-      {index + 1}
-    </Text>
+    <View style={styles.liveSetNumberStack}>
+      <Text
+        style={[
+          styles.liveSetNumber,
+          !!set.prType &&
+            styles.liveSetNumberPR,
+        ]}
+      >
+        {index + 1}
+      </Text>
+
+      {!!set.prType && (
+        <View style={styles.liveSetMiniPrBadge}>
+          <Text style={styles.liveSetMiniPrText}>
+            PR
+          </Text>
+        </View>
+      )}
+    </View>
   </View>
 )}
 {isCardioExercise(exercise) ? (
@@ -15077,7 +22885,10 @@ const PersonalRecords = () => {
       keyboardType="decimal-pad"
       placeholder="0"
       placeholderTextColor="#50545D"
-      style={styles.liveSetInput}
+      style={[
+        styles.liveSetInput,
+        styles.cardioWorkoutMetricInput,
+      ]}
     />
   </View>
 ) : (
@@ -15097,6 +22908,7 @@ const PersonalRecords = () => {
       placeholderTextColor="#50545D"
       style={[
         styles.liveSetInput,
+        styles.strengthLiveSetInput,
         !!set.prType &&
           styles.liveSetInputPR,
       ]}
@@ -15118,7 +22930,10 @@ const PersonalRecords = () => {
       keyboardType="number-pad"
       placeholder="0"
       placeholderTextColor="#50545D"
-      style={styles.liveSetInput}
+      style={[
+        styles.liveSetInput,
+        styles.cardioWorkoutMetricInput,
+      ]}
     />
   </View>
 ) : (
@@ -15138,6 +22953,7 @@ const PersonalRecords = () => {
       placeholderTextColor="#50545D"
       style={[
         styles.liveSetInput,
+        styles.strengthLiveSetInput,
         !!set.prType &&
           styles.liveSetInputPR,
       ]}
@@ -15186,7 +23002,38 @@ const PersonalRecords = () => {
                               )}
                             </View>
 
-                            {!!set.prType && (
+                            {!isCardioExercise(exercise) &&
+                              (!!set.prType ? (
+                                <View style={styles.previousSetRow}>
+                                  <MaterialCommunityIcons
+                                    name="medal-outline"
+                                    size={12}
+                                    color={COLORS.orange}
+                                  />
+
+                                  <Text style={styles.previousSetPrText}>
+                                    {set.prText}
+                                  </Text>
+                                </View>
+                              ) : previousSet ? (
+                                <View style={styles.previousSetRow}>
+                                  <MaterialCommunityIcons
+                                    name="history"
+                                    size={12}
+                                    color="#777D88"
+                                  />
+
+                                  <Text style={styles.previousSetText}>
+                                    Anterior:{' '}
+                                    {previousSet.weight > 0
+                                      ? `${previousSet.weight} kg × ${previousSet.reps}`
+                                      : `${previousSet.reps} reps`}
+                                  </Text>
+                                </View>
+                              ) : null)}
+
+                            {!!set.prType &&
+                              isCardioExercise(exercise) && (
                               <View style={styles.prCelebrationRow}>
                                 <View style={styles.prBadgeLarge}>
                                   <MaterialCommunityIcons
@@ -15204,6 +23051,10 @@ const PersonalRecords = () => {
                                   <Text style={styles.prCelebrationTitle}>
                                     {set.prType === 'weight'
                                       ? 'NUEVO MÁXIMO'
+                                      : set.prType === 'cardio_time'
+                                      ? 'NUEVO RÉCORD DE TIEMPO'
+                                      : set.prType === 'cardio_distance'
+                                      ? 'NUEVO RÉCORD DE DISTANCIA'
                                       : 'NUEVO RÉCORD DE REPS'}
                                   </Text>
 
@@ -15217,6 +23068,23 @@ const PersonalRecords = () => {
                         );
                       }
                     )}
+
+                    {isCardioExercise(exercise) &&
+                      exercise.sets?.[0] && (
+                        <RivalSetCardioLiveTimer
+                          exercise={exercise}
+                          set={exercise.sets[0]}
+                          onUpdate={(field, value) =>
+                            updateWorkoutSet(
+                              exercise.id,
+                              exercise.sets[0].id,
+                              field,
+                              value
+                            )
+                          }
+                        />
+                      )}
+
 
 {!isCardioExercise(exercise) && (
   <TouchableOpacity
@@ -15523,6 +23391,814 @@ if (sessionLoading) {
     <SafeAreaView style={styles.screen} />
   );
 }
+
+const WorkoutSummary = () => {
+  if (!workoutSummary) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 16,
+            fontWeight: '800',
+          }}
+        >
+          No hay resumen disponible
+        </Text>
+      </View>
+    );
+  }
+
+  const {
+    routineName,
+    exerciseCount,
+    completedSets,
+    exercises,
+    prList,
+    prCount,
+    cardio,
+    isCardio,
+    points,
+    origin,
+  } = workoutSummary;
+
+  const strengthSummaryExercises =
+    (exercises || []).filter(
+      (exercise) =>
+        !isCardioExercise(exercise) &&
+        (exercise.sets || []).some(
+          (set) => set.completed
+        )
+    );
+
+  const strengthCompletedSets =
+    strengthSummaryExercises.reduce(
+      (total, exercise) =>
+        total +
+        (exercise.sets || []).filter(
+          (set) => set.completed
+        ).length,
+      0
+    );
+
+  const strengthPrCount =
+    strengthSummaryExercises.reduce(
+      (total, exercise) =>
+        total +
+        (exercise.sets || []).filter(
+          (set) =>
+            set.completed &&
+            !!set.prType
+        ).length,
+      0
+    );
+
+  const hasStrength =
+    strengthSummaryExercises.length > 0;
+
+  const goToSummaryDestination = async () => {
+    await impact();
+
+    setWorkoutSummary(null);
+
+    if (origin === 'league') {
+      setSelectedTab('Liga');
+      setScreen('league');
+    } else {
+      setSelectedTab('Inicio');
+      setScreen('home');
+    }
+  };
+
+  return (
+    <ScrollView
+      contentContainerStyle={{
+        paddingHorizontal: 20,
+        paddingTop: 28,
+        paddingBottom: 50,
+      }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* CABECERA */}
+      <View
+        style={{
+          alignItems: 'center',
+          marginBottom: 28,
+        }}
+      >
+        <View
+          style={{
+            width: 62,
+            height: 62,
+            borderRadius: 31,
+            backgroundColor:
+              'rgba(255,179,0,0.14)',
+            borderWidth: 1,
+            borderColor:
+              'rgba(255,179,0,0.35)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 16,
+          }}
+        >
+          <MaterialCommunityIcons
+            name="check-bold"
+            size={31}
+            color={COLORS.orange}
+          />
+        </View>
+
+        <Text
+          style={{
+            color: COLORS.orange,
+            fontSize: 11,
+            fontWeight: '900',
+            letterSpacing: 1.8,
+            marginBottom: 7,
+          }}
+        >
+          ENTRENAMIENTO COMPLETADO
+        </Text>
+
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 28,
+            fontWeight: '900',
+            letterSpacing: -0.7,
+            textAlign: 'center',
+          }}
+        >
+          {routineName}
+        </Text>
+
+        <Text
+          style={{
+            color: '#777D88',
+            fontSize: 13,
+            marginTop: 6,
+          }}
+        >
+          Buen trabajo. Sesión guardada.
+        </Text>
+      </View>
+
+      {/* CARDIO */}
+      {isCardio && cardio && (
+        <View
+          style={{
+            backgroundColor:
+              'rgba(12,13,17,0.58)',
+            borderWidth: 1,
+            borderColor:
+              'rgba(255,255,255,0.09)',
+            borderRadius: 22,
+            padding: 20,
+            marginBottom: 14,
+          }}
+        >
+          <Text
+            style={{
+              color: '#777D88',
+              fontSize: 10,
+              fontWeight: '900',
+              letterSpacing: 1.3,
+              marginBottom: 5,
+            }}
+          >
+            DISTANCIA
+          </Text>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-end',
+              marginBottom: 22,
+            }}
+          >
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 43,
+                fontWeight: '900',
+                letterSpacing: -1.5,
+              }}
+            >
+              {cardio.distance ?? '—'}
+            </Text>
+
+            {cardio.distance !== null && (
+              <Text
+                style={{
+                  color: '#8C9099',
+                  fontSize: 15,
+                  fontWeight: '800',
+                  marginLeft: 6,
+                  marginBottom: 7,
+                }}
+              >
+                km
+              </Text>
+            )}
+          </View>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              borderTopWidth: 1,
+              borderTopColor:
+                'rgba(255,255,255,0.07)',
+              paddingTop: 16,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 18,
+                  fontWeight: '900',
+                }}
+              >
+                {cardio.duration}
+              </Text>
+
+              <Text
+                style={{
+                  color: '#777D88',
+                  fontSize: 10,
+                  fontWeight: '800',
+                  marginTop: 4,
+                }}
+              >
+                TIEMPO
+              </Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 18,
+                  fontWeight: '900',
+                }}
+              >
+                {cardio.pace}
+              </Text>
+
+              <Text
+                style={{
+                  color: '#777D88',
+                  fontSize: 10,
+                  fontWeight: '800',
+                  marginTop: 4,
+                }}
+              >
+                RITMO
+              </Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 18,
+                  fontWeight: '900',
+                }}
+              >
+                {cardio.heartRate ?? '—'}
+              </Text>
+
+              <Text
+                style={{
+                  color: '#777D88',
+                  fontSize: 10,
+                  fontWeight: '800',
+                  marginTop: 4,
+                }}
+              >
+                PPM
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* FUERZA */}
+      {hasStrength && (
+        <View
+          style={{
+            flexDirection: 'row',
+            backgroundColor:
+              'rgba(12,13,17,0.58)',
+            borderWidth: 1,
+            borderColor:
+              'rgba(255,255,255,0.09)',
+            borderRadius: 22,
+            paddingVertical: 20,
+            paddingHorizontal: 18,
+            marginBottom: 14,
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'center',
+            }}
+          >
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 28,
+                fontWeight: '900',
+              }}
+            >
+              {strengthSummaryExercises.length}
+            </Text>
+
+            <Text
+              style={{
+                color: '#777D88',
+                fontSize: 10,
+                fontWeight: '800',
+                marginTop: 4,
+              }}
+            >
+              EJERCICIOS
+            </Text>
+          </View>
+
+          <View
+            style={{
+              width: 1,
+              backgroundColor:
+                'rgba(255,255,255,0.08)',
+            }}
+          />
+
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'center',
+            }}
+          >
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 28,
+                fontWeight: '900',
+              }}
+            >
+              {strengthCompletedSets}
+            </Text>
+
+            <Text
+              style={{
+                color: '#777D88',
+                fontSize: 10,
+                fontWeight: '800',
+                marginTop: 4,
+              }}
+            >
+              SERIES
+            </Text>
+          </View>
+
+          <View
+            style={{
+              width: 1,
+              backgroundColor:
+                'rgba(255,255,255,0.08)',
+            }}
+          />
+
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'center',
+            }}
+          >
+            <Text
+              style={{
+                color: COLORS.orange,
+                fontSize: 28,
+                fontWeight: '900',
+              }}
+            >
+              {strengthPrCount}
+            </Text>
+
+            <Text
+              style={{
+                color: '#777D88',
+                fontSize: 10,
+                fontWeight: '800',
+                marginTop: 4,
+              }}
+            >
+              RÉCORDS
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* DETALLE DE FUERZA */}
+      {hasStrength && (
+        <View style={styles.workoutSummaryDetailSection}>
+          <Text style={styles.workoutSummarySectionLabel}>
+            DETALLE DEL ENTRENAMIENTO
+          </Text>
+
+          {strengthSummaryExercises.map(
+            (exercise) => {
+              const completedExerciseSets =
+                (exercise.sets || []).filter(
+                  (set) => set.completed
+                );
+
+              const exercisePrCount =
+                completedExerciseSets.filter(
+                  (set) => !!set.prType
+                ).length;
+
+              return (
+                <View
+                  key={exercise.id || exercise.name}
+                  style={[
+                    styles.workoutSummaryExerciseCard,
+
+                    exercisePrCount > 0 &&
+                      styles.workoutSummaryExerciseCardPR,
+                  ]}
+                >
+                  <View
+                    style={
+                      styles.workoutSummaryExerciseHeader
+                    }
+                  >
+                    <View style={styles.flex}>
+                      <Text
+                        style={
+                          styles.workoutSummaryExerciseName
+                        }
+                      >
+                        {exercise.name}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.workoutSummaryExerciseMeta
+                        }
+                      >
+                        {exercise.variant ||
+                          exercise.equipment ||
+                          muscleText(exercise)}
+                      </Text>
+                    </View>
+
+                    {exercisePrCount > 0 && (
+                      <View
+                        style={
+                          styles.workoutSummaryExercisePrBadge
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.workoutSummaryExercisePrText
+                          }
+                        >
+                          PR ×{exercisePrCount}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {completedExerciseSets.map(
+                    (set, index) => {
+                      const weight =
+                        parseNumber(set.weight);
+
+                      const reps =
+                        parseNumber(set.reps);
+
+                      const resultText =
+                        weight !== null &&
+                        weight > 0
+                          ? `${weight} kg × ${
+                              reps ?? '—'
+                            }`
+                          : `${reps ?? '—'} reps`;
+
+                      return (
+                        <View
+                          key={set.id || index}
+                          style={
+                            styles.workoutSummarySetRow
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.workoutSummarySetLabel
+                            }
+                          >
+                            SERIE {index + 1}
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.workoutSummarySetValue
+                            }
+                          >
+                            {resultText}
+                          </Text>
+
+                          {!!set.prType && (
+                            <View
+                              style={
+                                styles.workoutSummarySetPrBadge
+                              }
+                            >
+                              <Text
+                                style={
+                                  styles.workoutSummarySetPrText
+                                }
+                              >
+                                PR
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    }
+                  )}
+                </View>
+              );
+            }
+          )}
+        </View>
+      )}
+
+      {/* RÉCORDS */}
+      {prCount > 0 && (
+        <View
+          style={{
+            backgroundColor:
+              'rgba(255,179,0,0.07)',
+            borderWidth: 1,
+            borderColor:
+              'rgba(255,179,0,0.22)',
+            borderRadius: 22,
+            padding: 18,
+            marginBottom: 14,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginBottom: 14,
+            }}
+          >
+            <MaterialCommunityIcons
+              name="medal-outline"
+              size={21}
+              color={COLORS.orange}
+            />
+
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 15,
+                fontWeight: '900',
+                marginLeft: 9,
+              }}
+            >
+              {prCount === 1
+                ? 'NUEVO RÉCORD'
+                : `${prCount} NUEVOS RÉCORDS`}
+            </Text>
+          </View>
+
+          {prList.map((pr) => (
+            <View
+              key={`${pr.exercise}-${pr.id}`}
+              style={{
+                paddingVertical: 10,
+                borderTopWidth: 1,
+                borderTopColor:
+                  'rgba(255,255,255,0.06)',
+              }}
+            >
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 14,
+                  fontWeight: '800',
+                }}
+              >
+                {pr.exercise}
+              </Text>
+
+              <Text
+                style={{
+                  color: '#9A9EA7',
+                  fontSize: 12,
+                  marginTop: 4,
+                }}
+              >
+                {pr.text}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* PUNTOS */}
+      <View
+        style={{
+          backgroundColor:
+            'rgba(12,13,17,0.68)',
+          borderWidth: 1,
+          borderColor:
+            points.total > 0
+              ? 'rgba(255,179,0,0.30)'
+              : 'rgba(255,255,255,0.08)',
+          borderRadius: 22,
+          padding: 20,
+          marginBottom: 22,
+        }}
+      >
+        <Text
+          style={{
+            color: '#777D88',
+            fontSize: 10,
+            fontWeight: '900',
+            letterSpacing: 1.4,
+            marginBottom: 17,
+          }}
+        >
+          PUNTOS DE LIGA
+        </Text>
+
+        {points.total > 0 ? (
+          <>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent:
+                  'space-between',
+                marginBottom: 10,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#A3A7AF',
+                  fontSize: 14,
+                }}
+              >
+                Entrenamiento
+              </Text>
+
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 14,
+                  fontWeight: '900',
+                }}
+              >
+                +{points.base}
+              </Text>
+            </View>
+
+            {points.records > 0 && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent:
+                    'space-between',
+                  marginBottom: 16,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#A3A7AF',
+                    fontSize: 14,
+                  }}
+                >
+                  Récords
+                </Text>
+
+                <Text
+                  style={{
+                    color: COLORS.orange,
+                    fontSize: 14,
+                    fontWeight: '900',
+                  }}
+                >
+                  +{points.records}
+                </Text>
+              </View>
+            )}
+
+            <View
+              style={{
+                height: 1,
+                backgroundColor:
+                  'rgba(255,255,255,0.08)',
+                marginBottom: 16,
+              }}
+            />
+
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent:
+                  'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 15,
+                  fontWeight: '900',
+                }}
+              >
+                TOTAL
+              </Text>
+
+              <Text
+                style={{
+                  color: COLORS.orange,
+                  fontSize: 30,
+                  fontWeight: '900',
+                  letterSpacing: -0.7,
+                }}
+              >
+                +{points.total} PTS
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View>
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 17,
+                fontWeight: '900',
+                marginBottom: 5,
+              }}
+            >
+              Sesión guardada
+            </Text>
+
+            <Text
+              style={{
+                color: '#777D88',
+                fontSize: 12,
+                lineHeight: 18,
+              }}
+            >
+              Este entrenamiento no ha sumado
+              puntos de Liga.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* BOTÓN */}
+      <TouchableOpacity
+        activeOpacity={0.82}
+        onPress={goToSummaryDestination}
+        style={{
+          minHeight: 56,
+          borderRadius: 18,
+          backgroundColor: COLORS.orange,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 20,
+        }}
+      >
+        <Text
+          style={{
+            color: '#17120A',
+            fontSize: 14,
+            fontWeight: '900',
+            letterSpacing: 0.6,
+          }}
+        >
+          CONTINUAR
+        </Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+};
+
 const LeagueHistory = () => {
     const [leagueHistory, setLeagueHistory] = useState([]);
   const [leagueHistoryLoading, setLeagueHistoryLoading] = useState(true);
@@ -15793,6 +24469,16 @@ setLeagueHistory(groupedHistory);
   );
 };
 
+  // RIVALSET_SPLASH_ROOT_FINAL
+  // IMPORTANTE: todos los hooks de App ya se han ejecutado.
+  if (showRivalSetSplash) {
+    return (
+      <RivalSetSplash
+        onFinish={() => setShowRivalSetSplash(false)}
+      />
+    );
+  }
+
 return (
 <LinearGradient
 colors={
@@ -15801,11 +24487,7 @@ colors={
     isLightTheme
   )
 }
-locations={
-  isLightTheme
-    ? [0, 0.16, 0.36, 0.58, 0.70]
-    : [0, 0.18, 0.40, 0.58, 0.70]
-}
+locations={[0, 0.18, 0.38, 0.60, 0.82, 1]}
 start={{ x: 0.5, y: 0 }}
 end={{ x: 0.5, y: 1 }}
 style={styles.screen}>
@@ -15813,9 +24495,188 @@ style={styles.screen}>
 
   
 
-  {!isLightTheme && <RivalSetDiagonalLight />}
+  
 
-  <SafeAreaView style={styles.flex}>
+  
+  {/* RIVALSET_SOFT_RADIAL_LIGHT */}
+  {(() => {
+    const { r, g, b } = hexToRgb(
+      accentColor || COLORS.orange
+    );
+
+    return (
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+
+          // Centro visual aprox. en el tercio superior.
+          top: isLightTheme ? '-5%' : '-17%',
+          left: isLightTheme ? '-70%' : '-57.5%',
+          width: isLightTheme ? '240%' : '255%',
+          aspectRatio: 1,
+        }}
+      >
+        <Svg
+          pointerEvents="none"
+          width="100%"
+          height="100%"
+          viewBox="0 0 100 100"
+        >
+          <Defs>
+            <RadialGradient
+              id="rivalsetSoftLight"
+              cx="50%"
+              cy="50%"
+              rx="50%"
+              ry="50%"
+              fx="50%"
+              fy="50%"
+            >
+              <Stop
+            offset="0%"
+            stopColor={
+              isLightTheme
+                ? mixAccent(
+                  accentColor.toUpperCase() === '#FF7EB3'
+                    ? '#D92B72'
+                    : accentColor, '#FFFFFF', 0.08)
+                : accentColor
+            }
+            stopOpacity={
+              isLightTheme
+                ? 0.95
+                : 0.50
+            }
+          />
+
+              <Stop
+            offset="14%"
+            stopColor={
+              isLightTheme
+                ? (
+                    accentColor.toUpperCase() === '#FF7EB3'
+                      ? '#D92B72'
+                      : accentColor
+                  )
+                : accentColor
+            }
+            stopOpacity={
+              isLightTheme
+                ? 0.90
+                : 0.41
+            }
+          />
+
+              <Stop
+            offset="30%"
+            stopColor={
+              isLightTheme
+                ? (
+                    accentColor.toUpperCase() === '#FF7EB3'
+                      ? '#D92B72'
+                      : accentColor
+                  )
+                : accentColor
+            }
+            stopOpacity={
+              isLightTheme
+                ? 0.82
+                : 0.27
+            }
+          />
+
+              <Stop
+            offset="48%"
+            stopColor={
+              isLightTheme
+                ? mixAccent(
+                  accentColor.toUpperCase() === '#FF7EB3'
+                    ? '#D92B72'
+                    : accentColor, '#000000', 0.18)
+                : accentColor
+            }
+            stopOpacity={
+              isLightTheme
+                ? 0.68
+                : 0.15
+            }
+          />
+
+              <Stop
+            offset="66%"
+            stopColor={
+              isLightTheme
+                ? mixAccent(
+                  accentColor.toUpperCase() === '#FF7EB3'
+                    ? '#D92B72'
+                    : accentColor, '#000000', 0.32)
+                : accentColor
+            }
+            stopOpacity={
+              isLightTheme
+                ? 0.46
+                : 0.060
+            }
+          />
+
+              <Stop
+            offset="84%"
+            stopColor={
+              isLightTheme
+                ? mixAccent(
+                  accentColor.toUpperCase() === '#FF7EB3'
+                    ? '#D92B72'
+                    : accentColor, '#000000', 0.42)
+                : accentColor
+            }
+            stopOpacity={
+              isLightTheme
+                ? 0.20
+                : 0.018
+            }
+          />
+
+              <Stop
+            offset="100%"
+            stopColor={
+              isLightTheme
+                ? mixAccent(
+                  accentColor.toUpperCase() === '#FF7EB3'
+                    ? '#D92B72'
+                    : accentColor, '#000000', 0.42)
+                : accentColor
+            }
+            stopOpacity={
+              isLightTheme
+                ? 0
+                : 0
+            }
+          />
+            </RadialGradient>
+          </Defs>
+
+          <Rect
+            x="0"
+            y="0"
+            width="100"
+            height="100"
+            fill="url(#rivalsetSoftLight)"
+          />
+        </Svg>
+      </View>
+    );
+  })()}
+
+  <SafeAreaView
+    style={[
+      styles.flex,
+      {
+        position: 'relative',
+        zIndex: 10,
+      },
+    ]}
+  >
 
   
       <StatusBar
@@ -15977,6 +24838,8 @@ style={styles.screen}>
       >
       {screen === 'home'
         ? Home()
+    : screen === 'globalLeague'
+? <GlobalLeague />
     : screen === 'league'
 ? League()
 : screen === 'leagueHistory'
@@ -15988,7 +24851,7 @@ style={styles.screen}>
         : screen === 'templates'
         ? Templates()
         : screen === 'nutrition'
-? <Nutrition />
+? <NutritionComingSoon />
         : screen === 'editor'
         ? Editor()
         : screen === 'achievements'
@@ -15999,8 +24862,13 @@ style={styles.screen}>
 ? History()
 : screen === 'quickStart'
 ? QuickStart()
+: screen === 'workoutSummary'
+? <WorkoutSummary />
 : Workout()}
       </KeyboardAvoidingView>
+
+      {/* RIVALSET SPLASH — ÚLTIMA CAPA VISUAL */}
+
     </SafeAreaView>
 </LinearGradient>
 );
@@ -16012,6 +24880,16 @@ style={styles.screen}>
 
 
 const EXERCISE_ANIMATION_FRAMES = {
+"Aducción": [require("./assets/exercise-guides/catalog/package/assets/hip-adduction-machine/frame-1.png"),
+require("./assets/exercise-guides/catalog/package/assets/hip-adduction-machine/frame-2.png"),
+require("./assets/exercise-guides/catalog/package/assets/hip-adduction-machine/frame-3.png")],
+
+"Abducción": [
+    require('./assets/exercise-guides/rivalset/hip-abduction-machine/frame-1.png'),
+    require('./assets/exercise-guides/rivalset/hip-abduction-machine/frame-2.png'),
+    require('./assets/exercise-guides/rivalset/hip-abduction-machine/frame-3.png'),
+  ],
+
   'Jalón unilateral': [
     require('./assets/exercise-guides/rivalset/close-grip-lat-pulldown/frame-1.png'),
     require('./assets/exercise-guides/rivalset/close-grip-lat-pulldown/frame-2.png'),
@@ -16374,7 +25252,10 @@ const BenchPressAnimation = () => {
       >
         Baja al pecho · Empuja hasta extender
       </Text>
-    </View>
+    
+      
+
+</View>
   );
 };
 
@@ -16765,8 +25646,8 @@ comingSoonRoutineBadgeText: {
   },
 
   achievementButtonSubtext: {
-    color: COLORS.muted,
-    fontSize: 10,
+    color: '#FFFFFF',
+    fontSize: 12,
     marginTop: 3,
   },
 
@@ -16811,7 +25692,7 @@ comingSoonRoutineBadgeText: {
   },
 
   navText: {
-    color: '#5C5D61',
+    color: '#A8ABB2',
     fontSize: 10,
     fontWeight: '700',
   },
@@ -16838,14 +25719,22 @@ comingSoonRoutineBadgeText: {
     borderBottomColor: 'rgba(255,176,0,0.10)',
   },
 
+  globalBackText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+
   backButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,176,0,0.20)',
     alignItems: 'center',
     justifyContent: 'center',
+
+    backgroundColor: 'rgba(10,10,12,0.42)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
   },
 
   backArrow: {
@@ -16892,6 +25781,40 @@ comingSoonRoutineBadgeText: {
     paddingHorizontal: 18,
     paddingTop: 24,
     paddingBottom: 42,
+  },
+
+  leagueHeroPro: {
+    minHeight: 66,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 3,
+  },
+
+  leagueHeroEyebrow: {
+    color: COLORS.orange,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.8,
+  },
+
+  leagueHeroTitle: {
+    color: '#FFFFFF',
+    fontSize: 23,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+    marginTop: 4,
+  },
+
+  leagueHeroIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,176,0,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.20)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   leagueHero: {
@@ -16950,15 +25873,15 @@ comingSoonRoutineBadgeText: {
   },
 
   leagueMainCard: {
-    minHeight: 88,
-    borderRadius: 17,
+    minHeight: 78,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(72,62,42,0.42)',
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(10,12,16,0.68)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 11,
-    marginBottom: 10,
+    paddingHorizontal: 13,
+    marginBottom: 8,
   },
 
   leagueBadgeBox: {
@@ -16986,7 +25909,7 @@ comingSoonRoutineBadgeText: {
 
   leagueNameTitle: {
     color: COLORS.text,
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: '900',
     letterSpacing: -0.5,
     flexShrink: 1,
@@ -17018,9 +25941,24 @@ comingSoonRoutineBadgeText: {
 },
 
   leagueMetaText: {
-    color: '#858A94',
-    fontSize: 7.5,
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '700',
     marginTop: 4,
+    opacity: 0.92,
+  },
+
+  leagueMainObjectiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 7,
+  },
+
+  leagueMainObjective: {
+    color: '#D0D3D8',
+    fontSize: 10,
+    fontWeight: '800',
+    marginLeft: 4,
   },
 
   leaguePositionDivider: {
@@ -17118,10 +26056,10 @@ comingSoonRoutineBadgeText: {
   },
 
   leagueTrainingCard: {
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(72,62,42,0.42)',
+    borderColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(10,12,16,0.62)',
     padding: 14,
     marginBottom: 10,
   },
@@ -17132,12 +26070,14 @@ comingSoonRoutineBadgeText: {
   },
 
   leagueTrainingExplanation: {
-    color: '#777C85',
-    fontSize: 8.5,
-    lineHeight: 13,
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    lineHeight: 15,
+    fontWeight: '700',
     marginTop: 5,
     paddingRight: 14,
     maxWidth: 270,
+    opacity: 0.92,
   },
 
   leagueTrainingCounter: {
@@ -17162,7 +26102,7 @@ comingSoonRoutineBadgeText: {
 
   leagueTrainingProgressTrack: {
     width: '100%',
-    height: 8,
+    height: 6,
     borderRadius: 8,
     backgroundColor: '#292B32',
     overflow: 'hidden',
@@ -17207,7 +26147,7 @@ comingSoonRoutineBadgeText: {
   },
 
   leagueAddWorkoutButton: {
-    minHeight: 58,
+    minHeight: 52,
     borderRadius: 14,
     backgroundColor: COLORS.orange,
     flexDirection: 'row',
@@ -17248,11 +26188,11 @@ comingSoonRoutineBadgeText: {
   },
 
   leagueRankingCard: {
-    borderRadius: 19,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(72,62,42,0.42)',
-    padding: 13,
+    borderColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(10,12,16,0.62)',
+    padding: 14,
     marginBottom: 10,
   },
 
@@ -17266,19 +26206,22 @@ comingSoonRoutineBadgeText: {
   leagueSectionHeading: {
     flexDirection: 'row',
     alignItems: 'center',
+    columnGap: 9,
   },
 
   leagueSectionTitle: {
     color: COLORS.orange,
-    fontSize: 10,
+    fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1.25,
   },
 
   leagueSectionSubtitle: {
-    color: '#666B74',
-    fontSize: 8,
-    marginTop: 2,
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '700',
+    marginTop: 3,
+    opacity: 0.9,
   },
 
   leagueMonthBadge: {
@@ -17325,39 +26268,36 @@ comingSoonRoutineBadgeText: {
 
   leaguePlayerRow: {
     position: 'relative',
-    minHeight: 66,
-    borderRadius: 12,
+    minHeight: 58,
+    borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#25282F',
-    backgroundColor: '#101216',
+    borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.025)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    marginBottom: 7,
+    marginBottom: 6,
     overflow: 'hidden',
   },
 
   leaguePlayerRowFirst: {
-    backgroundColor: 'rgba(255,176,0,0.16)',
-    borderColor: 'rgba(255,176,0,0.72)',
-    shadowColor: COLORS.orange,
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: 'rgba(255,176,0,0.085)',
+    borderColor: 'rgba(255,176,0,0.30)',
   },
 
   leaguePlayerRowSecond: {
-    backgroundColor: 'rgba(255,176,0,0.095)',
-    borderColor: 'rgba(255,176,0,0.42)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderColor: 'rgba(255,255,255,0.09)',
   },
 
   leaguePlayerRowThird: {
-    backgroundColor: 'rgba(255,176,0,0.045)',
-    borderColor: 'rgba(255,176,0,0.22)',
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderColor: 'rgba(255,255,255,0.075)',
+  },
+
+  leaguePlayerRowMe: {
+    backgroundColor: 'rgba(255,176,0,0.075)',
+    borderColor: 'rgba(255,176,0,0.42)',
   },
 
   leaguePlayerPosition: {
@@ -17379,6 +26319,20 @@ comingSoonRoutineBadgeText: {
   leaguePlayerInfo: {
     flex: 1,
     paddingLeft: 2,
+    paddingRight: 6,
+  },
+
+  leaguePlayerNameLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+
+  leaguePlayerAwardColumn: {
+    width: 104,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
   },
 
   leaguePlayerName: {
@@ -17400,24 +26354,41 @@ leaguePlayerNameMe: {
   },
 
   leaguePlayerAwardBox: {
-  justifyContent: 'center',
-  alignItems: 'flex-end',
-  marginLeft: 8,
-  marginRight: 10,
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: 4,
+    gap: 4,
+  },
+
+  leaguePlayerMeBadge: {
+    color: COLORS.orange,
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    backgroundColor: 'rgba(255,176,0,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.25)',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    marginLeft: 6,
+  },
 
 leaguePlayerAward: {
-  color: COLORS.orange,
-  fontSize: 10,
-  fontWeight: '900',
-  letterSpacing: 0.4,
-  backgroundColor: 'rgba(255,176,0,0.10)',
-  borderWidth: 1,
-  borderColor: 'rgba(255,176,0,0.35)',
-  borderRadius: 8,
-  paddingHorizontal: 8,
-  paddingVertical: 4,
-},
+    width: 98,
+    color: COLORS.orange,
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    backgroundColor: 'rgba(255,176,0,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.30)',
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+  },
   leaguePlayerPointsBox: {
     width: 50,
     alignItems: 'flex-end',
@@ -17442,14 +26413,14 @@ leaguePlayerAward: {
   },
 
   leagueInviteWide: {
-    minHeight: 52,
+    minHeight: 44,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#47402D',
-    backgroundColor: '#191A1B',
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(10,12,16,0.48)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 13,
     marginBottom: 10,
   },
 
@@ -17459,27 +26430,29 @@ leaguePlayerAward: {
   },
 
   leagueInviteText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    color: '#E7E8EB',
+    fontSize: 11,
     fontWeight: '800',
   },
 
   leagueInviteSubtext: {
-    color: '#A6AAB2',
-    fontSize: 10,
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '700',
     marginTop: 2,
+    opacity: 0.9,
   },
 
   leagueActivityCard: {
-    borderRadius: 19,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#292C33',
-    backgroundColor: 'rgba(11,13,16,0.96)',
-    padding: 13,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(10,12,16,0.62)',
+    padding: 14,
   },
 
   leagueActivityRow: {
-    minHeight: 57,
+    minHeight: 62,
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
@@ -17499,26 +26472,55 @@ leaguePlayerAward: {
     opacity: 0.8,
   },
 
+  leagueActivityIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,176,0,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,0,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  leagueActivitySide: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
+  },
+
+  leagueActivityPoints: {
+    color: COLORS.orange,
+    fontSize: 10.5,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+
   leagueActivityInfo: {
     flex: 1,
   },
 
   leagueActivityText: {
-    color: '#A9ADB5',
-    fontSize: 10,
-    lineHeight: 15,
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+    paddingRight: 4,
+    opacity: 0.9,
   },
 
   leagueActivityName: {
-    color: COLORS.text,
-    fontSize: 11,
+    color: COLORS.orange,
+    fontSize: 13,
     fontWeight: '900',
   },
 
   leagueActivityTime: {
-    color: '#626771',
-    fontSize: 8,
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
     marginLeft: 8,
+    opacity: 0.72,
   },
 
   /* PERFIL */
@@ -17575,8 +26577,8 @@ leaguePlayerAward: {
   },
 
   profileNameLabel: {
-    color: COLORS.orange,
-    fontSize: 8,
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '900',
     marginTop: 16,
     marginBottom: 6,
@@ -17587,7 +26589,7 @@ leaguePlayerAward: {
     maxWidth: 250,
     height: 43,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,176,0,0.32)',
+    borderBottomColor: 'rgba(255,255,255,0.42)',
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -17753,7 +26755,7 @@ leaguePlayerAward: {
   ===================================================== */
 
   profileGlassSectionLabel: {
-    color: 'rgba(255,255,255,0.72)',
+    color: 'rgba(255,255,255,0.82)',
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1.15,
@@ -17786,7 +26788,7 @@ leaguePlayerAward: {
 
   profileActivityHeadline: {
     color: '#F5F5F7',
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '900',
   },
 
@@ -17914,9 +26916,9 @@ leaguePlayerAward: {
   },
 
   profileActivityBottomText: {
-    color: 'rgba(255,255,255,0.42)',
-    fontSize: 9,
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 11,
+    fontWeight: '700',
     marginLeft: 7,
   },
 
@@ -18011,7 +27013,7 @@ leaguePlayerAward: {
 
   settingDescription: {
     color: COLORS.muted,
-    fontSize: 9,
+    fontSize: 11,
     marginTop: 3,
   },
 
@@ -18647,6 +27649,429 @@ leaguePlayerAward: {
     color: COLORS.yellow,
   },
 
+  /* CARDIO · RIVALSET */
+  cardioPanel: {
+    marginTop: 16,
+  },
+
+  cardioMainMetrics: {
+    flexDirection: 'row',
+    gap: 9,
+  },
+
+  cardioMetricCard: {
+    flex: 1,
+    minHeight: 94,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+  },
+
+  cardioMetricHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+
+  cardioMetricLabel: {
+    color: '#8C9099',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+
+  cardioValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+
+  cardioMetricInput: {
+    flex: 1,
+    padding: 0,
+    color: COLORS.text,
+    fontSize: 25,
+    fontWeight: '900',
+    minHeight: 36,
+  },
+
+  cardioMetricUnit: {
+    color: '#777D87',
+    fontSize: 11,
+    fontWeight: '800',
+    marginLeft: 5,
+  },
+
+  cardioPaceCard: {
+    minHeight: 68,
+    marginTop: 9,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(8,9,12,0.28)',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  cardioPaceLabel: {
+    color: '#A7ABB3',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+
+  cardioPaceHint: {
+    color: '#5F646D',
+    fontSize: 8,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+
+  cardioPaceValueWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+
+  cardioPaceValue: {
+    color: COLORS.orange,
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+  },
+
+  cardioPaceUnit: {
+    color: '#777D87',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+
+  cardioHeartCard: {
+    minHeight: 68,
+    marginTop: 9,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.14)',
+    backgroundColor: 'rgba(255,179,0,0.035)',
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  cardioHeartInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  cardioHeartIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,179,0,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  cardioHeartLabel: {
+    color: '#A7ABB3',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  cardioHeartHint: {
+    color: '#5F646D',
+    fontSize: 8,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+
+  cardioHeartInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    minWidth: 78,
+    justifyContent: 'flex-end',
+  },
+
+  cardioHeartInput: {
+    minWidth: 45,
+    padding: 0,
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'right',
+  },
+
+  cardioHeartUnit: {
+    color: '#777D87',
+    fontSize: 9,
+    fontWeight: '800',
+    marginLeft: 4,
+  },
+
+
+
+  cardioWorkoutMetricsGlass: {
+    marginTop: 8,
+    marginHorizontal: 0,
+    paddingTop: 10,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(10,11,15,0.48)',
+    overflow: 'hidden',
+  },
+
+  cardioWorkoutMetricsLabels: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    marginBottom: 6,
+  },
+
+  cardioWorkoutMetricLabel: {
+    flex: 1,
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    textAlign: 'center',
+  },
+
+  cardioWorkoutMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  cardioWorkoutMetricBox: {
+    flex: 1,
+    minHeight: 43,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+
+  cardioWorkoutMetricInput: {
+    width: '100%',
+    paddingVertical: 7,
+    paddingHorizontal: 3,
+    color: '#F5F5F6',
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+
+  cardioLiveTimer: {
+    marginTop: 16,
+    paddingTop: 17,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: 'rgba(255,157,0,0.18)',
+    backgroundColor: 'rgba(8,9,12,0.52)',
+    overflow: 'hidden',
+  },
+
+  cardioLiveTimerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  cardioLiveTimerLabel: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+  },
+
+  cardioLiveStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+
+  cardioLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: COLORS.orange,
+  },
+
+  cardioLiveStatusText: {
+    color: COLORS.orange,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.9,
+  },
+
+  cardioLiveTime: {
+    marginTop: 6,
+    color: '#F5F5F6',
+    fontSize: 42,
+    lineHeight: 48,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
+
+  cardioLiveObjective: {
+    marginTop: 1,
+    color: 'rgba(255,255,255,0.42)',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+
+  cardioLiveButtons: {
+    marginTop: 15,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 9,
+  },
+
+  cardioLivePrimary: {
+    minHeight: 42,
+    paddingHorizontal: 19,
+    borderRadius: 13,
+    backgroundColor: COLORS.orange,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  cardioLivePrimaryText: {
+    color: '#1A1200',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+
+  cardioLivePause: {
+    minHeight: 42,
+    paddingHorizontal: 19,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255,157,0,0.30)',
+    backgroundColor: 'rgba(255,157,0,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+
+  cardioLivePauseText: {
+    color: COLORS.orange,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+
+  cardioLiveFinish: {
+    minHeight: 42,
+    paddingHorizontal: 15,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  cardioLiveFinishText: {
+    color: '#F4F4F5',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+
+  cardioLiveTrackArea: {
+    marginTop: 27,
+  },
+
+  cardioLiveTrack: {
+    height: 42,
+    marginHorizontal: 9,
+    justifyContent: 'center',
+  },
+
+  cardioLiveTrackBase: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 3,
+    borderRadius: 99,
+    backgroundColor: 'rgba(255,255,255,0.11)',
+  },
+
+  cardioLiveTrackProgress: {
+    position: 'absolute',
+    left: 0,
+    height: 3,
+    borderRadius: 99,
+    backgroundColor: COLORS.orange,
+  },
+
+  cardioLivePerson: {
+    position: 'absolute',
+    bottom: 16,
+    marginLeft: -14,
+  },
+
+  cardioLivePersonGlow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,157,0,0.08)',
+  },
+
+  cardioLiveGoal: {
+    position: 'absolute',
+    right: -7,
+    bottom: 16,
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cardioLiveTrackFooter: {
+    marginTop: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  cardioLiveTrackText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+
   manualMuscleSection: {
     marginTop: 13,
     paddingTop: 11,
@@ -18764,7 +28189,909 @@ leaguePlayerAward: {
     marginRight: 13,
   },
 
+  /* HOME · NIVEL / PROGRESIÓN */
+
+  homeScrollContent: {
+    paddingBottom: 28,
+  },
+
+  gameLevelCard: {
+    backgroundColor: 'rgba(30,25,16,0.58)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.42)',
+    borderRadius: 22,
+    padding: 14,
+    marginBottom: 17,
+    overflow: 'hidden',
+
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+
+  gameLevelMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 108,
+  },
+
+  gameMedalZone: {
+    width: 116,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    paddingLeft: 4,
+  },
+
+  gameMedalRing: {
+    width: 102,
+    height: 102,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    overflow: 'visible',
+  },
+
+  gameMedalScale: {
+    transform: [{ scale: 1.281 }],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  gameRankPill: {
+    marginTop: -8,
+    marginLeft: -6,
+    paddingHorizontal: 12,
+    height: 21,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111216',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.55)',
+  },
+
+  gameRankPillText: {
+    color: COLORS.orange,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+
+  gameLevelData: {
+    flex: 1,
+  },
+
+  gameLevelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+
+  gameLevelOverline: {
+    color: COLORS.orange,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1.3,
+    marginBottom: 1,
+  },
+
+  gameLevelNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: -2,
+  },
+
+  gameLevelNumber: {
+    color: COLORS.orange,
+    fontSize: 38,
+    lineHeight: 43,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+  },
+
+  gameLevelMax: {
+    color: '#969AA2',
+    fontSize: 11,
+    fontWeight: '900',
+    marginLeft: 3,
+  },
+
+  gameTrophyButton: {
+    width: 31,
+    height: 31,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,179,0,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.14)',
+  },
+
+  gameXPTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 5,
+    marginBottom: 5,
+  },
+
+  gameXPText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  gameXPPercent: {
+    color: COLORS.orange,
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
+  gameXPTrack: {
+    height: 9,
+    borderRadius: 5,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+
+  gameXPFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: COLORS.orange,
+  },
+
+  gameXPRemaining: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+    marginTop: 6,
+  },
+
+  gameMission: {
+    minHeight: 52,
+    marginTop: 12,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,179,0,0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  gameMissionIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,179,0,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.10)',
+    marginRight: 9,
+  },
+
+  gameMissionContent: {
+    flex: 1,
+  },
+
+  gameMissionLabel: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+
+  gameMissionTitle: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+
+  gameMissionProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+
+  gameMissionValue: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    marginRight: 2,
+  },
+
+  homeLevelCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(16, 17, 21, 0.50)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 26,
+    padding: 18,
+    marginBottom: 21,
+  },
+
+  homeLevelAmbientGlow: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: 'rgba(255,179,0,0.075)',
+    top: -105,
+    right: -55,
+  },
+
+  homeLevelAmbientGlowTwo: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: 'rgba(255,194,51,0.035)',
+    bottom: -80,
+    left: -55,
+  },
+
+  homeLevelTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+
+  homeLevelEyebrow: {
+    color: '#717680',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+
+  homeLevelRankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+
+  homeLevelRank: {
+    color: COLORS.orange,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  homeLevelLiveDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.orange,
+    marginHorizontal: 7,
+  },
+
+  homeLevelRankHint: {
+    color: '#5E636C',
+    fontSize: 7,
+    fontWeight: '800',
+  },
+
+  homeLevelDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.20)',
+    backgroundColor: 'rgba(255,179,0,0.055)',
+    borderRadius: 14,
+    paddingLeft: 10,
+    paddingRight: 6,
+    paddingVertical: 6,
+  },
+
+  homeLevelDetailsText: {
+    color: '#B08C35',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+
+  homeLevelHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 17,
+  },
+
+  homeLevelMedalWrap: {
+    width: 92,
+    height: 92,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+  },
+
+  homeLevelMedalHaloOuter: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.10)',
+  },
+
+  homeLevelMedalHaloInner: {
+    position: 'absolute',
+    width: 67,
+    height: 67,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255,179,0,0.07)',
+  },
+
+  homeLevelHeroInfo: {
+    flex: 1,
+  },
+
+  homeLevelNumberLabel: {
+    color: '#696E77',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+  },
+
+  homeLevelNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+
+  homeLevelNumber: {
+    color: '#FFFFFF',
+    fontSize: 45,
+    lineHeight: 50,
+    fontWeight: '900',
+    letterSpacing: -1.8,
+  },
+
+  homeNextLevelBox: {
+    marginLeft: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255,255,255,0.10)',
+    paddingLeft: 11,
+  },
+
+  homeNextLevelLabel: {
+    color: '#5E636C',
+    fontSize: 6,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+
+  homeNextLevelNumber: {
+    color: '#A7ABB3',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  homeLevelHeroHint: {
+    color: '#777C85',
+    fontSize: 9,
+    marginTop: 2,
+  },
+
+  homeXPTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
+
+  homeXPTitle: {
+    color: '#6C717A',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+
+  homeXPText: {
+    color: '#C9CCD2',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
+  homeXPTrack: {
+    height: 9,
+    borderRadius: 5,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.065)',
+  },
+
+  homeXPFill: {
+    height: '100%',
+    borderRadius: 5,
+    overflow: 'hidden',
+    backgroundColor: COLORS.orange,
+  },
+
+  homeXPFillShine: {
+    height: 2,
+    marginTop: 1,
+    marginHorizontal: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.30)',
+  },
+
+  homeXPSegments: {
+    flexDirection: 'row',
+    marginTop: 5,
+    marginBottom: 18,
+  },
+
+  homeXPSegment: {
+    flex: 1,
+    height: 2,
+    borderRadius: 1,
+    marginRight: 3,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+  },
+
+  homeXPSegmentActive: {
+    backgroundColor: 'rgba(255,179,0,0.48)',
+  },
+
+  homeRankSection: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+    paddingTop: 15,
+    marginBottom: 17,
+  },
+
+  homeRankHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 11,
+  },
+
+  homeRankTitle: {
+    color: '#6C717A',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+
+  homeRankDestination: {
+    color: COLORS.orange,
+    fontSize: 7,
+    fontWeight: '900',
+  },
+
+  homeRankTrack: {
+    position: 'relative',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+
+  homeRankFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,179,0,0.72)',
+  },
+
+  homeRankMarker: {
+    position: 'absolute',
+    top: -5,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: COLORS.orange,
+    backgroundColor: '#17140D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  homeRankMarkerCore: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.orange,
+  },
+
+  homeRankLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+
+  homeRankLabel: {
+    color: '#4F545D',
+    fontSize: 6,
+    fontWeight: '900',
+  },
+
+  homeRankLabelActive: {
+    color: COLORS.orange,
+  },
+
+  homeProgressMetrics: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    paddingVertical: 13,
+  },
+
+  homeMetric: {
+    flex: 1,
+    paddingHorizontal: 8,
+  },
+
+  homeMetricTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  homeMetricValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  homeMetricLabel: {
+    color: '#646973',
+    fontSize: 6,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+    marginTop: 5,
+  },
+
+  homeMetricTrack: {
+    height: 3,
+    borderRadius: 2,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginTop: 7,
+  },
+
+  homeMetricFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: COLORS.orange,
+  },
+
+  homeMetricDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+
+  homeNextChallenge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingTop: 1,
+  },
+
+  homeNextChallengeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,179,0,0.075)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.14)',
+    marginRight: 10,
+  },
+
+  homeNextChallengeLabel: {
+    color: '#60656E',
+    fontSize: 6,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  homeNextChallengeTitle: {
+    color: '#D9DBDF',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+
+  homeNextChallengeProgress: {
+    color: COLORS.orange,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  achievementCompactHeader: {
+    minHeight: 75,
+    backgroundColor: 'rgba(16,17,21,0.50)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    marginBottom: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  achievementCompactEyebrow: {
+    color: COLORS.orange,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  achievementCompactTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+
+  achievementCompactXP: {
+    alignItems: 'flex-end',
+  },
+
+  achievementCompactXPNumber: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  achievementCompactXPLabel: {
+    color: '#646973',
+    fontSize: 6,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
+
   /* LOGROS */
+
+  levelPlayerCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(12, 13, 17, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 179, 0, 0.30)',
+    borderRadius: 28,
+    padding: 20,
+    marginBottom: 20,
+  },
+
+  levelCardGlow: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: 'rgba(255, 179, 0, 0.08)',
+    top: -115,
+    right: -60,
+  },
+
+  levelCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+
+  levelCardEyebrow: {
+    color: '#777C86',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.7,
+  },
+
+  levelCardRank: {
+    color: COLORS.orange,
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+    marginTop: 4,
+  },
+
+  levelRankPill: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 179, 0, 0.24)',
+    backgroundColor: 'rgba(255, 179, 0, 0.07)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+
+  levelRankPillText: {
+    color: '#A88B45',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+
+  levelHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 112,
+    marginBottom: 18,
+  },
+
+  levelMedalArea: {
+    width: 116,
+    height: 112,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 17,
+  },
+
+  levelMedalGlow: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 179, 0, 0.10)',
+  },
+
+  levelNumberArea: {
+    flex: 1,
+  },
+
+  levelNumberLabel: {
+    color: '#777C86',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+
+  levelNumber: {
+    color: '#FFFFFF',
+    fontSize: 52,
+    lineHeight: 56,
+    fontWeight: '900',
+    letterSpacing: -2,
+  },
+
+  levelStatus: {
+    color: '#8B9099',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  levelXPHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+
+  levelXPLabel: {
+    color: '#777C86',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.3,
+  },
+
+  levelXPValue: {
+    color: '#D9DCE2',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+
+  levelXPTrack: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+
+  levelXPFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: COLORS.orange,
+  },
+
+  levelSegments: {
+    flexDirection: 'row',
+    marginTop: 5,
+    marginBottom: 20,
+  },
+
+  levelSegment: {
+    flex: 1,
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginRight: 3,
+  },
+
+  levelSegmentActive: {
+    backgroundColor: 'rgba(255,179,0,0.55)',
+  },
+
+  levelStats: {
+    minHeight: 67,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+
+  levelStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+
+  levelStatNumber: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  levelStatLabel: {
+    color: '#696E78',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginTop: 3,
+  },
+
+  levelStatDivider: {
+    width: 1,
+    height: 25,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  rankRoad: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 19,
+  },
+
+  rankRoadItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+
+  rankRoadDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#424650',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+
+  rankRoadDotActive: {
+    borderColor: COLORS.orange,
+  },
+
+  rankRoadDotCore: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: COLORS.orange,
+  },
+
+  rankRoadText: {
+    color: '#515660',
+    fontSize: 6,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+
+  rankRoadTextActive: {
+    color: COLORS.orange,
+  },
 
   achievementSummary: {
     backgroundColor: 'rgba(16, 17, 21, 0.54)',
@@ -19083,15 +29410,15 @@ leaguePlayerAward: {
   },
 
   historySectionTitle: {
-    color: COLORS.text,
-    fontSize: 19,
+    color: '#FFFFFF',
+    fontSize: 21,
     fontWeight: '900',
     letterSpacing: -0.3,
   },
 
   historySectionSubtitle: {
-    color: COLORS.muted,
-    fontSize: 9,
+    color: '#FFFFFF',
+    fontSize: 11,
     marginTop: 4,
     marginBottom: 11,
   },
@@ -19348,6 +29675,21 @@ leaguePlayerAward: {
     borderColor: 'rgba(255,176,0,0.45)',
   },
 
+  strengthLiveExerciseCard: {
+    backgroundColor: 'rgba(12,13,17,0.56)',
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 20,
+  },
+
+  strengthLiveExerciseCardComplete: {
+    backgroundColor: 'rgba(20,18,11,0.62)',
+    borderColor: 'rgba(255,176,0,0.42)',
+  },
+
+  strengthLiveExerciseHeader: {
+    minHeight: 62,
+  },
+
   liveExerciseHeader: {
     minHeight: 67,
     flexDirection: 'row',
@@ -19391,6 +29733,14 @@ leaguePlayerAward: {
     backgroundColor: '#332806',
   },
 
+  strengthExerciseProgressBadge: {
+    minWidth: 68,
+    paddingHorizontal: 7,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+
   exerciseProgressText: {
     color: '#888D96',
     fontSize: 9,
@@ -19407,6 +29757,12 @@ leaguePlayerAward: {
     paddingHorizontal: 11,
     paddingTop: 10,
     paddingBottom: 11,
+  },
+
+  strengthLiveSetsContainer: {
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 9,
+    paddingBottom: 9,
   },
 
   liveSetsLabels: {
@@ -19457,6 +29813,17 @@ leaguePlayerAward: {
     backgroundColor: '#11130F',
   },
 
+  strengthLiveSetRow: {
+    minHeight: 48,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderColor: 'rgba(255,255,255,0.075)',
+  },
+
+  strengthLiveSetRowDone: {
+    backgroundColor: 'rgba(255,176,0,0.055)',
+    borderColor: 'rgba(255,176,0,0.18)',
+  },
+
   liveSetRowPR: {
     borderWidth: 1.5,
     borderColor: COLORS.orange,
@@ -19489,6 +29856,51 @@ leaguePlayerAward: {
     ],
   },
 
+  liveSetNumberStack: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+
+  liveSetMiniPrBadge: {
+    minWidth: 22,
+    height: 12,
+    borderRadius: 5,
+    backgroundColor: COLORS.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+
+  liveSetMiniPrText: {
+    color: COLORS.darkText,
+    fontSize: 6.5,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+
+  previousSetRow: {
+    minHeight: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingTop: 3,
+  },
+
+  previousSetText: {
+    color: '#777D88',
+    fontSize: 8.5,
+    fontWeight: '700',
+    marginLeft: 5,
+  },
+
+  previousSetPrText: {
+    color: COLORS.orange,
+    fontSize: 8.5,
+    fontWeight: '800',
+    marginLeft: 5,
+  },
+
   liveSetNumber: {
     color: '#868B94',
     fontSize: 11,
@@ -19512,6 +29924,13 @@ leaguePlayerAward: {
     fontWeight: '900',
     textAlign: 'center',
     paddingVertical: 0,
+  },
+
+  strengthLiveSetInput: {
+    height: 35,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderColor: 'rgba(255,255,255,0.09)',
   },
 
   liveSetInputPR: {
@@ -19628,6 +30047,108 @@ leaguePlayerAward: {
     marginLeft: 5,
   },
 
+  workoutSummaryDetailSection: {
+    marginBottom: 14,
+  },
+
+  workoutSummarySectionLabel: {
+    color: '#777D88',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.3,
+    marginBottom: 9,
+    marginLeft: 2,
+  },
+
+  workoutSummaryExerciseCard: {
+    backgroundColor: 'rgba(12,13,17,0.58)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 18,
+    paddingHorizontal: 15,
+    paddingTop: 14,
+    paddingBottom: 8,
+    marginBottom: 9,
+  },
+
+  workoutSummaryExerciseCardPR: {
+    borderColor: 'rgba(255,179,0,0.20)',
+  },
+
+  workoutSummaryExerciseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  workoutSummaryExerciseName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+
+  workoutSummaryExerciseMeta: {
+    color: '#777D88',
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  workoutSummaryExercisePrBadge: {
+    minWidth: 48,
+    height: 25,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,179,0,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+  },
+
+  workoutSummaryExercisePrText: {
+    color: COLORS.orange,
+    fontSize: 9,
+    fontWeight: '900',
+  },
+
+  workoutSummarySetRow: {
+    minHeight: 39,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.055)',
+  },
+
+  workoutSummarySetLabel: {
+    width: 58,
+    color: '#6F747E',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+
+  workoutSummarySetValue: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  workoutSummarySetPrBadge: {
+    height: 22,
+    borderRadius: 7,
+    backgroundColor: COLORS.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+  },
+
+  workoutSummarySetPrText: {
+    color: '#17120A',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
   prSummaryCard: {
     backgroundColor: 'rgba(72,62,42,0.42)',
     borderWidth: 1,
@@ -19724,3 +30245,595 @@ leaguePlayerAward: {
 
 let styles = createRivalSetStyles();
 
+
+
+// RIVALSET_SIDE_MENU_V1
+function RivalSetSideMenu({
+  onLeaguesPress,
+photoUri,
+  profileName,
+
+  onPress,
+  isLightTheme = false,
+  accentColor = '#FF8A00',
+}) {
+  const [visible, setVisible] = useState(false);
+  const progress = useRef(new Animated.Value(0)).current;
+  const closing = useRef(false);
+
+  const ink = isLightTheme ? '#17202B' : '#F5F6FA';
+  const muted = isLightTheme ? '#626B79' : '#ABB2C0';
+  const line = isLightTheme
+    ? 'rgba(20,28,40,0.10)'
+    : 'rgba(255,255,255,0.10)';
+
+  const open = () => {
+    closing.current = false;
+    progress.setValue(0);
+    setVisible(true);
+  };
+
+  const animateOpen = () => {
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 260,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const close = (after) => {
+    if (closing.current) return;
+    closing.current = true;
+    Animated.timing(progress, {
+      toValue: 0,
+      duration: 210,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setVisible(false);
+      if (typeof after === 'function') after();
+    });
+  };
+
+  return (
+    <>
+      <TouchableOpacity
+        onPress={open}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Abrir menú"
+        accessibilityState={{ expanded: visible }}
+        style={{
+          width: 46, height: 46, borderRadius: 16,
+          alignItems: 'center', justifyContent: 'center',
+          borderWidth: 1, borderColor: line,
+          backgroundColor: isLightTheme
+            ? 'rgba(255,255,255,0.65)'
+            : 'rgba(255,255,255,0.07)',
+        }}
+      >
+        <MaterialCommunityIcons name="menu" size={28} color={ink} />
+      </TouchableOpacity>
+
+      <Modal
+        visible={visible}
+        transparent
+        animationType="none"
+        onShow={animateOpen}
+        onRequestClose={() => close()}
+      >
+        <View style={{ flex: 1 }}>
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                backgroundColor: 'rgba(3,4,7,0.60)',
+                opacity: progress,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              activeOpacity={1}
+              onPress={() => close()}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar menú"
+            />
+          </Animated.View>
+
+          <Animated.View
+            accessibilityViewIsModal
+            style={{
+              position: 'absolute',
+              top: 0, bottom: 0, right: 0,
+              width: '80%', maxWidth: 380,
+              borderTopLeftRadius: 28,
+              borderBottomLeftRadius: 28,
+              borderWidth: 1,
+              borderColor: isLightTheme
+                ? 'rgba(255,255,255,0.8)'
+                : 'rgba(255,255,255,0.18)',
+              backgroundColor: isLightTheme
+                ? 'rgba(245,247,251,0.98)'
+                : 'rgba(10,12,17,0.96)',
+              overflow: 'hidden',
+              transform: [{
+                translateX: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [420, 0],
+                }),
+              }],
+            }}
+          >
+            <BlurView
+              intensity={60}
+              tint={isLightTheme ? 'light' : 'dark'}
+              pointerEvents="none"
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFillObject,
+                {
+                  backgroundColor: isLightTheme
+                    ? 'rgba(247,249,252,0.96)'
+                    : 'rgba(8,10,15,0.96)',
+                },
+              ]}
+            />
+            <LinearGradient
+              pointerEvents="none"
+              colors={[
+                'rgba(255,255,255,0.10)',
+                'rgba(255,255,255,0.025)',
+                'rgba(255,255,255,0)',
+              ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+
+            <SafeAreaView style={{ flex: 1 }}>
+              <View style={{
+                padding: 22,
+                paddingTop: 24,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottomWidth: 1,
+                borderBottomColor: line,
+              }}>
+                <View
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }}
+                >
+                  <RivalSetPhoto
+                    uri={photoUri}
+                    size={52}
+                    color={accentColor}
+                  />
+
+                  <View
+                    style={{
+                      flex: 1,
+                      marginLeft: 14,
+                    }}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: ink,
+                        fontSize: 19,
+                        fontWeight: '800',
+                      }}
+                    >
+                      Hola{profileName?.trim()
+                        ? `, ${profileName.trim()}`
+                        : ''}
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: muted,
+                        fontSize: 11,
+                        marginTop: 4,
+                      }}
+                    >
+                      Bienvenido a RivalSet
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => close()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cerrar menú"
+                  style={{
+                    width: 44, height: 44,
+                    borderRadius: 22,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: isLightTheme
+                      ? 'rgba(20,28,40,0.05)'
+                      : 'rgba(255,255,255,0.08)',
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="close" size={23} color={ink}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                contentContainerStyle={{ padding: 20 }}
+                showsVerticalScrollIndicator={false}
+              >
+                <TouchableOpacity
+                  onPress={() => close(onPress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 18,
+                    borderBottomWidth: 1,
+                    borderBottomColor: line,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="account-outline"
+                    size={28}
+                    color={accentColor}
+                  />
+                  <View style={{ flex: 1, marginLeft: 14 }}>
+                    <Text style={{
+                      color: ink, fontSize: 17, fontWeight: '700',
+                    }}>
+                      Mi perfil
+                    </Text>
+                    <Text style={{
+                      color: muted, fontSize: 12, marginTop: 4,
+                    }}>
+                      Cuenta, apariencia y ajustes
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name="chevron-right" size={22} color={muted}
+                  />
+                </TouchableOpacity>
+
+                
+                <TouchableOpacity
+                  onPress={() => close(onLeaguesPress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mis ligas"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 18,
+                    borderBottomWidth: 1,
+                    borderBottomColor: line,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="account-group-outline"
+                    size={28}
+                    color={accentColor}
+                  />
+
+                  <View style={{ flex: 1, marginLeft: 14 }}>
+                    <Text
+                      style={{
+                        color: ink,
+                        fontSize: 17,
+                        fontWeight: '700',
+                      }}
+                    >
+                      Mis ligas
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: muted,
+                        fontSize: 12,
+                        marginTop: 4,
+                      }}
+                    >
+                      Compite con tus amigos
+                    </Text>
+                  </View>
+
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={22}
+                    color={muted}
+                  />
+                </TouchableOpacity>
+
+<View
+                  accessible
+                  accessibilityLabel="Profesionales. Próximamente"
+                  style={{
+                    paddingVertical: 20,
+                    borderBottomWidth: 1,
+                    borderBottomColor: line,
+                  }}
+                >
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center',
+                  }}>
+                    <MaterialCommunityIcons
+                      name="account-group-outline"
+                      size={26}
+                      color={muted}
+                    />
+                    <View style={{ flex: 1, marginLeft: 14 }}>
+                      <Text style={{
+                        color: ink, fontSize: 17, fontWeight: '700',
+                      }}>
+                        Profesionales
+                      </Text>
+                      <Text style={{
+                        color: muted,
+                        fontSize: 12,
+                        marginTop: 4,
+                        lineHeight: 18,
+                      }}>
+                        Entrenadores y nutricionistas
+                      </Text>
+                      <Text style={{
+                        color: accentColor,
+                        fontSize: 10,
+                        fontWeight: '800',
+                        letterSpacing: 1,
+                        marginTop: 10,
+                      }}>
+                        PRÓXIMAMENTE
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
+            </SafeAreaView>
+          </Animated.View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+
+// RIVALSET_ACCOUNT_PHOTO_V1
+function RivalSetPhoto({
+  uri, size = 46, color, busy = false, onPress,
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [uri]);
+
+  const content = (
+    <View style={{
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+      overflow: 'hidden',
+      borderWidth: 2,
+      borderColor: color,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(127,127,127,0.12)',
+    }}>
+      {busy ? (
+        <ActivityIndicator color={color} />
+      ) : uri && !failed ? (
+        <Image
+          source={{uri}}
+          onError={() => setFailed(true)}
+          resizeMode="cover"
+          style={{width:'100%',height:'100%'}}
+        />
+      ) : (
+        <MaterialCommunityIcons
+          name="account" size={size * 0.6} color={color}
+        />
+      )}
+    </View>
+  );
+
+  return onPress ? (
+    <TouchableOpacity
+      disabled={busy}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Cambiar foto de perfil"
+      activeOpacity={0.75}
+    >
+      {content}
+    </TouchableOpacity>
+  ) : content;
+}
+
+function useRivalSetPhoto(userId) {
+  const [photo, setPhoto] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const owner = useRef(userId);
+  const lock = useRef(false);
+  const revision = useRef(0);
+  owner.current = userId;
+
+  const bucket = () => supabase.storage.from('profile-photos');
+  const path = id => id + '/avatar.jpg';
+
+  useEffect(() => {
+    let active = true;
+    setPhoto(null);
+
+    const load = async () => {
+      const version = revision.current;
+      if (!userId) return;
+
+      try {
+        const {data, error} = await bucket().createSignedUrl(
+          path(userId), 604800
+        );
+        if (error) {
+          console.log('Foto de perfil no disponible:', error.message);
+          return;
+        }
+        if (
+          active &&
+          owner.current === userId &&
+          revision.current === version
+        ) {
+          setPhoto({
+            userId,
+            uri: data.signedUrl + '&v=' + Date.now(),
+          });
+        }
+      } catch (error) {
+        console.log('No se pudo cargar la foto:', error.message);
+      }
+    };
+
+    load();
+    const timer = setInterval(load, 3600000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [userId]);
+
+  const clear = async () => {
+    if (lock.current) {
+      throw Error('Espera a que termine de guardarse la foto.');
+    }
+    if (!userId) return;
+
+    lock.current = true;
+    setBusy(true);
+    revision.current++;
+
+    try {
+      const {error} = await bucket().remove([path(userId)]);
+      if (error) throw error;
+      if (owner.current === userId) setPhoto(null);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  };
+
+  const choose = async () => {
+    if (!userId || lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    revision.current++;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.65,
+        base64: true,
+      });
+
+      if (result.canceled || owner.current !== userId) return;
+
+      const base64 = result.assets?.[0]?.base64;
+      if (!base64) {
+        throw Error('No se pudo leer esta imagen. Prueba otra foto.');
+      }
+
+      const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      const raw = base64.replace(/=+$/, '');
+      const bytes = new Uint8Array(Math.floor(raw.length * 6 / 8));
+
+      if (bytes.length > 3145728) {
+        throw Error(
+          'La foto supera 3 MB. Recórtala más o elige una imagen más pequeña.'
+        );
+      }
+
+      let bits = 0;
+      let value = 0;
+      let index = 0;
+
+      for (const character of raw) {
+        const number = chars.indexOf(character);
+        if (number < 0) {
+          throw Error('La imagen no tiene un formato válido.');
+        }
+        value = (value << 6) | number;
+        bits += 6;
+        if (bits >= 8) {
+          bits -= 8;
+          bytes[index++] = (value >> bits) & 255;
+        }
+      }
+
+      if (bytes[0] !== 255 || bytes[1] !== 216) {
+        throw Error('Selecciona una foto JPEG.');
+      }
+
+      const {data: auth} = await supabase.auth.getSession();
+      if (auth.session?.user?.id !== userId) {
+        throw Error('La sesión ha cambiado. Vuelve a intentarlo.');
+      }
+
+      const {error} = await bucket().upload(
+        path(userId),
+        bytes.buffer,
+        {
+          contentType: 'image/jpeg',
+          cacheControl: '0',
+          upsert: true,
+        }
+      );
+      if (error) throw error;
+
+      if (owner.current === userId) {
+        setPhoto({
+          userId,
+          uri: 'data:image/jpeg;base64,' + base64,
+        });
+      }
+    } catch (error) {
+      Alert.alert(
+        'No se pudo guardar la foto',
+        error.message || 'Inténtalo de nuevo.'
+      );
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  };
+
+  const uri = photo && photo.userId === userId ? photo.uri : null;
+
+  const edit = () => Alert.alert(
+    'Foto de perfil',
+    'Elige una foto para tu cuenta.',
+    [
+      {
+        text: uri ? 'Cambiar foto' : 'Elegir foto',
+        onPress: choose,
+      },
+      ...(uri ? [{
+        text: 'Quitar foto',
+        style: 'destructive',
+        onPress: () => clear().catch(error =>
+          Alert.alert('No se pudo quitar', error.message)
+        ),
+      }] : []),
+      {text: 'Cancelar', style: 'cancel'},
+    ]
+  );
+
+  return [uri, busy, edit, clear];
+}

@@ -1,0 +1,511 @@
+
+  const Home = () => (
+    <>
+      <View style={styles.homeScreen}>
+        
+
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.hello}>
+                Hola, {profileName || ''}
+              </Text>
+
+              <Text style={[styles.subtitle, lightTextStyle]}>
+                ¡Sigue Así, Hazlo posible!
+              </Text>
+            </View>
+
+            <ProfileButton
+              onPress={openProfile}
+              letter={profileInitial}
+              vibrationEnabled={vibrationEnabled}
+            />
+          </View>
+
+          <View style={styles.homeLevelCard}>
+            <View style={styles.homeLevelAmbientGlow} />
+            <View style={styles.homeLevelAmbientGlowTwo} />
+
+            <View style={styles.homeLevelTopRow}>
+              <View>
+                <Text style={styles.homeLevelEyebrow}>
+                  TU PROGRESO
+                </Text>
+
+                <View style={styles.homeLevelRankRow}>
+                  <Text style={styles.homeLevelRank}>
+                    {levelTierName}
+                  </Text>
+
+                  <View style={styles.homeLevelLiveDot} />
+
+                  <Text style={styles.homeLevelRankHint}>
+                    RANGO ACTUAL
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => setScreen('achievements')}
+                style={styles.homeLevelDetailsButton}
+              >
+                <Text style={styles.homeLevelDetailsText}>
+                  LOGROS
+                </Text>
+
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={15}
+                  color={COLORS.orange}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.homeLevelHero}>
+              <View style={styles.homeLevelMedalWrap}>
+                <View style={styles.homeLevelMedalHaloOuter} />
+                <View style={styles.homeLevelMedalHaloInner} />
+
+                <Medal
+                  tier={levelTier}
+                  size="large"
+                  unlocked
+                />
+              </View>
+
+              <View style={styles.homeLevelHeroInfo}>
+                <Text style={styles.homeLevelNumberLabel}>
+                  NIVEL ACTUAL
+                </Text>
+
+                <View style={styles.homeLevelNumberRow}>
+                  <Text style={styles.homeLevelNumber}>
+                    {rivalSetLevel.level}
+                  </Text>
+
+                  {rivalSetLevel.level < 80 && (
+                    <View style={styles.homeNextLevelBox}>
+                      <Text style={styles.homeNextLevelLabel}>
+                        SIGUIENTE
+                      </Text>
+
+                      <Text style={styles.homeNextLevelNumber}>
+                        {rivalSetLevel.level + 1}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <Text style={styles.homeLevelHeroHint}>
+                  {rivalSetLevel.level >= 80
+                    ? 'Has alcanzado el nivel máximo'
+                    : `${Math.max(
+                        0,
+                        rivalSetLevel.neededXP -
+                          rivalSetLevel.currentXP
+                      )} XP para subir de nivel`}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.homeXPTitleRow}>
+              <Text style={styles.homeXPTitle}>
+                EXPERIENCIA
+              </Text>
+
+              <Text style={styles.homeXPText}>
+                {rivalSetLevel.level >= 80
+                  ? `${achievementXP} XP`
+                  : `${rivalSetLevel.currentXP} / ${rivalSetLevel.neededXP} XP`}
+              </Text>
+            </View>
+
+            <View style={styles.homeXPTrack}>
+              <View
+                style={[
+                  styles.homeXPFill,
+                  {
+                    width: `${rivalSetLevel.percent}%`,
+                  },
+                ]}
+              >
+                <View style={styles.homeXPFillShine} />
+              </View>
+            </View>
+
+            <View style={styles.homeXPSegments}>
+              {Array.from({ length: 10 }).map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.homeXPSegment,
+                    index <
+                      Math.ceil(
+                        rivalSetLevel.percent / 10
+                      ) &&
+                      styles.homeXPSegmentActive,
+                  ]}
+                />
+              ))}
+            </View>
+
+            <View style={styles.homeRankSection}>
+              <View style={styles.homeRankHeader}>
+                <Text style={styles.homeRankTitle}>
+                  CAMINO DE RANGO
+                </Text>
+
+                <Text style={styles.homeRankDestination}>
+                  {levelTier === 'bronze'
+                    ? 'PLATA · NIVEL 21'
+                    : levelTier === 'silver'
+                    ? 'ORO · NIVEL 41'
+                    : levelTier === 'gold'
+                    ? 'DIAMANTE · NIVEL 61'
+                    : 'RANGO MÁXIMO'}
+                </Text>
+              </View>
+
+              <View style={styles.homeRankTrack}>
+                <View
+                  style={[
+                    styles.homeRankFill,
+                    {
+                      width: `${Math.min(
+                        100,
+                        levelTier === 'bronze'
+                          ? ((rivalSetLevel.level - 1) / 20) * 100
+                          : levelTier === 'silver'
+                          ? ((rivalSetLevel.level - 21) / 20) * 100
+                          : levelTier === 'gold'
+                          ? ((rivalSetLevel.level - 41) / 20) * 100
+                          : ((rivalSetLevel.level - 61) / 19) * 100
+                      )}%`,
+                    },
+                  ]}
+                />
+
+                <View
+                  style={[
+                    styles.homeRankMarker,
+                    {
+                      left: `${Math.min(
+                        96,
+                        Math.max(
+                          0,
+                          levelTier === 'bronze'
+                            ? ((rivalSetLevel.level - 1) / 20) * 100
+                            : levelTier === 'silver'
+                            ? ((rivalSetLevel.level - 21) / 20) * 100
+                            : levelTier === 'gold'
+                            ? ((rivalSetLevel.level - 41) / 20) * 100
+                            : ((rivalSetLevel.level - 61) / 19) * 100
+                        )
+                      )}%`,
+                    },
+                  ]}
+                >
+                  <View style={styles.homeRankMarkerCore} />
+                </View>
+              </View>
+
+              <View style={styles.homeRankLabels}>
+                <Text
+                  style={[
+                    styles.homeRankLabel,
+                    levelTier === 'bronze' &&
+                      styles.homeRankLabelActive,
+                  ]}
+                >
+                  BRONCE
+                </Text>
+
+                <Text
+                  style={[
+                    styles.homeRankLabel,
+                    levelTier === 'silver' &&
+                      styles.homeRankLabelActive,
+                  ]}
+                >
+                  PLATA
+                </Text>
+
+                <Text
+                  style={[
+                    styles.homeRankLabel,
+                    levelTier === 'gold' &&
+                      styles.homeRankLabelActive,
+                  ]}
+                >
+                  ORO
+                </Text>
+
+                <Text
+                  style={[
+                    styles.homeRankLabel,
+                    levelTier === 'diamond' &&
+                      styles.homeRankLabelActive,
+                  ]}
+                >
+                  DIAMANTE
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.homeProgressMetrics}>
+              <View style={styles.homeMetric}>
+                <View style={styles.homeMetricTop}>
+                  <MaterialCommunityIcons
+                    name="dumbbell"
+                    size={14}
+                    color={COLORS.orange}
+                  />
+
+                  <Text style={styles.homeMetricValue}>
+                    {totalWorkouts}
+                  </Text>
+                </View>
+
+                <Text style={styles.homeMetricLabel}>
+                  ENTRENOS
+                </Text>
+
+                <View style={styles.homeMetricTrack}>
+                  <View
+                    style={[
+                      styles.homeMetricFill,
+                      {
+                        width: `${Math.min(
+                          100,
+                          (totalWorkouts / 100) * 100
+                        )}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.homeMetricDivider} />
+
+              <View style={styles.homeMetric}>
+                <View style={styles.homeMetricTop}>
+                  <MaterialCommunityIcons
+                    name="lightning-bolt"
+                    size={14}
+                    color={COLORS.orange}
+                  />
+
+                  <Text style={styles.homeMetricValue}>
+                    {totalPRs}
+                  </Text>
+                </View>
+
+                <Text style={styles.homeMetricLabel}>
+                  RÉCORDS
+                </Text>
+
+                <View style={styles.homeMetricTrack}>
+                  <View
+                    style={[
+                      styles.homeMetricFill,
+                      {
+                        width: `${Math.min(
+                          100,
+                          (totalPRs / 100) * 100
+                        )}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.homeMetricDivider} />
+
+              <View style={styles.homeMetric}>
+                <View style={styles.homeMetricTop}>
+                  <MaterialCommunityIcons
+                    name="trophy-outline"
+                    size={14}
+                    color={COLORS.orange}
+                  />
+
+                  <Text style={styles.homeMetricValue}>
+                    {unlockedAchievements}
+                  </Text>
+                </View>
+
+                <Text style={styles.homeMetricLabel}>
+                  LOGROS
+                </Text>
+
+                <View style={styles.homeMetricTrack}>
+                  <View
+                    style={[
+                      styles.homeMetricFill,
+                      {
+                        width: `${Math.min(
+                          100,
+                          (unlockedAchievements /
+                            ACHIEVEMENTS.length) *
+                            100
+                        )}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.homeNextChallenge}>
+              <View style={styles.homeNextChallengeIcon}>
+                <MaterialCommunityIcons
+                  name="target"
+                  size={17}
+                  color={COLORS.orange}
+                />
+              </View>
+
+              <View style={styles.flex}>
+                <Text style={styles.homeNextChallengeLabel}>
+                  SIGUIENTE OBJETIVO
+                </Text>
+
+                <Text style={styles.homeNextChallengeTitle}>
+                  {nextAchievement.title}
+                </Text>
+              </View>
+
+              <Text style={styles.homeNextChallengeProgress}>
+                {nextValue}/{nextAchievement.target}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.sectionTitle}>
+            Esta semana
+          </Text>
+
+          <View style={styles.weekCard}>
+            <View style={styles.flex}>
+              <Text style={styles.weekNumber}>
+                {activeWeekDays}{' '}
+                {activeWeekDays === 1
+                  ? 'día entrenado'
+                  : 'días entrenados'}
+              </Text>
+
+              <Text style={styles.weekLabel}>
+                Tu registro personal de esta semana
+              </Text>
+            </View>
+
+            <View style={styles.weekBadge}>
+              <Text style={styles.weekBadgeText}>
+                {activeWeekDays}/7
+              </Text>
+
+              <Text style={styles.weekBadgeLabel}>
+                esta semana
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.trainingDots}>
+            {weekDays.map((day) => {
+              const done = checkedDays.includes(day.key);
+
+              return (
+                <TouchableOpacity
+                  key={day.key}
+                  activeOpacity={0.72}
+                  onPress={() =>
+                    toggleWeekDay(day.key)
+                  }
+                  style={
+                    done
+                      ? styles.completedDot
+                      : styles.pendingDot
+                  }
+                >
+                  <Text
+                    style={
+                      done
+                        ? styles.activeDayText
+                        : styles.pendingText
+                    }
+                  >
+                    {done ? '✓' : day.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            style={styles.buttonShadow}
+            activeOpacity={1}
+            onPress={startWorkout}
+          >
+            <View style={styles.mainButton}>
+              <View style={styles.buttonShine} />
+
+              <Text style={styles.mainButtonIcon}>
+                ＋
+              </Text>
+
+              <View>
+                <Text style={styles.mainButtonText}>
+                  INICIAR ENTRENAMIENTO
+                </Text>
+
+                <Text style={styles.mainButtonSubtext}>
+                  Selecciona una rutina y registra tu sesión
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            activeOpacity={0.75}
+            onPress={() =>
+              setScreen('achievements')
+            }
+          >
+            <Medal tier="gold" />
+
+            <View style={styles.flex}>
+              <Text style={styles.secondaryText}>
+                Ver todos los logros
+              </Text>
+
+              <Text style={[styles.achievementButtonSubtext, lightTextStyle]}>
+                Descubre tus próximos desafíos
+              </Text>
+            </View>
+
+            <Text style={styles.arrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+<View
+  style={{
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 8,
+  }}
+>
+  <BannerAd
+    unitId={TestIds.BANNER}
+    size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+    requestOptions={{
+      requestNonPersonalizedAdsOnly: true,
+    }}
+  />
+</View>
+      {BottomNavigation()}
+    </>
+  );
+

@@ -10,5 +10,11 @@ module.exports = ({ config }) => {
         ? 'com.javiercepeda29.rivalset.dev'
         : config.ios.bundleIdentifier,
     },
+    android: {
+      ...config.android,
+      package: isDev
+        ? 'com.javiercepeda29.rivalset.dev'
+        : 'com.javiercepeda29.rivalset',
+    },
   };
 };
