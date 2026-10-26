@@ -4153,6 +4153,11 @@ useEffect(() => {
   const [showLeagueInfo, setShowLeagueInfo] = useState(false);
   
   const [screen, setScreen] = useState('home');
+
+  const [communitySocialTab, setCommunitySocialTab] =
+    useState('feed');
+
+  // Navegación social de Comunidad
 const [realLeagueId, setRealLeagueId] = useState(null);
   const [routines, setRoutines] = useState([]);
   const [routineName, setRoutineName] = useState('');
@@ -4922,6 +4927,8 @@ useEffect(() => {
   activeWorkoutLoaded,
 ]);
   const [profileName, setProfileName] = useState('');
+  const [communityUsername, setCommunityUsername] = useState('');
+  const [communityUsernameLoading, setCommunityUsernameLoading] = useState(true);
   const [currentWeight, setCurrentWeight] = useState('');
   const [targetWeight, setTargetWeight] = useState('');
   const [startWeight, setStartWeight] = useState('');
@@ -4932,6 +4939,63 @@ const [settingsLoaded, setSettingsLoaded] =
   useState(false);
   const [vibrationEnabled, setVibrationEnabled] =
     useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCommunityUsername = async () => {
+      if (!session?.user?.id) {
+        if (active) {
+          setCommunityUsername('');
+          setCommunityUsernameLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setCommunityUsernameLoading(true);
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select(
+            'community_username, date_of_birth, community_rules_accepted_at'
+          )
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const communityCompleted =
+          !!data?.community_username &&
+          !!data?.date_of_birth &&
+          !!data?.community_rules_accepted_at;
+
+        if (active) {
+          setCommunityUsername(
+            communityCompleted
+              ? data.community_username
+              : ''
+          );
+        }
+      } catch (error) {
+        console.log('ERROR COMMUNITY USERNAME:', error);
+
+        if (active) {
+          setCommunityUsername('');
+        }
+      } finally {
+        if (active) {
+          setCommunityUsernameLoading(false);
+        }
+      }
+    };
+
+    loadCommunityUsername();
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id, screen]);
 
   /* =====================================================
      APARIENCIA RIVALSET
@@ -5291,13 +5355,30 @@ useEffect(() => {
     }
 
     const cleanName = profileName.trim();
+
     if (!cleanName) {
-  Alert.alert(
-    'Nombre obligatorio',
-    'Escribe un nombre para tu perfil.'
-  );
-  return;
-}
+      Alert.alert(
+        'Nombre obligatorio',
+        'Escribe un nombre para tu perfil.'
+      );
+      return;
+    }
+
+    const cleanCommunityUsername = String(communityUsername || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^@+/, '');
+
+    if (
+      cleanCommunityUsername &&
+      !/^[a-z0-9_]{3,20}$/.test(cleanCommunityUsername)
+    ) {
+      Alert.alert(
+        'Usuario no válido',
+        'Usa entre 3 y 20 caracteres: letras, números y guion bajo.'
+      );
+      return;
+    }
 
   try {
   // 1. Obtenemos el usuario real conectado
@@ -5317,6 +5398,7 @@ useEffect(() => {
       {
         id: user.id,
         username: cleanName,
+        community_username: cleanCommunityUsername || null,
       },
       {
         onConflict: 'id',
@@ -5339,6 +5421,7 @@ useEffect(() => {
   );
 
   setProfileName(cleanName);
+  setCommunityUsername(cleanCommunityUsername);
   setStartWeight(nextStartWeight);
 
   await notificationHaptic();
@@ -5349,6 +5432,14 @@ useEffect(() => {
   );
 } catch (error) {
   console.log('ERROR GUARDANDO PERFIL:', error);
+
+  if (error?.code === '23505') {
+    Alert.alert(
+      'Usuario ocupado',
+      'Ese @usuario ya existe. Elige otro.'
+    );
+    return;
+  }
 
   Alert.alert(
     'No se pudo guardar el perfil',
@@ -7174,11 +7265,14 @@ const startWorkout = async () => {
       setScreen('home');
     }
 
-if (tab === 'Liga') {
+if (tab === 'Liga Global') {
     setScreen('globalLeague');
     return;
-  }    if (tab === 'Historial') {
-      setScreen('history');
+  }
+
+    if (tab === 'Comunidad') {
+      setScreen('community');
+      return;
     }
 
     if (tab === 'Rutinas') {
@@ -8679,129 +8773,248 @@ const pr = isCardio
      BOTTOM NAV
   ===================================================== */
 
-  const BottomNavigation = () => (
-    <LinearGradient
-      colors={[
-        'rgba(46,34,15,0.72)',
-        'rgba(44,33,15,0.72)',
-        'rgba(42,32,15,0.72)',
-      ]}
-      locations={[0, 0.5, 1]}
-      style={styles.navigation}
-    >
-      {[
-        'Inicio',
-        'Liga',
-        'Historial',
-        'Rutinas',
-        'Nutrición',
-      ].map((tab) => (
-        <TouchableOpacity
-          key={tab}
-          style={styles.navItem}
-          activeOpacity={0.7}
-          onPress={() => openTab(tab)}
-        >
-          {tab === 'Rutinas' ? (
-            <MaterialCommunityIcons
-              name="dumbbell"
-              size={22}
-              color={
-                selectedTab === tab
-                  ? accentColor
-                  : '#A8ABB2'
+  const BottomNavigation = () => {
+
+    const inCommunity =
+      screen === 'community';
+
+    const items = inCommunity
+      ? [
+          {
+            id: 'feed',
+            label: 'Para ti',
+            icon: 'home-outline',
+            active: 'home',
+          },
+          {
+            id: 'following',
+            label: 'Siguiendo',
+            icon: 'account-multiple-outline',
+            active: 'account-multiple',
+          },
+          {
+            id: 'create',
+            label: '',
+            icon: 'plus',
+            active: 'plus',
+          },
+          {
+            id: 'search',
+            label: 'Buscar',
+            icon: 'magnify',
+            active: 'magnify',
+          },
+          {
+            id: 'profile',
+            label: 'Perfil',
+            icon: 'account-outline',
+            active: 'account',
+          },
+        ]
+      : [
+          {
+            id: 'Inicio',
+            label: 'Inicio',
+            icon: 'home-outline',
+            active: 'home',
+          },
+          {
+            id: 'Liga Global',
+            label: 'Liga Global',
+            icon: 'earth',
+            active: 'earth',
+          },
+          {
+            id: 'Comunidad',
+            label: 'Comunidad',
+            icon: 'account-group-outline',
+            active: 'account-group',
+          },
+          {
+            id: 'Rutinas',
+            label: 'Rutinas',
+            icon: 'dumbbell',
+            active: 'dumbbell',
+          },
+          {
+            id: 'Nutrición',
+            label: 'Nutrición',
+            icon: 'silverware-fork-knife',
+            active: 'silverware-fork-knife',
+          },
+        ];
+
+    const handleBottomNav = async item => {
+
+      await impact(
+        Haptics.ImpactFeedbackStyle.Light
+      );
+
+      if (!inCommunity) {
+        openTab(item.id);
+        return;
+      }
+
+      if (item.id === 'feed') {
+        setCommunitySocialTab('feed');
+        return;
+      }
+
+      if (item.id === 'following') {
+        setCommunitySocialTab('following');
+        return;
+      }
+
+      if (item.id === 'search') {
+        setCommunitySocialTab('search');
+        return;
+      }
+
+      if (item.id === 'profile') {
+        setScreen('profile');
+        return;
+      }
+
+      if (item.id === 'create') {
+        setCommunitySocialTab('feed');
+
+        Alert.alert(
+          'Nueva publicación',
+          'Comparte tu progreso con la Comunidad.',
+          [
+            {
+              text: 'Continuar',
+              onPress: () =>
+                setCommunitySocialTab('feed'),
+            },
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+            },
+          ]
+        );
+      }
+    };
+
+    return (
+      <LinearGradient
+        colors={[
+          'rgba(46,34,15,0.72)',
+          'rgba(44,33,15,0.72)',
+          'rgba(42,32,15,0.72)',
+        ]}
+        locations={[0, 0.5, 1]}
+        style={styles.navigation}
+      >
+        {items.map(item => {
+
+          const selected =
+            inCommunity
+              ? communitySocialTab === item.id
+              : selectedTab === item.id;
+
+          const centerButton =
+            inCommunity &&
+            item.id === 'create';
+
+          return (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.navItem}
+              activeOpacity={0.7}
+              onPress={() =>
+                handleBottomNav(item)
               }
-              style={styles.navVectorIcon}
-            />
-            ) : tab === 'Nutrición' ? (
-  <MaterialCommunityIcons
-    name="silverware-fork-knife"
-    size={22}
-    color={
-      selectedTab === tab
-        ? accentColor
-        : '#A8ABB2'
-    }
-    style={styles.navVectorIcon}
-  />
-          ) : tab === 'Liga' ? (
-  <Text
-    style={{
-      fontSize: 16,
-      fontWeight: '900',
-      letterSpacing: -0.8,
-      color:
-        selectedTab === tab
-          ? accentColor
-          : ('#A8ABB2'),
-      marginBottom: 1,
-    }}
-  >
-    VS
-  </Text>
-        ) : tab === 'Historial' ? (
-  <View
-    style={{
-      height: 22,
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      gap: 2,
-      marginBottom: 1,
-    }}
-  >
-    {[8, 14, 11, 19].map((height, index) => (
-      <View
-        key={index}
-        style={{
-          width: 4,
-          height,
-          borderRadius: 2,
-          backgroundColor:
-            selectedTab === tab
-              ? accentColor
-              : ('#A8ABB2'),
-        }}
-      />
-    ))}
-  </View>
-) : (
-<MaterialCommunityIcons
-  name="home-outline"
-  size={22}
-  color={
-    selectedTab === tab
-      ? accentColor
-      : '#A8ABB2'
-  }
-  style={styles.navVectorIcon}
-/>
-)}
+            >
 
-          <Text
-            style={[
-              styles.navText,
-              selectedTab === tab &&
-                styles.navTextSelected,
-              selectedTab === tab && {
-                color: accentColor,
-              },
-            ]}
-          >
-            {tab}
-          </Text>
+              {centerButton ? (
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 16,
 
-          {selectedTab === tab && (
-            <View
-              style={[
-                styles.navIndicator,
-                { backgroundColor: accentColor },
-              ]}
-            />
-          )}
-        </TouchableOpacity>
-      ))}
-    </LinearGradient>
-  );
+                    marginTop: -12,
+
+                    alignItems: 'center',
+                    justifyContent: 'center',
+
+                    backgroundColor:
+                      accentColor,
+
+                    shadowColor: '#000',
+                    shadowOpacity: 0.25,
+                    shadowRadius: 8,
+
+                    shadowOffset: {
+                      width: 0,
+                      height: 4,
+                    },
+
+                    elevation: 8,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="plus"
+                    size={29}
+                    color="#FFFFFF"
+                  />
+                </View>
+              ) : (
+                <>
+                  <MaterialCommunityIcons
+                    name={
+                      selected
+                        ? item.active
+                        : item.icon
+                    }
+                    size={22}
+                    color={
+                      selected
+                        ? accentColor
+                        : '#A8ABB2'
+                    }
+                    style={
+                      styles.navVectorIcon
+                    }
+                  />
+
+                  <Text
+                    style={[
+                      styles.navText,
+
+                      selected &&
+                        styles.navTextSelected,
+
+                      selected && {
+                        color:
+                          accentColor,
+                      },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+
+                  {selected && (
+                    <View
+                      style={[
+                        styles.navIndicator,
+                        {
+                          backgroundColor:
+                            accentColor,
+                        },
+                      ]}
+                    />
+                  )}
+                </>
+              )}
+
+            </TouchableOpacity>
+          );
+        })}
+      </LinearGradient>
+    );
+  };
 
   /* =====================================================
      HEADER
@@ -8843,9 +9056,766 @@ const pr = isCardio
      COMUNIDAD · RIVALSET
   ===================================================== */
 
+
+  const CommunityOnboarding = () => {
+    const ink = isLightTheme ? '#111318' : '#FFFFFF';
+    const muted = isLightTheme ? '#6C7078' : '#8B9098';
+
+    const [usernameDraft, setUsernameDraft] = useState('');
+    const [birthDateDraft, setBirthDateDraft] = useState('');
+    const [rulesAccepted, setRulesAccepted] = useState(false);
+    const [rulesVisible, setRulesVisible] = useState(false);
+    const [joiningCommunity, setJoiningCommunity] = useState(false);
+
+    const normalizeBirthDate = (value) => {
+      const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+
+      if (digits.length <= 2) return digits;
+      if (digits.length <= 4) {
+        return digits.slice(0, 2) + '/' + digits.slice(2);
+      }
+
+      return (
+        digits.slice(0, 2) +
+        '/' +
+        digits.slice(2, 4) +
+        '/' +
+        digits.slice(4)
+      );
+    };
+
+    const parseBirthDate = (value) => {
+      const match = String(value || '').match(
+        /^(\d{2})\/(\d{2})\/(\d{4})$/
+      );
+
+      if (!match) return null;
+
+      const day = Number(match[1]);
+      const month = Number(match[2]);
+      const year = Number(match[3]);
+
+      const date = new Date(year, month - 1, day);
+
+      if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month - 1 ||
+        date.getDate() !== day
+      ) {
+        return null;
+      }
+
+      return {
+        date,
+        iso:
+          String(year).padStart(4, '0') +
+          '-' +
+          String(month).padStart(2, '0') +
+          '-' +
+          String(day).padStart(2, '0'),
+      };
+    };
+
+    const getAge = (birthDate) => {
+      const today = new Date();
+
+      let age =
+        today.getFullYear() -
+        birthDate.getFullYear();
+
+      const monthDifference =
+        today.getMonth() -
+        birthDate.getMonth();
+
+      if (
+        monthDifference < 0 ||
+        (
+          monthDifference === 0 &&
+          today.getDate() < birthDate.getDate()
+        )
+      ) {
+        age -= 1;
+      }
+
+      return age;
+    };
+
+    const joinCommunity = async () => {
+      if (joiningCommunity) return;
+
+      const cleanUsername = String(usernameDraft || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^@+/, '');
+
+      if (!/^[a-z0-9_]{3,20}$/.test(cleanUsername)) {
+        Alert.alert(
+          'Usuario no válido',
+          'Elige un usuario de entre 3 y 20 caracteres. Puedes usar letras, números y guion bajo.'
+        );
+        return;
+      }
+
+      const birth = parseBirthDate(birthDateDraft);
+
+      if (!birth) {
+        Alert.alert(
+          'Fecha no válida',
+          'Introduce tu fecha de nacimiento en formato DD/MM/AAAA.'
+        );
+        return;
+      }
+
+      const age = getAge(birth.date);
+
+      if (age < 13) {
+        Alert.alert(
+          'Comunidad no disponible',
+          'Debes tener al menos 13 años para acceder a la Comunidad de RivalSet.'
+        );
+        return;
+      }
+
+      if (age > 120) {
+        Alert.alert(
+          'Fecha no válida',
+          'Revisa tu fecha de nacimiento.'
+        );
+        return;
+      }
+
+      if (!rulesAccepted) {
+        Alert.alert(
+          'Acepta las normas',
+          'Debes leer y aceptar las Normas de la Comunidad para continuar.'
+        );
+        return;
+      }
+
+      try {
+        setJoiningCommunity(true);
+
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          throw new Error(
+            'No hay ningún usuario conectado.'
+          );
+        }
+
+        const { data: savedCommunityProfile, error } = await supabase
+          .from('profiles')
+          .upsert(
+            {
+              id: user.id,
+              username:
+                String(profileName || cleanUsername || 'Rival').trim(),
+              community_username: cleanUsername,
+              date_of_birth: birth.iso,
+              community_rules_accepted_at:
+                new Date().toISOString(),
+            },
+            {
+              onConflict: 'id',
+            }
+          )
+          .select('community_username, date_of_birth, community_rules_accepted_at')
+          .single();
+
+        if (error) throw error;
+
+        if (
+          !savedCommunityProfile?.community_username ||
+          !savedCommunityProfile?.date_of_birth ||
+          !savedCommunityProfile?.community_rules_accepted_at
+        ) {
+          throw new Error(
+            'No se pudo confirmar el registro de Comunidad.'
+          );
+        }
+
+        setCommunityUsername(
+          savedCommunityProfile.community_username
+        );
+
+        await notificationHaptic();
+
+      } catch (error) {
+        console.log(
+          'ERROR ALTA COMUNIDAD:',
+          error
+        );
+
+        if (error?.code === '23505') {
+          Alert.alert(
+            'Usuario ocupado',
+            'Ese @usuario ya está siendo utilizado. Prueba con otro.'
+          );
+          return;
+        }
+
+        Alert.alert(
+          'No se pudo completar el registro',
+          error?.message || 'Inténtalo de nuevo.'
+        );
+      } finally {
+        setJoiningCommunity(false);
+      }
+    };
+
+    return (
+      <>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingTop: 24,
+            paddingBottom: 120,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View
+            style={{
+              alignItems: 'center',
+              marginBottom: 28,
+            }}
+          >
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: isLightTheme
+                  ? 'rgba(255,255,255,0.62)'
+                  : 'rgba(255,255,255,0.06)',
+                borderWidth: 1,
+                borderColor: isLightTheme
+                  ? 'rgba(0,0,0,0.07)'
+                  : 'rgba(255,255,255,0.10)',
+                marginBottom: 18,
+              }}
+            >
+              <MaterialCommunityIcons
+                name="account-group-outline"
+                size={34}
+                color={COLORS.orange}
+              />
+            </View>
+
+            <Text
+              style={{
+                color: ink,
+                fontSize: 25,
+                fontWeight: '900',
+                textAlign: 'center',
+              }}
+            >
+              Únete a la Comunidad
+            </Text>
+
+            <Text
+              style={{
+                color: COLORS.orange,
+                fontSize: 12,
+                fontWeight: '900',
+                letterSpacing: 1.1,
+                marginTop: 7,
+              }}
+            >
+              ENTRENA · COMPARTE · SUPÉRATE
+            </Text>
+
+            <Text
+              style={{
+                color: muted,
+                fontSize: 13,
+                lineHeight: 19,
+                textAlign: 'center',
+                marginTop: 12,
+                maxWidth: 330,
+              }}
+            >
+              Crea tu identidad pública para descubrir y conectar con otros rivales.
+            </Text>
+          </View>
+
+          <View
+            style={{
+              padding: 18,
+              borderRadius: 22,
+              backgroundColor: isLightTheme
+                ? 'rgba(255,255,255,0.58)'
+                : 'rgba(255,255,255,0.055)',
+              borderWidth: 1,
+              borderColor: isLightTheme
+                ? 'rgba(0,0,0,0.07)'
+                : 'rgba(255,255,255,0.10)',
+            }}
+          >
+            <Text
+              style={{
+                color: ink,
+                fontSize: 12,
+                fontWeight: '900',
+                marginBottom: 8,
+              }}
+            >
+              NOMBRE DE USUARIO
+            </Text>
+
+            <View
+              style={{
+                height: 52,
+                borderRadius: 15,
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 15,
+                backgroundColor: isLightTheme
+                  ? 'rgba(255,255,255,0.72)'
+                  : 'rgba(0,0,0,0.18)',
+                borderWidth: 1,
+                borderColor: isLightTheme
+                  ? 'rgba(0,0,0,0.08)'
+                  : 'rgba(255,255,255,0.09)',
+              }}
+            >
+              <Text
+                style={{
+                  color: COLORS.orange,
+                  fontSize: 17,
+                  fontWeight: '900',
+                  marginRight: 2,
+                }}
+              >
+                @
+              </Text>
+
+              <TextInput
+                value={usernameDraft}
+                onChangeText={(value) =>
+                  setUsernameDraft(
+                    value
+                      .toLowerCase()
+                      .replace(/^@+/, '')
+                      .replace(/[^a-z0-9_]/g, '')
+                  )
+                }
+                placeholder="tu_usuario"
+                placeholderTextColor={
+                  isLightTheme
+                    ? '#8B8E94'
+                    : '#666B73'
+                }
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={20}
+                style={{
+                  flex: 1,
+                  color: ink,
+                  fontSize: 16,
+                  fontWeight: '800',
+                  paddingVertical: 0,
+                }}
+              />
+            </View>
+
+            <Text
+              style={{
+                color: muted,
+                fontSize: 11,
+                lineHeight: 16,
+                marginTop: 7,
+              }}
+            >
+              Será público y único. Podrás cambiarlo después desde tu perfil.
+            </Text>
+
+            <Text
+              style={{
+                color: ink,
+                fontSize: 12,
+                fontWeight: '900',
+                marginTop: 22,
+                marginBottom: 8,
+              }}
+            >
+              FECHA DE NACIMIENTO
+            </Text>
+
+            <View
+              style={{
+                height: 52,
+                borderRadius: 15,
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 15,
+                backgroundColor: isLightTheme
+                  ? 'rgba(255,255,255,0.72)'
+                  : 'rgba(0,0,0,0.18)',
+                borderWidth: 1,
+                borderColor: isLightTheme
+                  ? 'rgba(0,0,0,0.08)'
+                  : 'rgba(255,255,255,0.09)',
+              }}
+            >
+              <MaterialCommunityIcons
+                name="calendar-outline"
+                size={20}
+                color={muted}
+                style={{ marginRight: 10 }}
+              />
+
+              <TextInput
+                value={birthDateDraft}
+                onChangeText={(value) =>
+                  setBirthDateDraft(
+                    normalizeBirthDate(value)
+                  )
+                }
+                placeholder="DD/MM/AAAA"
+                placeholderTextColor={
+                  isLightTheme
+                    ? '#8B8E94'
+                    : '#666B73'
+                }
+                keyboardType="number-pad"
+                maxLength={10}
+                style={{
+                  flex: 1,
+                  color: ink,
+                  fontSize: 16,
+                  fontWeight: '800',
+                  paddingVertical: 0,
+                }}
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                marginTop: 9,
+              }}
+            >
+              <MaterialCommunityIcons
+                name="lock-outline"
+                size={14}
+                color={muted}
+                style={{ marginTop: 1, marginRight: 6 }}
+              />
+
+              <Text
+                style={{
+                  flex: 1,
+                  color: muted,
+                  fontSize: 11,
+                  lineHeight: 16,
+                }}
+              >
+                Tu fecha de nacimiento es privada y no aparecerá en tu perfil.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() =>
+                setRulesAccepted((value) => !value)
+              }
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                marginTop: 24,
+              }}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  borderWidth: 1.5,
+                  borderColor: rulesAccepted
+                    ? COLORS.orange
+                    : muted,
+                  backgroundColor: rulesAccepted
+                    ? COLORS.orange
+                    : 'transparent',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 11,
+                  marginTop: 1,
+                }}
+              >
+                {rulesAccepted && (
+                  <MaterialCommunityIcons
+                    name="check"
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                )}
+              </View>
+
+              <Text
+                style={{
+                  flex: 1,
+                  color: ink,
+                  fontSize: 13,
+                  lineHeight: 19,
+                }}
+              >
+                He leído y acepto las{' '}
+                <Text
+                  onPress={() =>
+                    setRulesVisible(true)
+                  }
+                  style={{
+                    color: COLORS.orange,
+                    fontWeight: '900',
+                  }}
+                >
+                  Normas de la Comunidad
+                </Text>
+                .
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.84}
+              onPress={joinCommunity}
+              disabled={joiningCommunity}
+              style={{
+                marginTop: 26,
+                height: 54,
+                borderRadius: 16,
+                backgroundColor: COLORS.orange,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: joiningCommunity ? 0.65 : 1,
+              }}
+            >
+              {joiningCommunity ? (
+                <ActivityIndicator
+                  size="small"
+                  color="#FFFFFF"
+                />
+              ) : (
+                <Text
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 13,
+                    fontWeight: '900',
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  ENTRAR EN LA COMUNIDAD
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        <Modal
+          visible={rulesVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() =>
+            setRulesVisible(false)
+          }
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.72)',
+              justifyContent: 'center',
+              paddingHorizontal: 18,
+              paddingVertical: 40,
+            }}
+          >
+            <View
+              style={{
+                maxHeight: '86%',
+                borderRadius: 24,
+                overflow: 'hidden',
+                backgroundColor: isLightTheme
+                  ? '#F4F5F7'
+                  : '#17191D',
+                borderWidth: 1,
+                borderColor: isLightTheme
+                  ? 'rgba(0,0,0,0.08)'
+                  : 'rgba(255,255,255,0.10)',
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 20,
+                  paddingTop: 20,
+                  paddingBottom: 15,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: ink,
+                      fontSize: 21,
+                      fontWeight: '900',
+                    }}
+                  >
+                    Normas de la Comunidad
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: muted,
+                      fontSize: 12,
+                      marginTop: 4,
+                    }}
+                  >
+                    RivalSet
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    setRulesVisible(false)
+                  }
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: isLightTheme
+                      ? 'rgba(0,0,0,0.05)'
+                      : 'rgba(255,255,255,0.07)',
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={22}
+                    color={ink}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                contentContainerStyle={{
+                  paddingHorizontal: 20,
+                  paddingBottom: 24,
+                }}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text
+                  style={{
+                    color: muted,
+                    fontSize: 13,
+                    lineHeight: 20,
+                    marginBottom: 18,
+                  }}
+                >
+                  RivalSet es un espacio para compartir progreso, motivarse y competir de forma sana. Al participar, debes respetar estas normas.
+                </Text>
+
+                {[
+                  [
+                    '1. Respeta a los demás',
+                    'No se permite acoso, amenazas, insultos, discriminación, odio ni ataques personales.'
+                  ],
+                  [
+                    '2. Publica contenido apropiado',
+                    'No publiques contenido sexual explícito, violencia gráfica ni material ilegal o que vulnere los derechos de otras personas.'
+                  ],
+                  [
+                    '3. Entrena de forma responsable',
+                    'No fomentes retos peligrosos, conductas que puedan causar daño ni prácticas perjudiciales relacionadas con entrenamiento, alimentación o sustancias.'
+                  ],
+                  [
+                    '4. Sé tú mismo',
+                    'No suplantes a otras personas ni utilices la Comunidad para engañar, estafar o manipular a otros usuarios.'
+                  ],
+                  [
+                    '5. Nada de spam',
+                    'Evita publicaciones repetitivas, publicidad abusiva, enlaces engañosos o contenido creado únicamente para molestar.'
+                  ],
+                  [
+                    '6. Protegemos la Comunidad',
+                    'El contenido o las cuentas que incumplan estas normas podrán ser restringidos o retirados. Los usuarios podrán denunciar contenido y bloquear a otras cuentas.'
+                  ],
+                ].map(([title, body]) => (
+                  <View
+                    key={title}
+                    style={{
+                      marginBottom: 18,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: ink,
+                        fontSize: 14,
+                        fontWeight: '900',
+                        marginBottom: 5,
+                      }}
+                    >
+                      {title}
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: muted,
+                        fontSize: 13,
+                        lineHeight: 20,
+                      }}
+                    >
+                      {body}
+                    </Text>
+                  </View>
+                ))}
+
+                <TouchableOpacity
+                  activeOpacity={0.84}
+                  onPress={() => {
+                    setRulesAccepted(true);
+                    setRulesVisible(false);
+                  }}
+                  style={{
+                    height: 52,
+                    borderRadius: 16,
+                    backgroundColor: COLORS.orange,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginTop: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#FFFFFF',
+                      fontSize: 13,
+                      fontWeight: '900',
+                    }}
+                  >
+                    ACEPTAR NORMAS
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      </>
+    );
+  };
+
   const Community = () => {
     const [communityText, setCommunityText] = useState('');
     const [communityPhoto, setCommunityPhoto] = useState(null);
+  // COMMUNITY_SHARED_PHOTOS_V1
+  const communityPhotoData = useRef(null);
+  const communityPublishLock = useRef(false);
     const [communityPosts, setCommunityPosts] = useState([]);
     const [likedPosts, setLikedPosts] = useState({});
 
@@ -8901,7 +9871,7 @@ const pr = isCardio
       if (userIds.length) {
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
-          .select('id, username')
+          .select('id, username, community_username')
           .in('id', userIds);
 
         if (profilesError) {
@@ -8916,7 +9886,20 @@ const pr = isCardio
         );
       }
 
-      const postIds = rows.map((post) => post.id);
+      const avatarEntries = await Promise.all(
+    userIds.map(async id => {
+      try {
+        const { data, error } = await supabase.storage
+          .from('profile-photos')
+          .createSignedUrl(id + '/avatar.jpg', 3600);
+        return [id, error ? null : data?.signedUrl || null];
+      } catch {
+        return [id, null];
+      }
+    })
+  );
+  const avatarsMap = Object.fromEntries(avatarEntries);
+  const postIds = rows.map((post) => post.id);
 
       let reactions = [];
       let comments = [];
@@ -8968,6 +9951,7 @@ const pr = isCardio
           ...post,
 
           // Compatibilidad con el diseño Community actual
+          avatarUri: avatarsMap[post.user_id] || null,
           text: post.body || '',
           body: post.body || '',
           photo: post.image_url || null,
@@ -8981,10 +9965,10 @@ const pr = isCardio
               : 'Rival'),
 
           username:
-            profilesMap[post.user_id]?.username ||
+            profilesMap[post.user_id]?.community_username ||
             (post.user_id === session.user.id
-              ? profileName || 'Rival'
-              : 'Rival'),
+              ? communityUsername || ''
+              : ''),
 
           likes: reactionCount[post.id] || 0,
           comments: commentCount[post.id] || 0,
@@ -8995,6 +9979,10 @@ const pr = isCardio
       );
     } catch (error) {
       console.log('❌ Error cargando Comunidad:', error);
+      Alert.alert(
+        'No se pudo cargar Comunidad',
+        error?.message || 'Comprueba la conexión y vuelve a actualizar.'
+      );
     } finally {
       setCommunityLoading(false);
     }
@@ -9024,10 +10012,12 @@ const pr = isCardio
           await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             allowsEditing: true,
-            quality: 0.85,
+            quality: 0.7,
+            base64: true,
           });
 
         if (!result.canceled && result.assets?.[0]?.uri) {
+          communityPhotoData.current = result.assets[0];
           setCommunityPhoto(result.assets[0].uri);
         }
       } catch (error) {
@@ -9054,12 +10044,14 @@ const pr = isCardio
       return;
     }
 
-    if (communityPublishing) return;
+    if (communityPublishLock.current) return;
+    communityPublishLock.current = true;
 
     try {
       setCommunityPublishing(true);
 
       let imageUrl = null;
+      let uploadedPhotoPath = null;
 
       if (communityPhoto) {
         const localUri =
@@ -9068,32 +10060,35 @@ const pr = isCardio
             : communityPhoto?.uri;
 
         if (localUri) {
-          const response = await fetch(localUri);
-          const arrayBuffer = await response.arrayBuffer();
-
-          const cleanUri = localUri.split('?')[0];
-
-          let extension =
-            cleanUri.split('.').pop()?.toLowerCase() || 'jpg';
-
-          if (
-            !['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(
-              extension
-            )
-          ) {
-            extension = 'jpg';
+          const asset = communityPhotoData.current;
+          if (!asset?.base64 || asset.uri !== localUri) {
+            throw Error('Vuelve a seleccionar la foto antes de publicar.');
           }
+          const raw = asset.base64.replace(/=+$/, '');
+          const alphabet =
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+          const bytes = new Uint8Array(Math.floor(raw.length * 6 / 8));
+          if (bytes.length > 5 * 1024 * 1024) {
+            throw Error('Elige una foto de menos de 5 MB.');
+          }
+          let value = 0, bits = 0, offset = 0;
+          for (const char of raw) {
+            const digit = alphabet.indexOf(char);
+            if (digit < 0) throw Error('La foto no tiene un formato válido.');
+            value = (value << 6) | digit;
+            bits += 6;
+            if (bits >= 8) {
+              bits -= 8;
+              bytes[offset++] = (value >> bits) & 255;
+            }
+          }
+          if (bytes[0] !== 255 || bytes[1] !== 216) {
+            throw Error('Selecciona una imagen JPEG.');
+          }
+          const arrayBuffer = bytes.buffer;
 
-          const mime =
-            extension === 'png'
-              ? 'image/png'
-              : extension === 'webp'
-              ? 'image/webp'
-              : extension === 'heic'
-              ? 'image/heic'
-              : extension === 'heif'
-              ? 'image/heif'
-              : 'image/jpeg';
+          const extension = 'jpg';
+          const mime = 'image/jpeg';
 
           const filePath =
             `${session.user.id}/${Date.now()}-${Math.random()
@@ -9108,6 +10103,7 @@ const pr = isCardio
             });
 
           if (uploadError) throw uploadError;
+          uploadedPhotoPath = filePath;
 
           const { data: urlData } = supabase.storage
             .from('community-media')
@@ -9127,8 +10123,16 @@ const pr = isCardio
           payload: {},
         });
 
-      if (error) throw error;
+      if (error) {
+        if (uploadedPhotoPath) {
+          await supabase.storage.from('community-media')
+            .remove([uploadedPhotoPath])
+            .catch(() => {});
+        }
+        throw error;
+      }
 
+      communityPhotoData.current = null;
       setCommunityText('');
       setCommunityPhoto(null);
 
@@ -9144,6 +10148,7 @@ const pr = isCardio
         error?.message || 'Inténtalo de nuevo.'
       );
     } finally {
+      communityPublishLock.current = false;
       setCommunityPublishing(false);
     }
   };
@@ -9246,9 +10251,6 @@ const pr = isCardio
 
     // RIVALSET_COMMUNITY_HEADER_V2
     // RIVALSET_COMMUNITY_BOTTOM_NAV_V1
-
-    const [communitySocialTab, setCommunitySocialTab] =
-      useState('feed');
 
     const [communityGlobalRank, setCommunityGlobalRank] =
       useState(null);
@@ -9428,14 +10430,9 @@ const pr = isCardio
         ).trim();
 
       const handle =
-        '@' +
-        displayName
-          .toLowerCase()
-          .replace(/\s+/g, '')
-          .replace(
-            /[^a-z0-9áéíóúüñ_]/gi,
-            ''
-          );
+        communityUsername
+          ? '@' + communityUsername
+          : '';
 
 
       const CommunityStat = ({
@@ -9801,23 +10798,18 @@ const pr = isCardio
 
     const CommunityMiniNavigation = () => {
 
-      const inactive =
-        isLightTheme
-          ? '#6E7076'
-          : '#858890';
-
       const items = [
         {
           id: 'feed',
           icon: 'home-variant-outline',
           active: 'home-variant',
-          label: 'Feed',
+          label: 'Para ti',
         },
         {
-          id: 'explore',
-          icon: 'magnify',
-          active: 'magnify',
-          label: 'Explorar',
+          id: 'following',
+          icon: 'account-multiple-outline',
+          active: 'account-multiple',
+          label: 'Siguiendo',
         },
         {
           id: 'create',
@@ -9826,10 +10818,10 @@ const pr = isCardio
           label: '',
         },
         {
-          id: 'activity',
-          icon: 'bell-outline',
-          active: 'bell',
-          label: 'Actividad',
+          id: 'search',
+          icon: 'magnify',
+          active: 'magnify',
+          label: 'Buscar',
         },
         {
           id: 'profile',
@@ -9839,211 +10831,155 @@ const pr = isCardio
         },
       ];
 
+      const onCommunityNavPress = async (item) => {
+        await impact(
+          Haptics.ImpactFeedbackStyle.Light
+        );
 
-      const onCommunityNavPress =
-        async item => {
+        if (item.id === 'create') {
+          setCommunitySocialTab('feed');
 
-          await impact(
-            Haptics
-              .ImpactFeedbackStyle
-              .Light
-          );
-
-          if (
-            item.id === 'create'
-          ) {
+          setTimeout(() => {
             Alert.alert(
-              'Compartir',
-              '¿Qué quieres publicar?',
-              [
-                {
-                  text:
-                    'Entrenamiento',
-                  onPress: () =>
-                    Alert.alert(
-                      'Entrenamiento',
-                      'En el siguiente paso conectaremos aquí tus entrenamientos terminados.'
-                    ),
-                },
-
-                {
-                  text: 'Rutina',
-                  onPress: () =>
-                    Alert.alert(
-                      'Rutina',
-                      'En el siguiente paso podrás compartir una de tus rutinas.'
-                    ),
-                },
-
-                {
-                  text:
-                    'Foto / publicación',
-                  onPress: () => {
-                    setCommunitySocialTab(
-                      'feed'
-                    );
-                  },
-                },
-
-                {
-                  text: 'Cancelar',
-                  style: 'cancel',
-                },
-              ]
+              'Publicar',
+              'Escribe tu publicación en la tarjeta superior del feed.'
             );
+          }, 100);
 
-            return;
-          }
+          return;
+        }
 
-          setCommunitySocialTab(
-            item.id
+        if (item.id === 'search') {
+          Alert.alert(
+            'Buscar rivales',
+            'En el siguiente paso conectaremos aquí la búsqueda por @usuario.'
           );
-        };
+          return;
+        }
 
+        if (item.id === 'profile') {
+          setScreen('profile');
+          return;
+        }
+
+        setCommunitySocialTab(item.id);
+      };
 
       return (
-        <View
-          style={{
-            marginHorizontal: 16,
-            marginBottom: 12,
-
-            height: 59,
-
-            paddingHorizontal: 5,
-
-            flexDirection: 'row',
-            alignItems: 'center',
-
-            justifyContent:
-              'space-around',
-
-            borderRadius: 19,
-
-            backgroundColor:
-              isLightTheme
-                ? 'rgba(255,255,255,0.44)'
-                : 'rgba(14,16,21,0.78)',
-
-            borderWidth: 1,
-
-            borderColor:
-              isLightTheme
-                ? 'rgba(255,255,255,0.58)'
-                : 'rgba(255,255,255,0.08)',
-          }}
+        <LinearGradient
+          colors={[
+            'rgba(46,34,15,0.72)',
+            'rgba(44,33,15,0.72)',
+            'rgba(42,32,15,0.72)',
+          ]}
+          locations={[0, 0.5, 1]}
+          style={styles.navigation}
         >
-
-          {items.map(item => {
-
+          {items.map((item) => {
             const selected =
-              communitySocialTab ===
-              item.id;
+              communitySocialTab === item.id;
 
             const center =
               item.id === 'create';
-
 
             if (center) {
               return (
                 <TouchableOpacity
                   key={item.id}
-
+                  style={styles.navItem}
                   activeOpacity={0.78}
-
                   onPress={() =>
-                    onCommunityNavPress(
-                      item
-                    )
+                    onCommunityNavPress(item)
                   }
-
-                  style={{
-                    width: 44,
-                    height: 44,
-
-                    borderRadius: 22,
-
-                    alignItems: 'center',
-                    justifyContent:
-                      'center',
-
-                    backgroundColor:
-                      COLORS.orange,
-                  }}
                 >
-                  <MaterialCommunityIcons
-                    name="plus"
-                    size={27}
-                    color="#FFFFFF"
-                  />
+                  <View
+                    style={{
+                      width: 43,
+                      height: 43,
+                      borderRadius: 15,
+                      backgroundColor: accentColor,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginTop: -11,
+                      shadowColor: '#000',
+                      shadowOpacity: 0.24,
+                      shadowRadius: 7,
+                      shadowOffset: {
+                        width: 0,
+                        height: 4,
+                      },
+                      elevation: 7,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="plus"
+                      size={28}
+                      color="#FFFFFF"
+                    />
+                  </View>
                 </TouchableOpacity>
               );
             }
 
-
             return (
               <TouchableOpacity
                 key={item.id}
-
-                activeOpacity={0.72}
-
+                style={styles.navItem}
+                activeOpacity={0.7}
                 onPress={() =>
-                  onCommunityNavPress(
-                    item
-                  )
+                  onCommunityNavPress(item)
                 }
-
-                style={{
-                  minWidth: 55,
-
-                  alignItems: 'center',
-                  justifyContent:
-                    'center',
-                }}
               >
-
                 <MaterialCommunityIcons
                   name={
                     selected
                       ? item.active
                       : item.icon
                   }
-
-                  size={21}
-
+                  size={
+                    item.id === 'following'
+                      ? 23
+                      : 22
+                  }
                   color={
                     selected
-                      ? COLORS.orange
-                      : inactive
+                      ? accentColor
+                      : '#A8ABB2'
                   }
+                  style={styles.navVectorIcon}
                 />
 
                 <Text
-                  style={{
-                    marginTop: 2,
-
-                    color:
-                      selected
-                        ? COLORS.orange
-                        : inactive,
-
-                    fontSize: 9,
-
-                    fontWeight:
-                      selected
-                        ? '900'
-                        : '700',
-                  }}
+                  style={[
+                    styles.navText,
+                    selected &&
+                      styles.navTextSelected,
+                    selected && {
+                      color: accentColor,
+                    },
+                  ]}
                 >
                   {item.label}
                 </Text>
 
+                {selected && (
+                  <View
+                    style={[
+                      styles.navIndicator,
+                      {
+                        backgroundColor:
+                          accentColor,
+                      },
+                    ]}
+                  />
+                )}
               </TouchableOpacity>
             );
           })}
-
-        </View>
+        </LinearGradient>
       );
     };
+
 
 return (
       <>
@@ -10052,6 +10988,24 @@ return (
             title="Comunidad"
             subtitle="ENTRENA · COMPARTE · SUPÉRATE"
           />
+
+        {communityUsernameLoading ? (
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <ActivityIndicator
+              size="small"
+              color={COLORS.orange}
+            />
+          </View>
+        ) : !communityUsername ? (
+          <CommunityOnboarding />
+        ) : (
+          <>
 
         {/* COMMUNITY SOCIAL HEADER V2 */}
         <CommunityCompactHeader />
@@ -10062,10 +11016,21 @@ return (
 
           <ScrollView
             style={styles.container}
+            refreshControl={
+              <RefreshControl
+                refreshing={communityLoading}
+                onRefresh={() => {
+                  loadCommunityPosts();
+                  loadCommunityHeaderData();
+                }}
+                tintColor={accentColor}
+                colors={[accentColor]}
+              />
+            }
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{
-              paddingBottom: 40,
+              paddingBottom: 120,
             }}
           >
             {/* CREAR PUBLICACIÓN */}
@@ -10241,6 +11206,64 @@ return (
               </View>
             </View>
 
+            {/* RIVALSET_COMMUNITY_FOLLOWING_EMPTY_V1 */}
+            {communitySocialTab === 'following' ? (
+              <View
+                style={{
+                  marginTop: 18,
+                  marginBottom: 30,
+                  paddingHorizontal: 24,
+                  paddingVertical: 38,
+                  borderRadius: 22,
+                  backgroundColor: cardBg,
+                  borderWidth: 1,
+                  borderColor: border,
+                  alignItems: 'center',
+                }}
+              >
+                <View
+                  style={{
+                    width: 58,
+                    height: 58,
+                    borderRadius: 20,
+                    backgroundColor: `${accentColor}14`,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 15,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="account-multiple-plus-outline"
+                    size={29}
+                    color={accentColor}
+                  />
+                </View>
+
+                <Text
+                  style={{
+                    color: ink,
+                    fontSize: 17,
+                    fontWeight: '900',
+                    textAlign: 'center',
+                  }}
+                >
+                  Tu círculo de rivales
+                </Text>
+
+                <Text
+                  style={{
+                    color: muted,
+                    fontSize: 13,
+                    lineHeight: 19,
+                    textAlign: 'center',
+                    marginTop: 7,
+                  }}
+                >
+                  Aquí aparecerá el progreso de las personas que sigas.
+                </Text>
+              </View>
+            ) : (
+              <>
             {/* FEED */}
             {communityPosts.length === 0 ? (
               <View
@@ -10315,7 +11338,7 @@ return (
                       }}
                     >
                       <RivalSetPhoto
-                        uri={profilePhoto}
+                        uri={post.avatarUri}
                         size={40}
                         color={accentColor}
                       />
@@ -10333,7 +11356,7 @@ return (
                             fontWeight: '900',
                           }}
                         >
-                          {profileName?.trim() || 'Rival'}
+                          {post.authorName || 'Rival'}
                         </Text>
 
                         <Text
@@ -10446,23 +11469,13 @@ return (
                 );
               })
             )}
+              </>
+            )}
           </ScrollView>
-        
 
-        {/* RIVALSET_COMMUNITY_NAV_V5 */}
-        <View
-          pointerEvents="box-none"
-          style={{
-            position: 'absolute',
-            left: 10,
-            right: 10,
-            bottom: 10,
-            zIndex: 9999,
-            elevation: 40,
-          }}
-        >
-          <CommunityMiniNavigation />
-        </View>
+
+          </>
+        )}
 
 </View>
       </>
@@ -10530,6 +11543,7 @@ return (
               onPress={openProfile}
               onLeaguesPress={openPrivateLeagues}
               onCommunityPress={openCommunity}
+              onHistoryPress={() => setScreen('history')}
               vibrationEnabled={vibrationEnabled}
               isLightTheme={isLightTheme}
               accentColor={accentColor}
@@ -11090,7 +12104,7 @@ return (
             elevation: 12,
           }}
         >
-          {/* Community navigation removed from global scope */}
+          {communityUsername ? null : null}
         </View>
 
 {BottomNavigation()}
@@ -12836,20 +13850,31 @@ const GlobalLeague = () => {
         <View
           style={{
             position: 'absolute',
-
-            left: 12,
-            right: 12,
-
-            bottom: 82,
-
+            left: 0,
+            right: 0,
+            bottom: 0,
             zIndex: 100,
             elevation: 20,
           }}
         >
-          {/* Community nav moved to fixed bottom */}
+          
         </View>
 
-<BottomNavigation />
+        
+
+
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999,
+            elevation: 30,
+          }}
+        >
+          <CommunityMiniNavigation />
+        </View>
 
       </View>
     );
@@ -14725,6 +15750,65 @@ const ProfileLogin = () => (
               color="#FFFFFF"
             />
           </View>
+
+          <Text
+            style={[
+              styles.profileNameLabel,
+              { marginTop: 18 }
+            ]}
+          >
+            USUARIO DE COMUNIDAD
+          </Text>
+
+          <View style={styles.nameEditBox}>
+            <Text
+              style={{
+                color: accentColor,
+                fontSize: 16,
+                fontWeight: '900',
+                marginRight: 3,
+              }}
+            >
+              @
+            </Text>
+
+            <TextInput
+              value={communityUsername}
+              onChangeText={(value) =>
+                setCommunityUsername(
+                  value
+                    .toLowerCase()
+                    .replace(/^@+/, '')
+                    .replace(/[^a-z0-9_]/g, '')
+                )
+              }
+              placeholder="tu_usuario"
+              placeholderTextColor="#626873"
+              style={[styles.nameInput, { flex: 1 }]}
+              maxLength={20}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+            />
+
+            <MaterialCommunityIcons
+              name="account-at-outline"
+              size={18}
+              color="#FFFFFF"
+            />
+          </View>
+
+          <Text
+            style={{
+              color: isLightTheme ? '#6C7078' : '#7F838C',
+              fontSize: 11,
+              lineHeight: 16,
+              marginTop: 7,
+              alignSelf: 'stretch',
+            }}
+          >
+            Tu nombre único para que otros rivales puedan encontrarte.
+          </Text>
         </View>
 
         {/* =================================================
@@ -31924,6 +33008,7 @@ let styles = createRivalSetStyles();
 function RivalSetSideMenu({
   onLeaguesPress,
   onCommunityPress,
+  onHistoryPress,
 photoUri,
   profileName,
 
@@ -32181,6 +33266,60 @@ photoUri,
                 </TouchableOpacity>
 
                 
+                {/* RIVALSET_SIDE_MENU_HISTORY */}
+                <TouchableOpacity
+                  onPress={() => close(onHistoryPress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Historial"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 18,
+                    borderBottomWidth: 1,
+                    borderBottomColor: line,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="chart-timeline-variant"
+                    size={28}
+                    color={accentColor}
+                  />
+
+                  <View
+                    style={{
+                      flex: 1,
+                      marginLeft: 14,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: ink,
+                        fontSize: 17,
+                        fontWeight: '700',
+                      }}
+                    >
+                      Historial
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: muted,
+                        fontSize: 12,
+                        marginTop: 4,
+                      }}
+                    >
+                      Revisa tus entrenamientos
+                    </Text>
+                  </View>
+
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={22}
+                    color={muted}
+                  />
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   onPress={() => close(onLeaguesPress)}
                   activeOpacity={0.7}
@@ -32229,53 +33368,7 @@ photoUri,
                   />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => close(onCommunityPress)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Comunidad"
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 18,
-                    borderBottomWidth: 1,
-                    borderBottomColor: line,
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="account-multiple-outline"
-                    size={28}
-                    color={accentColor}
-                  />
 
-                  <View style={{ flex: 1, marginLeft: 14 }}>
-                    <Text
-                      style={{
-                        color: ink,
-                        fontSize: 17,
-                        fontWeight: '700',
-                      }}
-                    >
-                      Comunidad
-                    </Text>
-
-                    <Text
-                      style={{
-                        color: muted,
-                        fontSize: 12,
-                        marginTop: 4,
-                      }}
-                    >
-                      Comparte tu progreso
-                    </Text>
-                  </View>
-
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={22}
-                    color={muted}
-                  />
-                </TouchableOpacity>
 
 <View
                   accessible
@@ -32541,6 +33634,8 @@ function useRivalSetPhoto(userId) {
   const edit = () => Alert.alert(
     'Foto de perfil',
     'Elige una foto para tu cuenta.',
+
+
     [
       {
         text: uri ? 'Cambiar foto' : 'Elegir foto',
