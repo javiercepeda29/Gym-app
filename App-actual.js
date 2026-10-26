@@ -9818,6 +9818,10 @@ const pr = isCardio
   const communityPublishLock = useRef(false);
     const [communityPosts, setCommunityPosts] = useState([]);
     const [likedPosts, setLikedPosts] = useState({});
+    const [commentingPostId, setCommentingPostId] = useState(null);
+    const [communityCommentText, setCommunityCommentText] = useState('');
+    const [communityCommentSending, setCommunityCommentSending] = useState(false);
+    const [communityCommentsByPost, setCommunityCommentsByPost] = useState({});
 
   const [communityLoading, setCommunityLoading] = useState(false);
   const [communityPublishing, setCommunityPublishing] = useState(false);
@@ -9918,8 +9922,9 @@ const pr = isCardio
         const { data: commentRows, error: commentError } =
           await supabase
             .from('community_comments')
-            .select('post_id')
-            .in('post_id', postIds);
+            .select('*')
+            .in('post_id', postIds)
+            .order('created_at', { ascending: true });
 
         if (commentError) throw commentError;
 
@@ -9945,6 +9950,59 @@ const pr = isCardio
       });
 
       setLikedPosts(myLikes);
+
+      // Comentarios agrupados por publicación.
+      // Intentamos obtener también el @usuario de cada autor.
+      const commentUserIds = [
+        ...new Set(
+          comments
+            .map((comment) => comment.user_id)
+            .filter(Boolean)
+        ),
+      ];
+
+      let commentProfilesMap = {};
+
+      if (commentUserIds.length) {
+        const { data: commentProfiles } = await supabase
+          .from('profiles')
+          .select('id, username, community_username')
+          .in('id', commentUserIds);
+
+        commentProfilesMap = Object.fromEntries(
+          (commentProfiles || []).map((profile) => [
+            profile.id,
+            profile,
+          ])
+        );
+      }
+
+      const commentsByPost = {};
+
+      comments.forEach((comment) => {
+        const text =
+          comment.body ??
+          comment.content ??
+          comment.text ??
+          '';
+
+        if (!commentsByPost[comment.post_id]) {
+          commentsByPost[comment.post_id] = [];
+        }
+
+        commentsByPost[comment.post_id].push({
+          ...comment,
+          displayText: String(text || '').trim(),
+          displayUsername:
+            commentProfilesMap[comment.user_id]?.community_username ||
+            commentProfilesMap[comment.user_id]?.username ||
+            (comment.user_id === session.user.id
+              ? communityUsername || profileName || 'Rival'
+              : 'Rival'),
+        });
+      });
+
+      setCommunityCommentsByPost(commentsByPost);
 
       setCommunityPosts(
         rows.map((post) => ({
@@ -10152,6 +10210,126 @@ const pr = isCardio
       setCommunityPublishing(false);
     }
   };
+
+
+  const submitCommunityComment = async (postId) => {
+    const cleanComment =
+      String(communityCommentText || '').trim();
+
+    if (!cleanComment) return;
+    if (!session?.user?.id) return;
+    if (communityCommentSending) return;
+
+    try {
+      setCommunityCommentSending(true);
+
+      /*
+       * La tabla ya existe en RivalSet.
+       * Detectamos de forma segura cómo se llama
+       * la columna que almacena el comentario.
+       */
+      const possibleColumns = [
+        'body',
+        'content',
+        'text',
+      ];
+
+      let saved = false;
+      let lastError = null;
+
+      for (const column of possibleColumns) {
+        const payload = {
+          post_id: postId,
+          user_id: session.user.id,
+          [column]: cleanComment,
+        };
+
+        const { error } = await supabase
+          .from('community_comments')
+          .insert(payload);
+
+        if (!error) {
+          saved = true;
+          break;
+        }
+
+        lastError = error;
+
+        const message =
+          String(error?.message || '').toLowerCase();
+
+        const columnProblem =
+          message.includes('column') ||
+          message.includes('schema') ||
+          message.includes('could not find');
+
+        if (!columnProblem) {
+          throw error;
+        }
+      }
+
+      if (!saved) {
+        throw (
+          lastError ||
+          new Error('No se pudo guardar el comentario.')
+        );
+      }
+
+      // Actualización inmediata del contador
+      setCommunityPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments:
+                  Number(post.comments || 0) + 1,
+              }
+            : post
+        )
+      );
+
+      // Mostrar el comentario inmediatamente sin esperar
+      // a volver a cargar toda Comunidad.
+      setCommunityCommentsByPost((prev) => ({
+        ...prev,
+        [postId]: [
+          ...(prev[postId] || []),
+          {
+            id: `local-${Date.now()}`,
+            post_id: postId,
+            user_id: session.user.id,
+            displayText: cleanComment,
+            displayUsername:
+              communityUsername ||
+              profileName ||
+              'Rival',
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }));
+
+      setCommunityCommentText('');
+      setCommentingPostId(null);
+
+      await impact(
+        Haptics.ImpactFeedbackStyle.Light
+      );
+
+    } catch (error) {
+      console.log(
+        '❌ Error comentario Comunidad:',
+        error
+      );
+
+      Alert.alert(
+        'No se pudo comentar',
+        error?.message || 'Inténtalo de nuevo.'
+      );
+    } finally {
+      setCommunityCommentSending(false);
+    }
+  };
+
 
   const toggleCommunityLike = async (postId) => {
     if (!session?.user?.id) return;
@@ -10801,33 +10979,33 @@ const pr = isCardio
       const items = [
         {
           id: 'feed',
+          icon: 'home-variant-outline',
+          active: 'home-variant',
           label: 'Para ti',
-          icon: 'home-outline',
-          active: 'home',
         },
         {
           id: 'following',
-          label: 'Siguiendo',
           icon: 'account-multiple-outline',
           active: 'account-multiple',
+          label: 'Siguiendo',
         },
         {
           id: 'create',
-          label: '',
           icon: 'plus',
           active: 'plus',
+          label: '',
         },
         {
           id: 'search',
-          label: 'Buscar',
           icon: 'magnify',
           active: 'magnify',
+          label: 'Buscar',
         },
         {
           id: 'profile',
-          label: 'Perfil',
           icon: 'account-outline',
           active: 'account',
+          label: 'Perfil',
         },
       ];
 
@@ -11418,7 +11596,7 @@ return (
                         }}
                       >
                         <MaterialCommunityIcons
-                          name={liked ? 'fire' : 'fire'}
+                          name={liked ? 'heart' : 'heart-outline'}
                           size={22}
                           color={
                             liked
@@ -11437,11 +11615,21 @@ return (
                             marginLeft: 6,
                           }}
                         >
-                          {post.likes + (liked ? 1 : 0)}
+                          {Number(post.likes || 0)}
                         </Text>
                       </TouchableOpacity>
 
-                      <View
+                      <TouchableOpacity
+                        onPress={() => {
+                          setCommentingPostId(
+                            commentingPostId === post.id
+                              ? null
+                              : post.id
+                          );
+
+                          setCommunityCommentText('');
+                        }}
+                        activeOpacity={0.7}
                         style={{
                           flexDirection: 'row',
                           alignItems: 'center',
@@ -11450,21 +11638,187 @@ return (
                         <MaterialCommunityIcons
                           name="comment-outline"
                           size={20}
-                          color={muted}
+                          color={
+                            commentingPostId === post.id
+                              ? accentColor
+                              : muted
+                          }
                         />
 
                         <Text
                           style={{
-                            color: muted,
+                            color:
+                              commentingPostId === post.id
+                                ? accentColor
+                                : muted,
                             fontSize: 12,
                             fontWeight: '800',
                             marginLeft: 6,
                           }}
                         >
-                          Comentar
+                          {Number(post.comments || 0) > 0
+                            ? `${Number(post.comments || 0)} comentarios`
+                            : 'Comentar'}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     </View>
+
+                    {(communityCommentsByPost[post.id] || []).length > 0 && (
+                      <View
+                        style={{
+                          paddingHorizontal: 15,
+                          paddingTop: 11,
+                          paddingBottom:
+                            commentingPostId === post.id
+                              ? 8
+                              : 13,
+                          borderTopWidth: 1,
+                          borderTopColor: border,
+                        }}
+                      >
+                        {(communityCommentsByPost[post.id] || [])
+                          .slice(-3)
+                          .map((comment, index) => (
+                            <View
+                              key={
+                                comment.id ||
+                                `${post.id}-comment-${index}`
+                              }
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'flex-start',
+                                marginBottom:
+                                  index ===
+                                  Math.min(
+                                    (communityCommentsByPost[post.id] || []).length,
+                                    3
+                                  ) - 1
+                                    ? 0
+                                    : 7,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: ink,
+                                  fontSize: 12.5,
+                                  lineHeight: 18,
+                                  flex: 1,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontWeight: '900',
+                                  }}
+                                >
+                                  @{comment.displayUsername || 'rival'}{' '}
+                                </Text>
+
+                                {comment.displayText}
+                              </Text>
+                            </View>
+                          ))}
+
+                        {(communityCommentsByPost[post.id] || []).length > 3 && (
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() =>
+                              setCommentingPostId(post.id)
+                            }
+                            style={{
+                              marginTop: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: muted,
+                                fontSize: 12,
+                                fontWeight: '700',
+                              }}
+                            >
+                              Ver los{' '}
+                              {
+                                (communityCommentsByPost[post.id] || [])
+                                  .length
+                              }{' '}
+                              comentarios
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+
+                    {commentingPostId === post.id && (
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingHorizontal: 14,
+                          paddingTop: 2,
+                          paddingBottom: 14,
+                          borderTopWidth: 1,
+                          borderTopColor: border,
+                        }}
+                      >
+                        <TextInput
+                          value={communityCommentText}
+                          onChangeText={setCommunityCommentText}
+                          placeholder="Escribe un comentario..."
+                          placeholderTextColor={muted}
+                          multiline
+                          maxLength={500}
+                          returnKeyType="send"
+                          style={{
+                            flex: 1,
+                            minHeight: 42,
+                            maxHeight: 100,
+                            color: ink,
+                            backgroundColor: isLightTheme
+                              ? 'rgba(0,0,0,0.045)'
+                              : 'rgba(255,255,255,0.065)',
+                            borderRadius: 18,
+                            paddingHorizontal: 14,
+                            paddingVertical: 10,
+                            fontSize: 13,
+                            marginRight: 9,
+                          }}
+                        />
+
+                        <TouchableOpacity
+                          disabled={
+                            communityCommentSending ||
+                            !communityCommentText.trim()
+                          }
+                          onPress={() =>
+                            submitCommunityComment(post.id)
+                          }
+                          activeOpacity={0.7}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor:
+                              communityCommentText.trim()
+                                ? accentColor
+                                : `${accentColor}35`,
+                          }}
+                        >
+                          {communityCommentSending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color="#FFFFFF"
+                            />
+                          ) : (
+                            <MaterialCommunityIcons
+                              name="send"
+                              size={18}
+                              color="#FFFFFF"
+                            />
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 );
               })
@@ -11477,7 +11831,23 @@ return (
           </>
         )}
 
+        {/* RIVALSET_COMMUNITY_NAV_REAL_V1 */}
+        <View
+          style={{
+            paddingHorizontal: 0,
+            paddingTop: 5,
+            paddingBottom: 5,
+            backgroundColor: 'transparent',
+            zIndex: 100,
+            elevation: 20,
+          }}
+        >
+          <CommunityMiniNavigation />
+        </View>
+
 </View>
+
+        {BottomNavigation()}
       </>
     );
   };
@@ -13862,6 +14232,21 @@ const GlobalLeague = () => {
 
         
 
+
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999,
+            elevation: 30,
+          }}
+        >
+          
+        </View>
+
+        <BottomNavigation />
 
       </View>
     );
