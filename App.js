@@ -4157,6 +4157,20 @@ useEffect(() => {
   const [communitySocialTab, setCommunitySocialTab] =
     useState('feed');
 
+  // RIVALSET_PUBLIC_COMMUNITY_PROFILE_V1
+  const [communityPublicProfile, setCommunityPublicProfile] = useState(null);
+  const [communityPublicProfilePhoto, setCommunityPublicProfilePhoto] = useState(null);
+  const [communityPublicProfileGlobalRank, setCommunityPublicProfileGlobalRank] = useState(null);
+  const [communityPublicProfileGlobalPoints, setCommunityPublicProfileGlobalPoints] = useState(0);
+  // RIVALSET_COMMUNITY_REDESIGN_V3
+  const [communityPublicProfileLoading, setCommunityPublicProfileLoading] = useState(false);
+  const [communityPublicProfileFollowing, setCommunityPublicProfileFollowing] = useState(false);
+  const [communityPublicProfileFollowers, setCommunityPublicProfileFollowers] = useState(0);
+  const [communityPublicProfileFollowingCount, setCommunityPublicProfileFollowingCount] = useState(0);
+  const [communityPublicProfilePosts, setCommunityPublicProfilePosts] = useState([]);
+
+
+
   // Navegación social de Comunidad
 const [realLeagueId, setRealLeagueId] = useState(null);
   const [routines, setRoutines] = useState([]);
@@ -8793,12 +8807,6 @@ const pr = isCardio
             active: 'account-multiple',
           },
           {
-            id: 'create',
-            label: '',
-            icon: 'plus',
-            active: 'plus',
-          },
-          {
             id: 'search',
             label: 'Buscar',
             icon: 'magnify',
@@ -8871,7 +8879,7 @@ const pr = isCardio
       }
 
       if (item.id === 'profile') {
-        setScreen('profile');
+        setCommunitySocialTab('profile');
         return;
       }
 
@@ -9811,8 +9819,29 @@ const pr = isCardio
   };
 
   const Community = () => {
+    // RIVALSET_OWN_COMMUNITY_PROFILE_V2
+    const [communityBio, setCommunityBio] = useState('');
+    const [communityBioEditing, setCommunityBioEditing] = useState(false);
+    const [communityOwnPosts, setCommunityOwnPosts] = useState([]);
+    const [communityOwnPostsLoading, setCommunityOwnPostsLoading] = useState(false);
+    const [communityOwnFollowersCount, setCommunityOwnFollowersCount] = useState(0);
+    const [communityOwnFollowingCount, setCommunityOwnFollowingCount] = useState(0);
+    const [communityProfileContentTab, setCommunityProfileContentTab] = useState('photos');
+    const [communityComposerOpen, setCommunityComposerOpen] = useState(false);
+
+    // RIVALSET COMMUNITY ACTIVITY V1
+    const [communityNotifications, setCommunityNotifications] = useState([]);
+    const [communityNotificationsLoading, setCommunityNotificationsLoading] = useState(false);
+    const [communityUnreadCount, setCommunityUnreadCount] = useState(0);
+
     const [communityText, setCommunityText] = useState('');
     const [communityPhoto, setCommunityPhoto] = useState(null);
+
+    // RIVALSET_COMMUNITY_SEARCH_LOCAL_V2
+    // Locales para que escribir NO remonte Community ni cierre teclado.
+    const [communitySearchText, setCommunitySearchText] = useState('');
+    const [communitySearchResults, setCommunitySearchResults] = useState([]);
+    const [communitySearchLoading, setCommunitySearchLoading] = useState(false);
   // COMMUNITY_SHARED_PHOTOS_V1
   const communityPhotoData = useRef(null);
   const communityPublishLock = useRef(false);
@@ -9825,6 +9854,452 @@ const pr = isCardio
 
   const [communityLoading, setCommunityLoading] = useState(false);
   const [communityPublishing, setCommunityPublishing] = useState(false);
+
+    const loadCommunityNotifications = async () => {
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      try {
+        setCommunityNotificationsLoading(true);
+
+        const { data, error } = await supabase
+          .from('community_notifications')
+          .select('*')
+          .eq('recipient_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (error) throw error;
+
+        const rows = Array.isArray(data) ? data : [];
+
+        const actorIds = [
+          ...new Set(
+            rows
+              .map(item => item.actor_id)
+              .filter(Boolean)
+          ),
+        ];
+
+        let profilesById = {};
+
+        if (actorIds.length > 0) {
+          const { data: profileRows, error: profileError } =
+            await supabase
+              .from('profiles')
+              .select('id, username, community_username')
+              .in('id', actorIds);
+
+          if (!profileError && Array.isArray(profileRows)) {
+            profilesById = Object.fromEntries(
+              profileRows.map(row => [row.id, row])
+            );
+          }
+        }
+
+        const avatarEntries = await Promise.all(
+          actorIds.map(async actorId => {
+            try {
+              const { data: signed } = await supabase.storage
+                .from('profile-photos')
+                .createSignedUrl(
+                  actorId + '/avatar.jpg',
+                  3600
+                );
+
+              return [
+                actorId,
+                signed?.signedUrl || null,
+              ];
+            } catch {
+              return [actorId, null];
+            }
+          })
+        );
+
+        const avatarsById =
+          Object.fromEntries(avatarEntries);
+
+        const enriched = rows.map(item => {
+          const actor =
+            profilesById[item.actor_id] || {};
+
+          return {
+            ...item,
+            actorName:
+              actor.username ||
+              actor.community_username ||
+              'Rival',
+            actorUsername:
+              actor.community_username ||
+              actor.username ||
+              'rival',
+            actorAvatar:
+              avatarsById[item.actor_id] || null,
+          };
+        });
+
+        setCommunityNotifications(enriched);
+
+        setCommunityUnreadCount(
+          enriched.filter(item => !item.read_at).length
+        );
+      } catch (error) {
+        console.log(
+          'COMMUNITY NOTIFICATIONS ERROR:',
+          error
+        );
+      } finally {
+        setCommunityNotificationsLoading(false);
+      }
+    };
+
+
+    const markCommunityNotificationsRead = async () => {
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      const now = new Date().toISOString();
+
+      try {
+        const { error } = await supabase
+          .from('community_notifications')
+          .update({
+            read_at: now,
+          })
+          .eq('recipient_id', userId)
+          .is('read_at', null);
+
+        if (error) throw error;
+
+        setCommunityNotifications(current =>
+          current.map(item => ({
+            ...item,
+            read_at: item.read_at || now,
+          }))
+        );
+
+        setCommunityUnreadCount(0);
+      } catch (error) {
+        console.log(
+          'MARK COMMUNITY NOTIFICATIONS ERROR:',
+          error
+        );
+      }
+    };
+
+
+    const openCommunityActivity = async () => {
+      setCommunitySocialTab('activity');
+
+      await loadCommunityNotifications();
+
+      setTimeout(() => {
+        markCommunityNotificationsRead();
+      }, 350);
+    };
+
+
+    const openCommunityNotification = async item => {
+      if (!item) return;
+
+      try {
+        if (!item.read_at) {
+          await supabase
+            .from('community_notifications')
+            .update({
+              read_at: new Date().toISOString(),
+            })
+            .eq('id', item.id);
+        }
+      } catch {}
+
+      if (item.actor_id) {
+        openCommunityPublicProfile(item.actor_id);
+        return;
+      }
+
+      setCommunitySocialTab('feed');
+    };
+
+
+    const getCommunityNotificationText = item => {
+      if (item?.type === 'like') {
+        return 'le ha dado me gusta a tu publicación';
+      }
+
+      if (item?.type === 'comment') {
+        return 'ha comentado tu publicación';
+      }
+
+      if (item?.type === 'follow') {
+        return 'ha empezado a seguirte';
+      }
+
+      return 'ha interactuado contigo';
+    };
+
+
+    const loadOwnCommunityProfile = async () => {
+      const userId = session?.user?.id;
+
+      if (!userId) {
+        setCommunityOwnPosts([]);
+        setCommunityPostCount(0);
+        return;
+      }
+
+      try {
+        setCommunityOwnPostsLoading(true);
+
+        // CONTADORES REALES DEL PERFIL SOCIAL
+        try {
+          const [
+            { count: followersCount, error: followersError },
+            { count: followingCount, error: followingError },
+          ] = await Promise.all([
+            supabase
+              .from('community_follows')
+              .select('follower_id', { count: 'exact', head: true })
+              .eq('following_id', userId),
+
+            supabase
+              .from('community_follows')
+              .select('following_id', { count: 'exact', head: true })
+              .eq('follower_id', userId),
+          ]);
+
+          if (!followersError) {
+            setCommunityOwnFollowersCount(followersCount || 0);
+          }
+
+          if (!followingError) {
+            setCommunityOwnFollowingCount(followingCount || 0);
+          }
+        } catch (followCountError) {
+          console.log(
+            'OWN COMMUNITY FOLLOW COUNTS:',
+            followCountError
+          );
+        }
+
+        // ==============================
+        // BIOGRAFÍA
+        // ==============================
+
+        const savedBio = await AsyncStorage.getItem(
+          '@rivalset_community_bio_' + userId
+        );
+
+        if (savedBio !== null) {
+          setCommunityBio(savedBio);
+        }
+
+
+        // ==============================
+        // POSTS REALES DEL USUARIO
+        // ==============================
+
+        const {
+          data: ownPosts,
+          error: ownPostsError,
+        } = await supabase
+          .from('community_posts')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', {
+            ascending: false,
+          });
+
+        if (ownPostsError) {
+          throw ownPostsError;
+        }
+
+        const rows = Array.isArray(ownPosts)
+          ? ownPosts
+          : [];
+
+        console.log(
+          'RIVALSET OWN POSTS:',
+          userId,
+          rows.length,
+          rows
+        );
+
+        // Los mismos datos alimentan lista + contador.
+        setCommunityOwnPosts(rows);
+        setCommunityPostCount(rows.length);
+
+
+        // ==============================
+        // SEGUIDORES
+        // ==============================
+
+        const {
+          count: followerCount,
+          error: followerError,
+        } = await supabase
+          .from('community_follows')
+          .select('follower_id', {
+            count: 'exact',
+            head: true,
+          })
+          .eq('following_id', userId);
+
+        if (!followerError) {
+          setCommunityFollowers(
+            followerCount || 0
+          );
+        }
+
+
+        // ==============================
+        // SEGUIDOS
+        // ==============================
+
+        const {
+          count: followingCount,
+          error: followingError,
+        } = await supabase
+          .from('community_follows')
+          .select('following_id', {
+            count: 'exact',
+            head: true,
+          })
+          .eq('follower_id', userId);
+
+        if (!followingError) {
+          setCommunityFollowing(
+            followingCount || 0
+          );
+        }
+
+
+        // ==============================
+        // GLOBAL LEAGUE
+        // ==============================
+
+        try {
+          const {
+            data: rankingData,
+            error: rankingError,
+          } = await supabase.rpc(
+            'get_global_league'
+          );
+
+          if (
+            !rankingError &&
+            Array.isArray(rankingData)
+          ) {
+            const myIndex =
+              rankingData.findIndex(
+                row =>
+                  row?.user_id === userId ||
+                  row?.is_me === true
+              );
+
+            if (myIndex >= 0) {
+              const me =
+                rankingData[myIndex];
+
+              setCommunityGlobalRank(
+                Number(
+                  me?.rank_position ||
+                  me?.position ||
+                  me?.rank ||
+                  myIndex + 1
+                ) || null
+              );
+
+              setCommunityGlobalPoints(
+                Number(
+                  me?.points ||
+                  me?.total_points ||
+                  0
+                )
+              );
+            }
+          }
+        } catch (rankingError) {
+          console.log(
+            'OWN PROFILE GLOBAL:',
+            rankingError
+          );
+        }
+
+      } catch (error) {
+        console.log(
+          'OWN COMMUNITY PROFILE ERROR:',
+          error
+        );
+
+        Alert.alert(
+          'Perfil',
+          'No se pudieron cargar tus publicaciones.'
+        );
+      } finally {
+        setCommunityOwnPostsLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      if (
+        screen === 'community' &&
+        communitySocialTab === 'profile' &&
+        session?.user?.id
+      ) {
+        loadOwnCommunityProfile();
+      }
+    }, [
+      screen,
+      communitySocialTab,
+      session?.user?.id,
+    ]);
+
+
+    useEffect(() => {
+      if (
+        screen !== 'community' ||
+        !session?.user?.id
+      ) {
+        return;
+      }
+
+      loadCommunityNotifications();
+
+      const interval = setInterval(() => {
+        loadCommunityNotifications();
+      }, 20000);
+
+      return () => clearInterval(interval);
+    }, [
+      screen,
+      session?.user?.id,
+    ]);
+
+
+    const saveCommunityBio = async () => {
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      const cleanBio = String(communityBio || '')
+        .trim()
+        .slice(0, 150);
+
+      setCommunityBio(cleanBio);
+
+      await AsyncStorage.setItem(
+        '@rivalset_community_bio_' + userId,
+        cleanBio
+      );
+
+      setCommunityBioEditing(false);
+
+      try {
+        await notificationHaptic();
+      } catch {}
+    };
+
 
   const formatCommunityDate = (value) => {
     if (!value) return '';
@@ -9850,17 +10325,360 @@ const pr = isCardio
     });
   };
 
+  // =========================================================
+  // PERFIL PÚBLICO COMUNIDAD
+  // =========================================================
+
+  const searchCommunityUsers = async (text) => {
+    const clean = String(text || '')
+      .replace(/^@/, '')
+      .trim();
+
+    setCommunitySearchText(text);
+
+    if (clean.length < 2) {
+      setCommunitySearchResults([]);
+      return;
+    }
+
+    try {
+      setCommunitySearchLoading(true);
+
+      // Buscamos usuarios por nombre y @usuario.
+      // Se excluye nuestra propia cuenta.
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, community_username')
+        .or(
+          `username.ilike.%${clean}%,community_username.ilike.%${clean}%`
+        )
+        .neq('id', session.user.id)
+        .not('community_username', 'is', null)
+        .limit(20);
+
+      if (error) throw error;
+
+      const users = data || [];
+
+      // Fotos
+      const photoEntries = await Promise.all(
+        users.map(async (user) => {
+          try {
+            const { data: photoData, error: photoError } =
+              await supabase.storage
+                .from('profile-photos')
+                .createSignedUrl(
+                  `${user.id}/avatar.jpg`,
+                  3600
+                );
+
+            return [
+              user.id,
+              photoError
+                ? null
+                : photoData?.signedUrl || null,
+            ];
+          } catch {
+            return [user.id, null];
+          }
+        })
+      );
+
+      const photos = Object.fromEntries(photoEntries);
+
+      // Ranking Global
+      let rankingMap = {};
+
+      try {
+        const { data: globalData, error: globalError } =
+          await supabase.rpc('get_global_league');
+
+        if (
+          !globalError &&
+          Array.isArray(globalData)
+        ) {
+          globalData.forEach((item, index) => {
+            if (!item?.user_id) return;
+
+            rankingMap[item.user_id] = {
+              rank:
+                item.position ||
+                item.rank ||
+                index + 1,
+              points:
+                item.points ||
+                item.total_points ||
+                0,
+            };
+          });
+        }
+      } catch (rankingError) {
+        console.log(
+          'COMMUNITY SEARCH GLOBAL ERROR:',
+          rankingError
+        );
+      }
+
+      setCommunitySearchResults(
+        users.map((user) => ({
+          ...user,
+          avatarUri: photos[user.id] || null,
+          globalRank:
+            rankingMap[user.id]?.rank || null,
+          globalPoints:
+            rankingMap[user.id]?.points || 0,
+        }))
+      );
+    } catch (error) {
+      console.log(
+        'COMMUNITY SEARCH ERROR:',
+        error
+      );
+
+      Alert.alert(
+        'No se pudo buscar',
+        'Inténtalo de nuevo.'
+      );
+    } finally {
+      setCommunitySearchLoading(false);
+    }
+  };
+
+
+  const openCommunityPublicProfile = async (userId) => {
+    if (!userId || !session?.user?.id) return;
+
+    // Mi propio perfil
+    if (userId === session.user.id) {
+      setCommunitySocialTab('profile');
+      return;
+    }
+
+    try {
+      setCommunityPublicProfileLoading(true);
+
+      const { data: publicProfile, error: profileError } =
+        await supabase
+          .from('profiles')
+          .select('id, username, community_username')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      if (!publicProfile) {
+        Alert.alert('Perfil no disponible');
+        return;
+      }
+
+      // FOTO REAL DEL PERFIL PÚBLICO
+      let publicProfilePhoto = null;
+
+      try {
+        const { data: photoData, error: photoError } =
+          await supabase.storage
+            .from('profile-photos')
+            .createSignedUrl(
+              `${userId}/avatar.jpg`,
+              604800
+            );
+
+        if (!photoError && photoData?.signedUrl) {
+          publicProfilePhoto =
+            `${photoData.signedUrl}&v=${Date.now()}`;
+        }
+      } catch (photoError) {
+        console.log(
+          'ERROR FOTO PERFIL PÚBLICO:',
+          photoError
+        );
+      }
+
+      setCommunityPublicProfilePhoto(
+        publicProfilePhoto
+      );
+
+      // POSICIÓN GLOBAL REAL DEL USUARIO
+      try {
+        const { data: globalData, error: globalError } =
+          await supabase.rpc('get_global_league');
+
+        if (!globalError && Array.isArray(globalData)) {
+          const globalIndex = globalData.findIndex(
+            (item) => item.user_id === userId
+          );
+
+          if (globalIndex >= 0) {
+            const globalUser = globalData[globalIndex];
+
+            setCommunityPublicProfileGlobalRank(
+              globalUser.position ||
+              globalUser.rank ||
+              globalIndex + 1
+            );
+
+            setCommunityPublicProfileGlobalPoints(
+              globalUser.points ||
+              globalUser.total_points ||
+              0
+            );
+          } else {
+            setCommunityPublicProfileGlobalRank(null);
+            setCommunityPublicProfileGlobalPoints(0);
+          }
+        }
+      } catch (globalProfileError) {
+        console.log(
+          'ERROR GLOBAL PERFIL PÚBLICO:',
+          globalProfileError
+        );
+
+        setCommunityPublicProfileGlobalRank(null);
+        setCommunityPublicProfileGlobalPoints(0);
+      }
+
+      const { count: followersCount } = await supabase
+        .from('community_follows')
+        .select('follower_id', { count: 'exact', head: true })
+        .eq('following_id', userId);
+
+      const { count: followingCount } = await supabase
+        .from('community_follows')
+        .select('following_id', { count: 'exact', head: true })
+        .eq('follower_id', userId);
+
+      const { data: followRow } = await supabase
+        .from('community_follows')
+        .select('following_id')
+        .eq('follower_id', session.user.id)
+        .eq('following_id', userId)
+        .maybeSingle();
+
+      const { data: publicPosts, error: postsError } = await supabase
+        .from('community_posts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (postsError) throw postsError;
+
+      setCommunityPublicProfile(publicProfile);
+      setCommunityPublicProfileFollowers(followersCount || 0);
+      setCommunityPublicProfileFollowingCount(followingCount || 0);
+      setCommunityPublicProfileFollowing(!!followRow);
+      setCommunityPublicProfilePosts(publicPosts || []);
+
+      setCommunitySocialTab('publicProfile');
+
+    } catch (error) {
+      console.log('ERROR PERFIL PÚBLICO:', error);
+
+      Alert.alert(
+        'No se pudo abrir el perfil',
+        error?.message || 'Inténtalo de nuevo.'
+      );
+    } finally {
+      setCommunityPublicProfileLoading(false);
+    }
+  };
+
+  const toggleCommunityFollow = async () => {
+    const targetId = communityPublicProfile?.id;
+
+    if (!targetId || !session?.user?.id) return;
+    if (targetId === session.user.id) return;
+
+    try {
+      if (communityPublicProfileFollowing) {
+        const { error } = await supabase
+          .from('community_follows')
+          .delete()
+          .eq('follower_id', session.user.id)
+          .eq('following_id', targetId);
+
+        if (error) throw error;
+
+        setCommunityPublicProfileFollowing(false);
+        setCommunityPublicProfileFollowers((value) =>
+          Math.max(0, value - 1)
+        );
+      } else {
+        const { error } = await supabase
+          .from('community_follows')
+          .insert({
+            follower_id: session.user.id,
+            following_id: targetId,
+          });
+
+        if (error && error.code !== '23505') throw error;
+
+        setCommunityPublicProfileFollowing(true);
+        setCommunityPublicProfileFollowers((value) => value + 1);
+      }
+
+      await impact(Haptics.ImpactFeedbackStyle.Light);
+
+    } catch (error) {
+      console.log('ERROR FOLLOW:', error);
+
+      Alert.alert(
+        'No se pudo actualizar',
+        error?.message || 'Inténtalo de nuevo.'
+      );
+    }
+  };
+
+  const closeCommunityPublicProfile = () => {
+    setCommunityPublicProfile(null);
+    setCommunityPublicProfilePosts([]);
+    setCommunitySocialTab('feed');
+  };
+
+
   const loadCommunityPosts = async () => {
     if (!session?.user?.id) return;
 
     try {
       setCommunityLoading(true);
 
-      const { data: posts, error } = await supabase
+      // RIVALSET_COMMUNITY_FEEDS_V1
+      // "Para ti" = feed general.
+      // "Siguiendo" = solo publicaciones de usuarios seguidos.
+      let followedUserIds = [];
+
+      if (communitySocialTab === 'following') {
+        const { data: followRows, error: followError } =
+          await supabase
+            .from('community_follows')
+            .select('following_id')
+            .eq('follower_id', session.user.id);
+
+        if (followError) throw followError;
+
+        followedUserIds = (followRows || [])
+          .map(row => row.following_id)
+          .filter(Boolean);
+
+        if (followedUserIds.length === 0) {
+          setCommunityPosts([]);
+          setLikedPosts({});
+          setCommunityCommentsByPost({});
+          return;
+        }
+      }
+
+      let postsQuery = supabase
         .from('community_posts')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50);
+
+      if (communitySocialTab === 'following') {
+        postsQuery = postsQuery.in('user_id', followedUserIds);
+      }
+
+      const { data: posts, error } = await postsQuery;
 
       if (error) throw error;
 
@@ -10050,37 +10868,113 @@ const pr = isCardio
     if (screen === 'community' && session?.user?.id) {
       loadCommunityPosts();
     }
-  }, [screen, session?.user?.id]);
+  }, [
+    screen,
+    session?.user?.id,
+    communitySocialTab,
+  ]);
 
 
     const chooseCommunityPhoto = async () => {
-      try {
-        const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
+      Alert.alert(
+        'Añadir foto',
+        'Elige cómo quieres añadirla',
+        [
+          {
+            text: 'Hacer foto',
+            onPress: async () => {
+              try {
+                const permission =
+                  await ImagePicker.requestCameraPermissionsAsync();
 
-        if (!permission.granted) {
-          Alert.alert(
-            'Permiso necesario',
-            'RivalSet necesita acceso a tus fotos para publicar una imagen.'
-          );
-          return;
-        }
+                if (!permission.granted) {
+                  Alert.alert(
+                    'Permiso necesario',
+                    'RivalSet necesita acceso a la cámara para hacer una foto.'
+                  );
+                  return;
+                }
 
-        const result =
-          await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            allowsEditing: true,
-            quality: 0.7,
-            base64: true,
-          });
+                const result =
+                  await ImagePicker.launchCameraAsync({
+                    mediaTypes: ['images'],
+                    allowsEditing: true,
+                    quality: 0.7,
+                    base64: true,
+                  });
 
-        if (!result.canceled && result.assets?.[0]?.uri) {
-          communityPhotoData.current = result.assets[0];
-          setCommunityPhoto(result.assets[0].uri);
-        }
-      } catch (error) {
-        console.log('COMMUNITY PHOTO ERROR:', error);
-      }
+                if (
+                  !result.canceled &&
+                  result.assets?.[0]?.uri
+                ) {
+                  communityPhotoData.current =
+                    result.assets[0];
+
+                  setCommunityPhoto(
+                    result.assets[0].uri
+                  );
+                }
+              } catch (error) {
+                console.log(
+                  'COMMUNITY CAMERA ERROR:',
+                  error
+                );
+
+                Alert.alert(
+                  'No se pudo abrir la cámara',
+                  'Inténtalo de nuevo.'
+                );
+              }
+            },
+          },
+          {
+            text: 'Elegir de la galería',
+            onPress: async () => {
+              try {
+                const permission =
+                  await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+                if (!permission.granted) {
+                  Alert.alert(
+                    'Permiso necesario',
+                    'RivalSet necesita acceso a tus fotos para publicar una imagen.'
+                  );
+                  return;
+                }
+
+                const result =
+                  await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ['images'],
+                    allowsEditing: true,
+                    quality: 0.7,
+                    base64: true,
+                  });
+
+                if (
+                  !result.canceled &&
+                  result.assets?.[0]?.uri
+                ) {
+                  communityPhotoData.current =
+                    result.assets[0];
+
+                  setCommunityPhoto(
+                    result.assets[0].uri
+                  );
+                }
+              } catch (error) {
+                console.log(
+                  'COMMUNITY GALLERY ERROR:',
+                  error
+                );
+              }
+            },
+          },
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+        ]
+      );
     };
 
     const publishCommunityPost = async () => {
@@ -11028,20 +11922,278 @@ const pr = isCardio
         }
 
         if (item.id === 'search') {
-          Alert.alert(
-            'Buscar rivales',
-            'En el siguiente paso conectaremos aquí la búsqueda por @usuario.'
-          );
+          setCommunitySearchText('');
+          setCommunitySearchResults([]);
+          setCommunitySocialTab('search');
           return;
         }
 
         if (item.id === 'profile') {
-          setScreen('profile');
+          setCommunitySocialTab('profile');
+          loadOwnCommunityProfile();
           return;
         }
 
         setCommunitySocialTab(item.id);
       };
+
+      if (
+        communitySocialTab === 'publicProfile' &&
+        communityPublicProfile
+      ) {
+        return (
+          <LinearGradient
+            colors={backgroundGradient}
+            style={{ flex: 1 }}
+          >
+            <SafeAreaView style={{ flex: 1 }}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingHorizontal: 18,
+                  paddingBottom: 120,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: 8,
+                    marginBottom: 24,
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={closeCommunityPublicProfile}
+                    activeOpacity={0.7}
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 21,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: border,
+                    }}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={24}
+                      color={ink}
+                    />
+                  </TouchableOpacity>
+
+                  <Text
+                    style={{
+                      color: ink,
+                      fontSize: 17,
+                      fontWeight: '900',
+                    }}
+                  >
+                    Perfil
+                  </Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() =>
+                      Alert.alert(
+                        'Opciones',
+                        'Aquí añadiremos Bloquear y Denunciar en el siguiente paso.'
+                      )
+                    }
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 21,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: border,
+                    }}
+                  >
+                    <Ionicons
+                      name="ellipsis-horizontal"
+                      size={22}
+                      color={ink}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <View
+                  style={{
+                    alignItems: 'center',
+                    padding: 20,
+                    borderRadius: 26,
+                    backgroundColor: cardBg,
+                    borderWidth: 1,
+                    borderColor: border,
+                  }}
+                >
+                  <RivalSetPhoto
+                    uri={null}
+                    size={92}
+                    color={accentColor}
+                  />
+
+                  <Text
+                    style={{
+                      color: ink,
+                      fontSize: 22,
+                      fontWeight: '900',
+                      marginTop: 14,
+                    }}
+                  >
+                    {communityPublicProfile.username || 'Rival'}
+                  </Text>
+
+                  {!!communityPublicProfile.community_username && (
+                    <Text
+                      style={{
+                        color: muted,
+                        fontSize: 14,
+                        marginTop: 4,
+                      }}
+                    >
+                      @{communityPublicProfile.community_username}
+                    </Text>
+                  )}
+
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      marginTop: 22,
+                      marginBottom: 20,
+                    }}
+                  >
+                    <CommunityStat
+                      value={communityPublicProfilePosts.length}
+                      label="Posts"
+                    />
+
+                    <CommunityStat
+                      value={communityPublicProfileFollowers}
+                      label="Seguidores"
+                    />
+
+                    <CommunityStat
+                      value={communityPublicProfileFollowingCount}
+                      label="Siguiendo"
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={toggleCommunityFollow}
+                    style={{
+                      width: '100%',
+                      minHeight: 48,
+                      borderRadius: 16,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor:
+                        communityPublicProfileFollowing
+                          ? 'rgba(255,255,255,0.08)'
+                          : accentColor,
+                      borderWidth:
+                        communityPublicProfileFollowing ? 1 : 0,
+                      borderColor: border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          communityPublicProfileFollowing
+                            ? ink
+                            : '#08090C',
+                        fontSize: 15,
+                        fontWeight: '900',
+                      }}
+                    >
+                      {communityPublicProfileFollowing
+                        ? 'Siguiendo'
+                        : 'Seguir'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text
+                  style={{
+                    color: ink,
+                    fontSize: 17,
+                    fontWeight: '900',
+                    marginTop: 26,
+                    marginBottom: 14,
+                  }}
+                >
+                  Publicaciones
+                </Text>
+
+                {communityPublicProfilePosts.length === 0 ? (
+                  <View
+                    style={{
+                      padding: 24,
+                      borderRadius: 20,
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: muted,
+                        textAlign: 'center',
+                      }}
+                    >
+                      Todavía no ha publicado nada.
+                    </Text>
+                  </View>
+                ) : (
+                  communityPublicProfilePosts.map((post) => (
+                    <View
+                      key={post.id}
+                      style={{
+                        marginBottom: 14,
+                        padding: 16,
+                        borderRadius: 20,
+                        backgroundColor: cardBg,
+                        borderWidth: 1,
+                        borderColor: border,
+                      }}
+                    >
+                      {!!post.body && (
+                        <Text
+                          style={{
+                            color: ink,
+                            fontSize: 14,
+                            lineHeight: 20,
+                          }}
+                        >
+                          {post.body}
+                        </Text>
+                      )}
+
+                      {!!post.image_url && (
+                        <Image
+                          source={{ uri: post.image_url }}
+                          style={{
+                            width: '100%',
+                            height: 280,
+                            borderRadius: 16,
+                            marginTop: post.body ? 12 : 0,
+                          }}
+                          resizeMode="cover"
+                        />
+                      )}
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            </SafeAreaView>
+          </LinearGradient>
+        );
+      }
 
       return (
         <LinearGradient
@@ -11108,24 +12260,63 @@ const pr = isCardio
                   onCommunityNavPress(item)
                 }
               >
-                <MaterialCommunityIcons
-                  name={
-                    selected
-                      ? item.active
-                      : item.icon
-                  }
-                  size={
-                    item.id === 'following'
-                      ? 23
-                      : 22
-                  }
-                  color={
-                    selected
-                      ? accentColor
-                      : '#A8ABB2'
-                  }
-                  style={styles.navVectorIcon}
-                />
+                {item.id === 'profile' ? (
+                  <View
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      overflow: 'hidden',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: selected ? 2 : 1,
+                      borderColor:
+                        selected
+                          ? accentColor
+                          : 'rgba(255,255,255,0.24)',
+                    }}
+                  >
+                    {profilePhoto ? (
+                      <Image
+                        source={{ uri: profilePhoto }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                        }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name="account"
+                        size={19}
+                        color={
+                          selected
+                            ? accentColor
+                            : '#A8ABB2'
+                        }
+                      />
+                    )}
+                  </View>
+                ) : (
+                  <MaterialCommunityIcons
+                    name={
+                      selected
+                        ? item.active
+                        : item.icon
+                    }
+                    size={
+                      item.id === 'following'
+                        ? 23
+                        : 22
+                    }
+                    color={
+                      selected
+                        ? accentColor
+                        : '#A8ABB2'
+                    }
+                    style={styles.navVectorIcon}
+                  />
+                )}
 
                 <Text
                   style={[
@@ -11162,10 +12353,86 @@ const pr = isCardio
 return (
       <>
         <View style={{ flex: 1 }}>
-          <PageHeader
-            title="Comunidad"
-            subtitle="ENTRENA · COMPARTE · SUPÉRATE"
-          />
+          <View
+            style={{
+              position: 'relative',
+              zIndex: 20,
+            }}
+          >
+            <PageHeader
+              title="Comunidad"
+              subtitle="ENTRENA · COMPARTE · SUPÉRATE"
+            />
+
+            <TouchableOpacity
+              activeOpacity={0.72}
+              onPress={openCommunityActivity}
+              style={{
+                position: 'absolute',
+                right: 18,
+                top: 8,
+                width: 42,
+                height: 42,
+                borderRadius: 15,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: isLightTheme
+                  ? 'rgba(255,255,255,0.52)'
+                  : 'rgba(255,255,255,0.065)',
+                borderWidth: 1,
+                borderColor: isLightTheme
+                  ? 'rgba(0,0,0,0.07)'
+                  : 'rgba(255,255,255,0.10)',
+              }}
+            >
+              <MaterialCommunityIcons
+                name={
+                  communityUnreadCount > 0
+                    ? 'bell'
+                    : 'bell-outline'
+                }
+                size={23}
+                color={
+                  communityUnreadCount > 0
+                    ? COLORS.orange
+                    : ink
+                }
+              />
+
+              {communityUnreadCount > 0 ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    minWidth: 19,
+                    height: 19,
+                    borderRadius: 10,
+                    paddingHorizontal: 5,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: COLORS.orange,
+                    borderWidth: 2,
+                    borderColor: isLightTheme
+                      ? '#F5F5F5'
+                      : '#09090C',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#08090C',
+                      fontSize: 9,
+                      fontWeight: '900',
+                    }}
+                  >
+                    {communityUnreadCount > 99
+                      ? '99+'
+                      : communityUnreadCount}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          </View>
 
         {communityUsernameLoading ? (
           <View
@@ -11182,11 +12449,1606 @@ return (
           </View>
         ) : !communityUsername ? (
           <CommunityOnboarding />
+        ) : communitySocialTab === 'activity' ? (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 17,
+              paddingTop: 10,
+              paddingBottom: 140,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginBottom: 20,
+              }}
+            >
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() =>
+                  setCommunitySocialTab('feed')
+                }
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isLightTheme
+                    ? 'rgba(0,0,0,0.045)'
+                    : 'rgba(255,255,255,0.065)',
+                  borderWidth: 1,
+                  borderColor: border,
+                  marginRight: 12,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="arrow-left"
+                  size={22}
+                  color={ink}
+                />
+              </TouchableOpacity>
+
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    color: ink,
+                    fontSize: 24,
+                    fontWeight: '900',
+                    letterSpacing: -0.6,
+                  }}
+                >
+                  Actividad
+                </Text>
+
+
+              </View>
+            </View>
+
+
+            {communityNotificationsLoading &&
+            communityNotifications.length === 0 ? (
+              <View
+                style={{
+                  paddingVertical: 70,
+                  alignItems: 'center',
+                }}
+              >
+                <ActivityIndicator
+                  size="small"
+                  color={COLORS.orange}
+                />
+              </View>
+            ) : communityNotifications.length === 0 ? (
+              <View
+                style={{
+                  paddingVertical: 70,
+                  paddingHorizontal: 30,
+                  alignItems: 'center',
+                }}
+              >
+                <View
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 22,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor:
+                      `${COLORS.orange}14`,
+                    marginBottom: 16,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="bell-outline"
+                    size={31}
+                    color={COLORS.orange}
+                  />
+                </View>
+
+                <Text
+                  style={{
+                    color: ink,
+                    fontSize: 18,
+                    fontWeight: '900',
+                    textAlign: 'center',
+                  }}
+                >
+                  Todavía no hay actividad
+                </Text>
+
+                <Text
+                  style={{
+                    color: muted,
+                    fontSize: 13,
+                    lineHeight: 19,
+                    textAlign: 'center',
+                    marginTop: 7,
+                  }}
+                >
+                  Aquí aparecerán los me gusta, comentarios y nuevos seguidores.
+                </Text>
+              </View>
+            ) : (
+              communityNotifications.map(item => {
+                const unread = !item.read_at;
+
+                const icon =
+                  item.type === 'like'
+                    ? 'heart'
+                    : item.type === 'comment'
+                    ? 'comment-text-outline'
+                    : 'account-plus-outline';
+
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    activeOpacity={0.72}
+                    onPress={() =>
+                      openCommunityNotification(item)
+                    }
+                    style={{
+                      minHeight: 76,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 13,
+                      paddingVertical: 12,
+                      marginBottom: 9,
+                      borderRadius: 19,
+                      backgroundColor: unread
+                        ? (
+                            isLightTheme
+                              ? 'rgba(255,145,0,0.09)'
+                              : 'rgba(255,145,0,0.075)'
+                          )
+                        : cardBg,
+                      borderWidth: 1,
+                      borderColor: unread
+                        ? 'rgba(255,145,0,0.28)'
+                        : border,
+                    }}
+                  >
+                    <View
+                      style={{
+                        position: 'relative',
+                      }}
+                    >
+                      <RivalSetPhoto
+                        uri={item.actorAvatar}
+                        size={48}
+                        color={COLORS.orange}
+                      />
+
+                      <View
+                        style={{
+                          position: 'absolute',
+                          right: -5,
+                          bottom: -3,
+                          width: 23,
+                          height: 23,
+                          borderRadius: 12,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor:
+                            item.type === 'like'
+                              ? '#E95068'
+                              : item.type === 'comment'
+                              ? COLORS.orange
+                              : '#37B46E',
+                          borderWidth: 2,
+                          borderColor: isLightTheme
+                            ? '#F4F4F5'
+                            : '#111318',
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name={icon}
+                          size={12}
+                          color="#FFFFFF"
+                        />
+                      </View>
+                    </View>
+
+                    <View
+                      style={{
+                        flex: 1,
+                        marginLeft: 13,
+                        marginRight: 8,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: ink,
+                          fontSize: 13.5,
+                          lineHeight: 19,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontWeight: '900',
+                          }}
+                        >
+                          @{item.actorUsername}{' '}
+                        </Text>
+
+                        {getCommunityNotificationText(item)}
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: muted,
+                          fontSize: 10.5,
+                          fontWeight: '700',
+                          marginTop: 4,
+                        }}
+                      >
+                        {formatCommunityDate(
+                          item.created_at
+                        )}
+                      </Text>
+                    </View>
+
+                    {unread ? (
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor:
+                            COLORS.orange,
+                          marginRight: 3,
+                        }}
+                      />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name="chevron-right"
+                        size={20}
+                        color={muted}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+        ) : communitySocialTab === 'profile' ? (
+          <>
+            {/* RIVALSET COMMUNITY PROFILE PREMIUM V1 */}
+
+            <ScrollView
+              style={styles.container}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingBottom: 140,
+              }}
+            >
+              {/* IDENTIDAD */}
+              <View
+                style={{
+                  alignItems: 'center',
+                  paddingTop: 12,
+                  paddingBottom: 6,
+                }}
+              >
+                <View
+                  style={{
+                    padding: 4,
+                    borderRadius: 55,
+                    borderWidth: 1.5,
+                    borderColor: `${accentColor}80`,
+                  }}
+                >
+                  <RivalSetPhoto
+                    uri={profilePhoto}
+                    size={94}
+                    color={accentColor}
+                  />
+                </View>
+
+                <Text
+                  style={{
+                    color: ink,
+                    fontSize: 23,
+                    fontWeight: '900',
+                    marginTop: 14,
+                    textAlign: 'center',
+                    letterSpacing: -0.4,
+                  }}
+                >
+                  {profileName?.trim() || 'Rival'}
+                </Text>
+
+                {!!communityUsername && (
+                  <Text
+                    style={{
+                      color: muted,
+                      fontSize: 13,
+                      marginTop: 3,
+                    }}
+                  >
+                    @{communityUsername}
+                  </Text>
+                )}
+
+                {!!communityGlobalRank && (
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    onPress={() =>
+                      setScreen('globalLeague')
+                    }
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginTop: 11,
+                      paddingHorizontal: 13,
+                      height: 32,
+                      borderRadius: 12,
+                      backgroundColor: `${accentColor}12`,
+                      borderWidth: 1,
+                      borderColor: `${accentColor}35`,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="earth"
+                      size={14}
+                      color={accentColor}
+                    />
+
+                    <Text
+                      style={{
+                        color: accentColor,
+                        fontSize: 11,
+                        fontWeight: '900',
+                        marginLeft: 6,
+                        letterSpacing: 0.3,
+                      }}
+                    >
+                      #{communityGlobalRank} GLOBAL
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+
+              {/* BIOGRAFÍA */}
+              <View
+                style={{
+                  marginTop: 13,
+                  paddingHorizontal: 8,
+                }}
+              >
+                {communityBioEditing ? (
+                  <View
+                    style={{
+                      padding: 13,
+                      borderRadius: 17,
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: border,
+                    }}
+                  >
+                    <TextInput
+                      value={communityBio}
+                      onChangeText={setCommunityBio}
+                      placeholder="Escribe una biografía..."
+                      placeholderTextColor={muted}
+                      multiline
+                      maxLength={150}
+                      autoFocus
+                      style={{
+                        minHeight: 65,
+                        color: ink,
+                        fontSize: 13.5,
+                        lineHeight: 19,
+                        textAlignVertical: 'top',
+                      }}
+                    />
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={saveCommunityBio}
+                      style={{
+                        alignSelf: 'flex-end',
+                        marginTop: 8,
+                        paddingHorizontal: 15,
+                        height: 35,
+                        borderRadius: 12,
+                        backgroundColor: accentColor,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#08090C',
+                          fontSize: 11,
+                          fontWeight: '900',
+                        }}
+                      >
+                        GUARDAR
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    activeOpacity={0.72}
+                    onPress={() =>
+                      setCommunityBioEditing(true)
+                    }
+                  >
+                    <Text
+                      style={{
+                        color: communityBio ? ink : muted,
+                        fontSize: 13.5,
+                        lineHeight: 19,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {communityBio ||
+                        'Añade una biografía a tu perfil'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+
+              {/* ESTADÍSTICAS */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  marginTop: 23,
+                  marginHorizontal: 5,
+                  paddingVertical: 15,
+                  borderTopWidth: 1,
+                  borderBottomWidth: 1,
+                  borderColor: border,
+                }}
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: ink,
+                      fontSize: 18,
+                      fontWeight: '900',
+                    }}
+                  >
+                    {communityOwnPosts.length}
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: muted,
+                      fontSize: 10,
+                      fontWeight: '700',
+                      marginTop: 3,
+                    }}
+                  >
+                    Publicaciones
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: ink,
+                      fontSize: 18,
+                      fontWeight: '900',
+                    }}
+                  >
+                    {communityOwnFollowersCount || 0}
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: muted,
+                      fontSize: 10,
+                      fontWeight: '700',
+                      marginTop: 3,
+                    }}
+                  >
+                    Seguidores
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: ink,
+                      fontSize: 18,
+                      fontWeight: '900',
+                    }}
+                  >
+                    {communityOwnFollowingCount || 0}
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: muted,
+                      fontSize: 10,
+                      fontWeight: '700',
+                      marginTop: 3,
+                    }}
+                  >
+                    Siguiendo
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+
+              {/* EDITAR PERFIL */}
+              <TouchableOpacity
+                activeOpacity={0.78}
+                onPress={() =>
+                  setCommunityBioEditing(true)
+                }
+                style={{
+                  marginTop: 15,
+                  marginHorizontal: 5,
+                  height: 42,
+                  borderRadius: 14,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: cardBg,
+                  borderWidth: 1,
+                  borderColor: border,
+                }}
+              >
+                <Text
+                  style={{
+                    color: ink,
+                    fontSize: 12,
+                    fontWeight: '900',
+                  }}
+                >
+                  EDITAR PERFIL
+                </Text>
+              </TouchableOpacity>
+
+
+              {/* SELECTOR FOTOS / PUBLICACIONES */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  marginTop: 24,
+                  marginBottom: 14,
+                  borderBottomWidth: 1,
+                  borderBottomColor: border,
+                }}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() =>
+                    setCommunityProfileContentTab('photos')
+                  }
+                  style={{
+                    flex: 1,
+                    height: 46,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderBottomWidth:
+                      communityProfileContentTab === 'photos'
+                        ? 2
+                        : 0,
+                    borderBottomColor: accentColor,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="grid"
+                    size={19}
+                    color={
+                      communityProfileContentTab === 'photos'
+                        ? accentColor
+                        : muted
+                    }
+                  />
+
+                  <Text
+                    style={{
+                      color:
+                        communityProfileContentTab === 'photos'
+                          ? accentColor
+                          : muted,
+                      fontSize: 11,
+                      fontWeight: '900',
+                      marginLeft: 7,
+                      letterSpacing: 0.4,
+                    }}
+                  >
+                    FOTOS
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() =>
+                    setCommunityProfileContentTab('posts')
+                  }
+                  style={{
+                    flex: 1,
+                    height: 46,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderBottomWidth:
+                      communityProfileContentTab === 'posts'
+                        ? 2
+                        : 0,
+                    borderBottomColor: accentColor,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="format-list-bulleted"
+                    size={20}
+                    color={
+                      communityProfileContentTab === 'posts'
+                        ? accentColor
+                        : muted
+                    }
+                  />
+
+                  <Text
+                    style={{
+                      color:
+                        communityProfileContentTab === 'posts'
+                          ? accentColor
+                          : muted,
+                      fontSize: 11,
+                      fontWeight: '900',
+                      marginLeft: 7,
+                      letterSpacing: 0.4,
+                    }}
+                  >
+                    PUBLICACIONES
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+
+              {/* CARGANDO */}
+              {communityOwnPostsLoading ? (
+                <View
+                  style={{
+                    paddingVertical: 55,
+                    alignItems: 'center',
+                  }}
+                >
+                  <ActivityIndicator
+                    size="small"
+                    color={accentColor}
+                  />
+                </View>
+              ) : communityProfileContentTab === 'photos' ? (
+
+                /* ==========================================
+                   GALERÍA DE FOTOS
+                   ========================================== */
+
+                communityOwnPosts.filter(
+                  post => !!post.image_url
+                ).length === 0 ? (
+                  <View
+                    style={{
+                      paddingVertical: 55,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="image-multiple-outline"
+                      size={31}
+                      color={muted}
+                    />
+
+                    <Text
+                      style={{
+                        color: ink,
+                        fontSize: 15,
+                        fontWeight: '900',
+                        marginTop: 12,
+                      }}
+                    >
+                      Aún no hay fotos
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: muted,
+                        fontSize: 12,
+                        marginTop: 5,
+                      }}
+                    >
+                      Tus publicaciones con imagen aparecerán aquí.
+                    </Text>
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      marginHorizontal: -2,
+                    }}
+                  >
+                    {communityOwnPosts
+                      .filter(post => !!post.image_url)
+                      .map((post, index) => (
+                        <TouchableOpacity
+                          key={post.id}
+                          activeOpacity={0.82}
+                          style={{
+                            width: '33.333%',
+                            aspectRatio: 1,
+                            padding: 2,
+                          }}
+                        >
+                          <Image
+                            source={{
+                              uri: post.image_url,
+                            }}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              borderRadius: 8,
+                              backgroundColor: cardBg,
+                            }}
+                            resizeMode="cover"
+                          />
+
+                          {!!post.body && (
+                            <View
+                              style={{
+                                position: 'absolute',
+                                right: 8,
+                                top: 8,
+                                width: 23,
+                                height: 23,
+                                borderRadius: 12,
+                                backgroundColor:
+                                  'rgba(0,0,0,0.55)',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="text"
+                                size={13}
+                                color="#FFFFFF"
+                              />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                  </View>
+                )
+              ) : (
+
+                /* ==========================================
+                   PUBLICACIONES DE TEXTO
+                   ========================================== */
+
+                communityOwnPosts.filter(
+                  post => !post.image_url
+                ).length === 0 ? (
+                  <View
+                    style={{
+                      paddingVertical: 55,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="text-box-outline"
+                      size={31}
+                      color={muted}
+                    />
+
+                    <Text
+                      style={{
+                        color: ink,
+                        fontSize: 15,
+                        fontWeight: '900',
+                        marginTop: 12,
+                      }}
+                    >
+                      Aún no hay publicaciones de texto
+                    </Text>
+                  </View>
+                ) : (
+                  communityOwnPosts
+                    .filter(post => !post.image_url)
+                    .map(post => (
+                      <View
+                        key={post.id}
+                        style={{
+                          marginBottom: 11,
+                          padding: 16,
+                          borderRadius: 19,
+                          backgroundColor: cardBg,
+                          borderWidth: 1,
+                          borderColor: border,
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            marginBottom: 11,
+                          }}
+                        >
+                          <RivalSetPhoto
+                            uri={profilePhoto}
+                            size={34}
+                            color={accentColor}
+                          />
+
+                          <View
+                            style={{
+                              flex: 1,
+                              marginLeft: 9,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: ink,
+                                fontSize: 12,
+                                fontWeight: '900',
+                              }}
+                            >
+                              {profileName?.trim() || 'Rival'}
+                            </Text>
+
+                            <Text
+                              style={{
+                                color: muted,
+                                fontSize: 9.5,
+                                marginTop: 2,
+                              }}
+                            >
+                              {formatCommunityDate(
+                                post.created_at
+                              )}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Text
+                          style={{
+                            color: ink,
+                            fontSize: 14,
+                            lineHeight: 21,
+                          }}
+                        >
+                          {post.body ??
+                            post.text ??
+                            post.content ??
+                            post.caption ??
+                            post.description ??
+                            ''}
+                        </Text>
+
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            marginTop: 14,
+                            paddingTop: 12,
+                            borderTopWidth: 1,
+                            borderTopColor: border,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name="heart-outline"
+                            size={19}
+                            color={muted}
+                          />
+
+                          <Text
+                            style={{
+                              color: muted,
+                              fontSize: 11,
+                              fontWeight: '700',
+                              marginLeft: 5,
+                            }}
+                          >
+                            {post.reaction_count || 0}
+                          </Text>
+
+                          <MaterialCommunityIcons
+                            name="comment-outline"
+                            size={18}
+                            color={muted}
+                            style={{
+                              marginLeft: 18,
+                            }}
+                          />
+
+                          <Text
+                            style={{
+                              color: muted,
+                              fontSize: 11,
+                              fontWeight: '700',
+                              marginLeft: 5,
+                            }}
+                          >
+                            {post.comment_count || 0}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                )
+              )}
+            </ScrollView>
+          </>
+        ) : communitySocialTab === 'search' ? (
+          <>
+            {/* RIVALSET COMMUNITY SEARCH */}
+
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingTop: 8,
+                paddingBottom: 12,
+              }}
+            >
+              <Text
+                style={{
+                  color: ink,
+                  fontSize: 24,
+                  fontWeight: '900',
+                  marginBottom: 14,
+                }}
+              >
+                Buscar
+              </Text>
+
+              <View
+                style={{
+                  height: 50,
+                  borderRadius: 17,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 14,
+                  backgroundColor: cardBg,
+                  borderWidth: 1,
+                  borderColor: border,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="magnify"
+                  size={22}
+                  color={muted}
+                />
+
+                <RNTextInput
+                  value={communitySearchText}
+                  onChangeText={searchCommunityUsers}
+                  placeholder="Nombre o @usuario"
+                  placeholderTextColor={muted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  blurOnSubmit={false}
+                  returnKeyType="search"
+                  enablesReturnKeyAutomatically={false}
+                  returnKeyType="search"
+                  blurOnSubmit={false}
+                  keyboardShouldPersistTaps="always"
+                  style={{
+                    flex: 1,
+                    color: ink,
+                    fontSize: 15,
+                    marginLeft: 10,
+                    paddingVertical: 0,
+                  }}
+                />
+
+                {!!communitySearchText && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCommunitySearchText('');
+                      setCommunitySearchResults([]);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name="close-circle"
+                      size={20}
+                      color={muted}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{
+                paddingHorizontal: 16,
+                paddingBottom: 130,
+              }}
+            >
+              {communitySearchLoading ? (
+                <View
+                  style={{
+                    paddingVertical: 50,
+                    alignItems: 'center',
+                  }}
+                >
+                  <ActivityIndicator
+                    size="small"
+                    color={accentColor}
+                  />
+                </View>
+              ) : communitySearchText.trim().length < 2 ? (
+                <View
+                  style={{
+                    paddingTop: 55,
+                    alignItems: 'center',
+                    paddingHorizontal: 25,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="account-search-outline"
+                    size={45}
+                    color={muted}
+                  />
+
+                  <Text
+                    style={{
+                      color: ink,
+                      fontSize: 17,
+                      fontWeight: '900',
+                      marginTop: 16,
+                    }}
+                  >
+                    Busca rivales
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: muted,
+                      fontSize: 13,
+                      lineHeight: 19,
+                      textAlign: 'center',
+                      marginTop: 7,
+                    }}
+                  >
+                    Busca por nombre o por @usuario.
+                  </Text>
+                </View>
+              ) : communitySearchResults.length === 0 ? (
+                <View
+                  style={{
+                    paddingTop: 55,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: ink,
+                      fontSize: 16,
+                      fontWeight: '900',
+                    }}
+                  >
+                    No encontramos usuarios
+                  </Text>
+
+                  <Text
+                    style={{
+                      color: muted,
+                      fontSize: 12,
+                      marginTop: 6,
+                    }}
+                  >
+                    Prueba con otro nombre.
+                  </Text>
+                </View>
+              ) : (
+                communitySearchResults.map((user) => (
+                  <TouchableOpacity
+                    key={user.id}
+                    activeOpacity={0.72}
+                    onPress={() =>
+                      openCommunityPublicProfile(user.id)
+                    }
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: 13,
+                      marginBottom: 9,
+                      borderRadius: 19,
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: border,
+                    }}
+                  >
+                    <RivalSetPhoto
+                      uri={user.avatarUri}
+                      size={52}
+                      color={accentColor}
+                    />
+
+                    <View
+                      style={{
+                        flex: 1,
+                        marginLeft: 12,
+                      }}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: ink,
+                          fontSize: 15,
+                          fontWeight: '900',
+                        }}
+                      >
+                        {user.username || 'Rival'}
+                      </Text>
+
+                      {!!user.community_username && (
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: muted,
+                            fontSize: 12,
+                            marginTop: 3,
+                          }}
+                        >
+                          @{user.community_username}
+                        </Text>
+                      )}
+
+                      {!!user.globalRank && (
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            marginTop: 6,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name="earth"
+                            size={13}
+                            color={accentColor}
+                          />
+
+                          <Text
+                            style={{
+                              color: accentColor,
+                              fontSize: 11,
+                              fontWeight: '900',
+                              marginLeft: 5,
+                            }}
+                          >
+                            #{user.globalRank} GLOBAL
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <MaterialCommunityIcons
+                      name="chevron-right"
+                      size={23}
+                      color={muted}
+                    />
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </>
+        ) : communitySocialTab === 'publicProfile' &&
+            communityPublicProfile ? (
+          <>
+            {/* RIVALSET_PUBLIC_PROFILE_RENDER_FIXED_V2 */}
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 18,
+                paddingTop: 8,
+                paddingBottom: 14,
+              }}
+            >
+              <TouchableOpacity
+                activeOpacity={0.72}
+                onPress={() => {
+                  setCommunityPublicProfile(null);
+                  setCommunityPublicProfilePhoto(null);
+                  setCommunityPublicProfilePosts([]);
+                  setCommunitySocialTab('feed');
+                }}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: cardBg,
+                  borderWidth: 1,
+                  borderColor: border,
+                }}
+              >
+                <Ionicons
+                  name="chevron-back"
+                  size={24}
+                  color={ink}
+                />
+              </TouchableOpacity>
+
+              <View style={{ alignItems: 'center' }}>
+                <Text
+                  style={{
+                    color: ink,
+                    fontSize: 17,
+                    fontWeight: '900',
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  PERFIL
+                </Text>
+              </View>
+
+              <View
+                style={{
+                  width: 42,
+                  height: 42,
+                }}
+              />
+            </View>
+
+            <ScrollView
+              style={styles.container}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingBottom: 125,
+              }}
+            >
+              <View
+                style={{
+                  alignItems: 'center',
+                  padding: 20,
+                  marginBottom: 22,
+                  borderRadius: 24,
+                  backgroundColor: cardBg,
+                  borderWidth: 1,
+                  borderColor: border,
+                }}
+              >
+                <RivalSetPhoto
+                  uri={communityPublicProfilePhoto}
+                  size={92}
+                  color={accentColor}
+                />
+
+                <Text
+                  style={{
+                    color: ink,
+                    fontSize: 22,
+                    fontWeight: '900',
+                    marginTop: 14,
+                    textAlign: 'center',
+                  }}
+                >
+                  {communityPublicProfile.username || 'Rival'}
+                </Text>
+
+                {!!communityPublicProfile.community_username && (
+                  <Text
+                    style={{
+                      color: muted,
+                      fontSize: 14,
+                      marginTop: 4,
+                    }}
+                  >
+                    @{communityPublicProfile.community_username}
+                  </Text>
+                )}
+
+                <TouchableOpacity
+                  activeOpacity={0.78}
+                  onPress={() => {
+                    setCommunityPublicProfile(null);
+                    setCommunityPublicProfilePhoto(null);
+                    setCommunityPublicProfilePosts([]);
+                    setCommunitySocialTab('feed');
+                    setScreen('globalLeague');
+                  }}
+                  style={{
+                    marginTop: 15,
+                    paddingHorizontal: 15,
+                    paddingVertical: 9,
+                    borderRadius: 14,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(255,157,0,0.10)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,157,0,0.30)',
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="earth"
+                    size={17}
+                    color={accentColor}
+                  />
+
+                  <Text
+                    style={{
+                      color: accentColor,
+                      fontSize: 13,
+                      fontWeight: '900',
+                      marginLeft: 7,
+                      letterSpacing: 0.3,
+                    }}
+                  >
+                    {communityPublicProfileGlobalRank
+                      ? `#${communityPublicProfileGlobalRank} GLOBAL`
+                      : 'GLOBAL LEAGUE'}
+                  </Text>
+
+                  {communityPublicProfileGlobalPoints > 0 && (
+                    <Text
+                      style={{
+                        color: muted,
+                        fontSize: 11,
+                        fontWeight: '700',
+                        marginLeft: 8,
+                      }}
+                    >
+                      {communityPublicProfileGlobalPoints} pts
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginTop: 22,
+                    marginBottom: 20,
+                  }}
+                >
+                  {[
+                    {
+                      value: communityPublicProfilePosts.length,
+                      label: 'Posts',
+                    },
+                    {
+                      value: communityPublicProfileFollowers,
+                      label: 'Seguidores',
+                    },
+                    {
+                      value: communityPublicProfileFollowingCount,
+                      label: 'Siguiendo',
+                    },
+                  ].map((stat) => (
+                    <View
+                      key={stat.label}
+                      style={{
+                        minWidth: 82,
+                        alignItems: 'center',
+                        paddingHorizontal: 8,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: ink,
+                          fontSize: 18,
+                          fontWeight: '900',
+                        }}
+                      >
+                        {stat.value}
+                      </Text>
+
+                      <Text
+                        style={{
+                          color: muted,
+                          fontSize: 11,
+                          marginTop: 3,
+                        }}
+                      >
+                        {stat.label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View
+                  style={{
+                    width: '100%',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginTop: 2,
+                  }}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={toggleCommunityFollow}
+                    style={{
+                      flex: 1,
+                      height: 48,
+                      borderRadius: 16,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor:
+                        communityPublicProfileFollowing
+                          ? 'rgba(255,255,255,0.08)'
+                          : accentColor,
+                      borderWidth:
+                        communityPublicProfileFollowing ? 1 : 0,
+                      borderColor: border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          communityPublicProfileFollowing
+                            ? ink
+                            : '#08090C',
+                        fontSize: 15,
+                        fontWeight: '900',
+                      }}
+                    >
+                      {communityPublicProfileFollowing
+                        ? 'Siguiendo'
+                        : 'Seguir'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.72}
+                    onPress={() => {
+                      Alert.alert(
+                        communityPublicProfile.username || 'Usuario',
+                        'Opciones',
+                        [
+                          {
+                            text: 'Bloquear',
+                            style: 'destructive',
+                            onPress: () =>
+                              Alert.alert(
+                                'Bloquear usuario',
+                                'Conectaremos el bloqueo real en el siguiente paso.'
+                              ),
+                          },
+                          {
+                            text: 'Denunciar',
+                            onPress: () =>
+                              Alert.alert(
+                                'Denunciar usuario',
+                                'Conectaremos el sistema de denuncias en el siguiente paso.'
+                              ),
+                          },
+                          {
+                            text: 'Cancelar',
+                            style: 'cancel',
+                          },
+                        ]
+                      );
+                    }}
+                    style={{
+                      width: 48,
+                      height: 48,
+                      marginLeft: 9,
+                      borderRadius: 16,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'rgba(255,255,255,0.06)',
+                      borderWidth: 1,
+                      borderColor: border,
+                    }}
+                  >
+                    <Ionicons
+                      name="ellipsis-horizontal"
+                      size={21}
+                      color={ink}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text
+                style={{
+                  color: ink,
+                  fontSize: 17,
+                  fontWeight: '900',
+                  marginBottom: 14,
+                }}
+              >
+                Publicaciones
+              </Text>
+
+              {communityPublicProfilePosts.length === 0 ? (
+                <View
+                  style={{
+                    padding: 24,
+                    borderRadius: 20,
+                    backgroundColor: cardBg,
+                    borderWidth: 1,
+                    borderColor: border,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: muted,
+                      textAlign: 'center',
+                      fontSize: 13,
+                    }}
+                  >
+                    Todavía no ha publicado nada.
+                  </Text>
+                </View>
+              ) : (
+                communityPublicProfilePosts.map((post) => (
+                  <View
+                    key={post.id}
+                    style={{
+                      marginBottom: 14,
+                      borderRadius: 22,
+                      padding: 16,
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: border,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {!!post.body && (
+                      <Text
+                        style={{
+                          color: ink,
+                          fontSize: 14,
+                          lineHeight: 20,
+                        }}
+                      >
+                        {post.body}
+                      </Text>
+                    )}
+
+                    {!!post.image_url && (
+                      <Image
+                        source={{
+                          uri: post.image_url,
+                        }}
+                        style={{
+                          width: '100%',
+                          height: 340,
+                          borderRadius: 18,
+                          marginTop: post.body ? 12 : 0,
+                        }}
+                        resizeMode="cover"
+                      />
+                    )}
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            
+          </>
         ) : (
           <>
 
-        {/* COMMUNITY SOCIAL HEADER V2 */}
-        <CommunityCompactHeader />
+        {/* RIVALSET COMMUNITY FEED LIMPIO */}
+        {/* El perfil personal vive ahora exclusivamente en Perfil */}
 
         {/* La navegación social se renderiza fija al final de Comunidad */}
 
@@ -11211,238 +14073,361 @@ return (
               paddingBottom: 120,
             }}
           >
-            {/* CREAR PUBLICACIÓN */}
-            <View
-              style={{
-                marginTop: 8,
-                marginBottom: 18,
-                padding: 16,
-                borderRadius: 22,
-                backgroundColor: cardBg,
-                borderWidth: 1,
-                borderColor: border,
-              }}
-            >
+            {/* CREAR PUBLICACIÓN · COMPACTO PREMIUM */}
+            {communitySocialTab === 'feed' && (
               <View
                 style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginBottom: 14,
+                  marginTop: 8,
+                  marginBottom: 20,
                 }}
               >
-                <RivalSetPhoto
-                  uri={profilePhoto}
-                  size={42}
-                  color={accentColor}
-                />
-
-                <View
-                  style={{
-                    marginLeft: 11,
-                    flex: 1,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: ink,
-                      fontSize: 15,
-                      fontWeight: '900',
-                    }}
-                  >
-                    {profileName?.trim() || 'Rival'}
-                  </Text>
-
-                  <Text
-                    style={{
-                      color: muted,
-                      fontSize: 11,
-                      marginTop: 2,
-                    }}
-                  >
-                    Comparte tu progreso
-                  </Text>
-                </View>
-              </View>
-
-              <TextInput
-                value={communityText}
-                onChangeText={setCommunityText}
-                placeholder="¿Qué has conseguido hoy?"
-                placeholderTextColor={muted}
-                multiline
-                style={{
-                  minHeight: 72,
-                  color: ink,
-                  fontSize: 15,
-                  lineHeight: 21,
-                  textAlignVertical: 'top',
-                  paddingVertical: 4,
-                }}
-              />
-
-              {communityPhoto ? (
-                <View
-                  style={{
-                    marginTop: 12,
-                    borderRadius: 18,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <Image
-                    source={{ uri: communityPhoto }}
-                    style={{
-                      width: '100%',
-                      height: 230,
-                    }}
-                    resizeMode="cover"
-                  />
-
+                {!communityComposerOpen ? (
                   <TouchableOpacity
-                    onPress={() => setCommunityPhoto(null)}
+                    activeOpacity={0.82}
+                    onPress={() => setCommunityComposerOpen(true)}
                     style={{
-                      position: 'absolute',
-                      top: 10,
-                      right: 10,
-                      width: 34,
-                      height: 34,
-                      borderRadius: 17,
-                      backgroundColor: 'rgba(0,0,0,0.72)',
+                      minHeight: 64,
+                      flexDirection: 'row',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      paddingHorizontal: 13,
+                      borderRadius: 20,
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: border,
                     }}
                   >
-                    <MaterialCommunityIcons
-                      name="close"
-                      size={19}
-                      color="#FFFFFF"
+                    <RivalSetPhoto
+                      uri={profilePhoto}
+                      size={42}
+                      color={accentColor}
                     />
+
+                    <View
+                      style={{
+                        flex: 1,
+                        marginLeft: 12,
+                        height: 42,
+                        borderRadius: 15,
+                        justifyContent: 'center',
+                        paddingHorizontal: 14,
+                        backgroundColor: isLightTheme
+                          ? 'rgba(0,0,0,0.035)'
+                          : 'rgba(255,255,255,0.045)',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: muted,
+                          fontSize: 13.5,
+                          fontWeight: '600',
+                        }}
+                      >
+                        Comparte tu progreso...
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        setCommunityComposerOpen(true);
+                        setTimeout(() => {
+                          chooseCommunityPhoto();
+                        }, 100);
+                      }}
+                      style={{
+                        width: 42,
+                        height: 42,
+                        marginLeft: 9,
+                        borderRadius: 14,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: `${accentColor}14`,
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="image-outline"
+                        size={22}
+                        color={accentColor}
+                      />
+                    </TouchableOpacity>
                   </TouchableOpacity>
-                </View>
-              ) : null}
-
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginTop: 14,
-                  paddingTop: 13,
-                  borderTopWidth: 1,
-                  borderTopColor: border,
-                }}
-              >
-                <TouchableOpacity
-                  onPress={chooseCommunityPhoto}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="image-outline"
-                    size={23}
-                    color={accentColor}
-                  />
-
-                  <Text
+                ) : (
+                  <View
                     style={{
-                      color: muted,
-                      fontSize: 12,
-                      fontWeight: '800',
-                      marginLeft: 7,
+                      padding: 15,
+                      borderRadius: 22,
+                      backgroundColor: cardBg,
+                      borderWidth: 1,
+                      borderColor: border,
                     }}
                   >
-                    FOTO
-                  </Text>
-                </TouchableOpacity>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <RivalSetPhoto
+                        uri={profilePhoto}
+                        size={42}
+                        color={accentColor}
+                      />
 
-                <TouchableOpacity
-                  onPress={publishCommunityPost}
-                  activeOpacity={0.8}
-                  style={{
-                    minWidth: 105,
-                    height: 40,
-                    paddingHorizontal: 17,
-                    borderRadius: 14,
-                    backgroundColor: accentColor,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: '#08090C',
-                      fontSize: 12,
-                      fontWeight: '900',
-                      letterSpacing: 0.4,
-                    }}
-                  >
-                    PUBLICAR
-                  </Text>
-                </TouchableOpacity>
+                      <View
+                        style={{
+                          flex: 1,
+                          marginLeft: 11,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: ink,
+                            fontSize: 14,
+                            fontWeight: '900',
+                          }}
+                        >
+                          {profileName?.trim() || 'Rival'}
+                        </Text>
+
+                        <Text
+                          style={{
+                            color: muted,
+                            fontSize: 10.5,
+                            marginTop: 2,
+                          }}
+                        >
+                          Nueva publicación
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          if (
+                            !communityText?.trim() &&
+                            !communityPhoto
+                          ) {
+                            setCommunityComposerOpen(false);
+                          } else {
+                            Alert.alert(
+                              'Descartar publicación',
+                              '¿Quieres cerrar esta publicación?',
+                              [
+                                {
+                                  text: 'Seguir editando',
+                                  style: 'cancel',
+                                },
+                                {
+                                  text: 'Descartar',
+                                  style: 'destructive',
+                                  onPress: () => {
+                                    setCommunityText('');
+                                    setCommunityPhoto(null);
+                                    setCommunityComposerOpen(false);
+                                  },
+                                },
+                              ]
+                            );
+                          }
+                        }}
+                        style={{
+                          width: 35,
+                          height: 35,
+                          borderRadius: 12,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: isLightTheme
+                            ? 'rgba(0,0,0,0.04)'
+                            : 'rgba(255,255,255,0.055)',
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="close"
+                          size={19}
+                          color={muted}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    <TextInput
+                      value={communityText}
+                      onChangeText={setCommunityText}
+                      placeholder="¿Qué has conseguido hoy?"
+                      placeholderTextColor={muted}
+                      multiline
+                      autoFocus
+                      style={{
+                        minHeight: 82,
+                        marginTop: 14,
+                        color: ink,
+                        fontSize: 15,
+                        lineHeight: 21,
+                        textAlignVertical: 'top',
+                        paddingVertical: 4,
+                      }}
+                    />
+
+                    {communityPhoto ? (
+                      <View
+                        style={{
+                          marginTop: 10,
+                          borderRadius: 18,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <Image
+                          source={{ uri: communityPhoto }}
+                          style={{
+                            width: '100%',
+                            height: 260,
+                          }}
+                          resizeMode="cover"
+                        />
+
+                        <TouchableOpacity
+                          onPress={() => setCommunityPhoto(null)}
+                          activeOpacity={0.7}
+                          style={{
+                            position: 'absolute',
+                            top: 10,
+                            right: 10,
+                            width: 34,
+                            height: 34,
+                            borderRadius: 17,
+                            backgroundColor: 'rgba(0,0,0,0.72)',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name="close"
+                            size={19}
+                            color="#FFFFFF"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginTop: 14,
+                        paddingTop: 13,
+                        borderTopWidth: 1,
+                        borderTopColor: border,
+                      }}
+                    >
+                      <TouchableOpacity
+                        onPress={chooseCommunityPhoto}
+                        activeOpacity={0.7}
+                        style={{
+                          height: 38,
+                          paddingHorizontal: 11,
+                          borderRadius: 12,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: isLightTheme
+                            ? 'rgba(0,0,0,0.035)'
+                            : 'rgba(255,255,255,0.045)',
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="image-outline"
+                          size={20}
+                          color={accentColor}
+                        />
+
+                        <Text
+                          style={{
+                            color: ink,
+                            fontSize: 11,
+                            fontWeight: '800',
+                            marginLeft: 6,
+                          }}
+                        >
+                          FOTO
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          Alert.alert(
+                            'Compartir rutina',
+                            'Ahora conectaremos aquí tus rutinas guardadas para elegir cuál compartir.'
+                          );
+                        }}
+                        activeOpacity={0.7}
+                        style={{
+                          height: 38,
+                          paddingHorizontal: 11,
+                          marginLeft: 8,
+                          borderRadius: 12,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: isLightTheme
+                            ? 'rgba(0,0,0,0.035)'
+                            : 'rgba(255,255,255,0.045)',
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="dumbbell"
+                          size={18}
+                          color={muted}
+                        />
+
+                        <Text
+                          style={{
+                            color: ink,
+                            fontSize: 11,
+                            fontWeight: '800',
+                            marginLeft: 6,
+                          }}
+                        >
+                          RUTINA
+                        </Text>
+                      </TouchableOpacity>
+
+                      <View style={{ flex: 1 }} />
+
+                      <TouchableOpacity
+                        onPress={async () => {
+                          await publishCommunityPost();
+
+                          setTimeout(() => {
+                            setCommunityComposerOpen(false);
+                          }, 250);
+                        }}
+                        activeOpacity={0.82}
+                        style={{
+                          height: 40,
+                          paddingHorizontal: 17,
+                          borderRadius: 14,
+                          backgroundColor: accentColor,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: '#08090C',
+                            fontSize: 11,
+                            fontWeight: '900',
+                            letterSpacing: 0.35,
+                          }}
+                        >
+                          PUBLICAR
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
-            </View>
+            )}
 
-            {/* RIVALSET_COMMUNITY_FOLLOWING_EMPTY_V1 */}
-            {communitySocialTab === 'following' ? (
-              <View
-                style={{
-                  marginTop: 18,
-                  marginBottom: 30,
-                  paddingHorizontal: 24,
-                  paddingVertical: 38,
-                  borderRadius: 22,
-                  backgroundColor: cardBg,
-                  borderWidth: 1,
-                  borderColor: border,
-                  alignItems: 'center',
-                }}
-              >
-                <View
-                  style={{
-                    width: 58,
-                    height: 58,
-                    borderRadius: 20,
-                    backgroundColor: `${accentColor}14`,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 15,
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="account-multiple-plus-outline"
-                    size={29}
-                    color={accentColor}
-                  />
-                </View>
+            {/* FEED PARA TI / SIGUIENDO */}
 
-                <Text
-                  style={{
-                    color: ink,
-                    fontSize: 17,
-                    fontWeight: '900',
-                    textAlign: 'center',
-                  }}
-                >
-                  Tu círculo de rivales
-                </Text>
-
-                <Text
-                  style={{
-                    color: muted,
-                    fontSize: 13,
-                    lineHeight: 19,
-                    textAlign: 'center',
-                    marginTop: 7,
-                  }}
-                >
-                  Aquí aparecerá el progreso de las personas que sigas.
-                </Text>
-              </View>
-            ) : (
-              <>
-            {/* FEED */}
             {communityPosts.length === 0 ? (
               <View
                 style={{
@@ -11508,7 +14493,9 @@ return (
                       overflow: 'hidden',
                     }}
                   >
-                    <View
+                    <TouchableOpacity
+                      activeOpacity={0.72}
+                      onPress={() => openCommunityPublicProfile(post.user_id)}
                       style={{
                         padding: 15,
                         flexDirection: 'row',
@@ -11547,7 +14534,7 @@ return (
                           {post.createdAt}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
 
                     {post.text ? (
                       <Text
@@ -11822,8 +14809,6 @@ return (
                   </View>
                 );
               })
-            )}
-              </>
             )}
           </ScrollView>
 
@@ -32794,6 +35779,7 @@ leaguePlayerAward: {
     backgroundColor: 'rgba(12,13,17,0.56)',
     borderColor: 'rgba(255,255,255,0.10)',
     borderRadius: 20,
+
   },
 
   strengthLiveExerciseCardComplete: {
